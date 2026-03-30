@@ -1,0 +1,77 @@
+/* ===== CSS Variables — Dark Mode First ===== */
+:root {
+  /* 북스탯 다크 테마: 로고의 딥네이비 기반 */
+  --bg-base: #0e1624;
+  --bg-surface: #162033;
+  --border: #253249;
+  --text: #c2ccdc;
+  --text-heading: #e8edf6;
+  --text-muted: #5d7292;
+  --accent: #3b7fd4;
+  --accent-hover: #2d6bbf;
+  --accent-yellow: #f5c518;
+  --accent-green: #2ecc71;
+
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light mode — 로고 배경의 크림 베이지 기반 */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-base: #f0ebe0;
+    --bg-surface: #faf7f2;
+    --border: #ddd5c6;
+    --text: #3a4a5e;
+    --text-heading: #152238;
+    --text-muted: #8a9ab0;
+    --accent: #3b7fd4;
+    --accent-hover: #2d6bbf;
+    --accent-yellow: #e6b800;
+    --accent-green: #27ae60;
+    color-scheme: light;
+  }
+}
+
+/* ===== Reset ===== */
+*, *::before, *::after { box-sizing: border-box; }
+
+body { margin: 0; }
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-heading);
+  line-height: 1.2;
+}
+
+p { margin: 0; }
+
+button { font-family: inherit; }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
+select { appearance: none; cursor: pointer; }
+
+#root {
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

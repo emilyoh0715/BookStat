@@ -1,128 +1,78 @@
 import { useState, useEffect } from 'react';
 import type { Book, VocabEntry, Note, ReadingStatus, BookLanguage } from './types';
+import { supabase } from './lib/supabase';
 
-const STORAGE_KEY = 'book-recorder-data';
-
-const SAMPLE_BOOKS: Book[] = [
-  {
-    id: '1',
-    userId: 'mom',
-    title: '채식주의자',
-    author: '한강',
-    genre: '소설',
-    language: 'korean',
-    totalPages: 247,
-    currentPage: 247,
-    status: 'finished',
-    rating: 5,
-    review: '강렬하고 충격적인 이야기. 인간 본성과 폭력성에 대해 깊이 생각하게 만든다.',
-    startDate: '2024-01-10',
-    finishDate: '2024-01-20',
-    createdAt: '2024-01-10',
-    vocab: [
-      { id: 'v1', word: '채식', meaning: '고기나 생선 없이 채소만 먹는 것', page: 12, createdAt: '2024-01-11' },
-      { id: 'v2', word: '몽유병', meaning: '잠을 자면서 돌아다니는 병', page: 45, createdAt: '2024-01-13' },
-    ],
-    notes: [
-      { id: 'n1', content: '꿈 장면이 매우 인상적. 식물이 되고자 하는 욕망이 자유에 대한 열망인가?', page: 89, createdAt: '2024-01-15' },
-    ],
-  },
-  {
-    id: '2',
-    userId: 'mom',
-    title: '82년생 김지영',
-    author: '조남주',
-    genre: '소설',
-    language: 'korean',
-    totalPages: 190,
-    currentPage: 120,
-    status: 'reading',
-    startDate: '2024-02-01',
-    createdAt: '2024-02-01',
-    vocab: [],
-    notes: [
-      { id: 'n2', content: '한국 사회의 성차별 구조를 매우 현실적으로 묘사하고 있음', page: 55, createdAt: '2024-02-05' },
-    ],
-  },
-  {
-    id: '3',
-    userId: 'dad',
-    title: 'The Midnight Library',
-    author: 'Matt Haig',
-    genre: '소설',
-    language: 'english',
-    totalPages: 304,
-    currentPage: 304,
-    status: 'finished',
-    rating: 4,
-    review: 'A beautiful story about second chances and the infinite possibilities of life.',
-    startDate: '2023-11-01',
-    finishDate: '2023-11-15',
-    createdAt: '2023-11-01',
-    vocab: [
-      { id: 'v3', word: 'mundane', meaning: '세속적인, 평범한 (일상적이고 특별하지 않은)', page: 23, createdAt: '2023-11-03' },
-      { id: 'v4', word: 'regret', meaning: '후회, 유감 (과거의 행동을 아쉬워하는 감정)', page: 45, createdAt: '2023-11-05' },
-    ],
-    notes: [
-      { id: 'n3', content: 'The metaphor of the library as infinite lives is brilliant', page: 60, createdAt: '2023-11-08' },
-    ],
-  },
-  {
-    id: '4',
-    userId: 'suyeon',
-    title: '아몬드',
-    author: '손원평',
-    genre: '소설',
-    language: 'korean',
-    totalPages: 264,
-    status: 'want-to-read',
-    createdAt: '2025-01-05',
-    vocab: [],
-    notes: [],
-  },
-  {
-    id: '5',
-    userId: 'dad',
-    title: 'Atomic Habits',
-    author: 'James Clear',
-    genre: '자기계발',
-    language: 'english',
-    totalPages: 320,
-    currentPage: 180,
-    status: 'reading',
-    startDate: '2025-02-10',
-    createdAt: '2025-02-10',
-    vocab: [
-      { id: 'v5', word: 'compound', meaning: '복리의, 복합적인 (작은 변화들이 쌓여 큰 결과를 만드는)', page: 15, createdAt: '2025-02-12' },
-    ],
-    notes: [],
-  },
-];
-
-function loadBooks(): Book[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) {
-      const parsed = JSON.parse(data) as Book[];
-      // Migrate old books without language field
-      return parsed.map(b => ({ ...b, language: b.language ?? ('korean' as BookLanguage) }));
-    }
-  } catch {}
-  return SAMPLE_BOOKS;
+// DB row → Book 변환
+function dbToBook(row: Record<string, unknown>): Book {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    title: row.title as string,
+    author: row.author as string,
+    cover: row.cover as string | undefined,
+    genre: row.genre as string | undefined,
+    language: (row.language as BookLanguage) ?? 'korean',
+    totalPages: row.total_pages as number | undefined,
+    currentPage: row.current_page as number | undefined,
+    status: row.status as ReadingStatus,
+    rating: row.rating as number | undefined,
+    review: row.review as string | undefined,
+    startDate: row.start_date as string | undefined,
+    finishDate: row.finish_date as string | undefined,
+    createdAt: row.created_at as string,
+    vocab: (row.vocab as VocabEntry[]) ?? [],
+    notes: (row.notes as Note[]) ?? [],
+  };
 }
 
-function saveBooks(books: Book[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
+// Book → DB row 변환
+function bookToDb(book: Book) {
+  return {
+    id: book.id,
+    user_id: book.userId,
+    title: book.title,
+    author: book.author,
+    cover: book.cover ?? null,
+    genre: book.genre ?? null,
+    language: book.language,
+    total_pages: book.totalPages ?? null,
+    current_page: book.currentPage ?? null,
+    status: book.status,
+    rating: book.rating ?? null,
+    review: book.review ?? null,
+    start_date: book.startDate ?? null,
+    finish_date: book.finishDate ?? null,
+    created_at: book.createdAt,
+    vocab: book.vocab,
+    notes: book.notes,
+  };
 }
 
 export function useBooks() {
-  const [books, setBooks] = useState<Book[]>(loadBooks);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // 초기 로드
   useEffect(() => {
-    saveBooks(books);
-  }, [books]);
+    const load = async () => {
+      const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
+      if (data) setBooks(data.map(dbToBook));
+      setLoading(false);
+    };
+    load();
 
-  const addBook = (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>, userId: string) => {
+    // 실시간 동기화 — 다른 가족이 추가/수정/삭제하면 자동 반영
+    const channel = supabase
+      .channel('books-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
+        load();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const addBook = async (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>, userId: string) => {
     const newBook: Book = {
       ...book,
       id: Date.now().toString(),
@@ -132,49 +82,66 @@ export function useBooks() {
       notes: [],
     };
     setBooks(prev => [newBook, ...prev]);
+    await supabase.from('books').insert(bookToDb(newBook));
     return newBook.id;
   };
 
-  const updateBook = (id: string, updates: Partial<Book>) => {
+  const updateBook = async (id: string, updates: Partial<Book>) => {
     setBooks(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+    const book = books.find(b => b.id === id);
+    if (!book) return;
+    await supabase.from('books').update(bookToDb({ ...book, ...updates })).eq('id', id);
   };
 
-  const deleteBook = (id: string) => {
+  const deleteBook = async (id: string) => {
     setBooks(prev => prev.filter(b => b.id !== id));
+    await supabase.from('books').delete().eq('id', id);
   };
 
-  const addVocab = (bookId: string, entry: Omit<VocabEntry, 'id' | 'createdAt'>) => {  // sentence is optional in VocabEntry
+  const addVocab = async (bookId: string, entry: Omit<VocabEntry, 'id' | 'createdAt'>) => {  // sentence is optional in VocabEntry
     const newEntry: VocabEntry = {
       ...entry,
       id: Date.now().toString(),
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setBooks(prev => prev.map(b =>
-      b.id === bookId ? { ...b, vocab: [...b.vocab, newEntry] } : b
-    ));
+    setBooks(prev => prev.map(b => {
+      if (b.id !== bookId) return b;
+      const updated = { ...b, vocab: [...b.vocab, newEntry] };
+      supabase.from('books').update({ vocab: updated.vocab }).eq('id', bookId);
+      return updated;
+    }));
   };
 
-  const deleteVocab = (bookId: string, vocabId: string) => {
-    setBooks(prev => prev.map(b =>
-      b.id === bookId ? { ...b, vocab: b.vocab.filter(v => v.id !== vocabId) } : b
-    ));
+  const deleteVocab = async (bookId: string, vocabId: string) => {
+    setBooks(prev => prev.map(b => {
+      if (b.id !== bookId) return b;
+      const updated = { ...b, vocab: b.vocab.filter(v => v.id !== vocabId) };
+      supabase.from('books').update({ vocab: updated.vocab }).eq('id', bookId);
+      return updated;
+    }));
   };
 
-  const addNote = (bookId: string, note: Omit<Note, 'id' | 'createdAt'>) => {
+  const addNote = async (bookId: string, note: Omit<Note, 'id' | 'createdAt'>) => {
     const newNote: Note = {
       ...note,
       id: Date.now().toString(),
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setBooks(prev => prev.map(b =>
-      b.id === bookId ? { ...b, notes: [...b.notes, newNote] } : b
-    ));
+    setBooks(prev => prev.map(b => {
+      if (b.id !== bookId) return b;
+      const updated = { ...b, notes: [...b.notes, newNote] };
+      supabase.from('books').update({ notes: updated.notes }).eq('id', bookId);
+      return updated;
+    }));
   };
 
-  const deleteNote = (bookId: string, noteId: string) => {
-    setBooks(prev => prev.map(b =>
-      b.id === bookId ? { ...b, notes: b.notes.filter(n => n.id !== noteId) } : b
-    ));
+  const deleteNote = async (bookId: string, noteId: string) => {
+    setBooks(prev => prev.map(b => {
+      if (b.id !== bookId) return b;
+      const updated = { ...b, notes: b.notes.filter(n => n.id !== noteId) };
+      supabase.from('books').update({ notes: updated.notes }).eq('id', bookId);
+      return updated;
+    }));
   };
 
   const getStats = (userId: string) => {
@@ -235,6 +202,7 @@ export function useBooks() {
 
   return {
     books,
+    loading,
     addBook, updateBook, deleteBook,
     addVocab, deleteVocab,
     addNote, deleteNote,

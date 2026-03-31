@@ -31,7 +31,7 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 ];
 
 export default function App() {
-  const { books, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear } = useBooks();
+  const { books, loading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear } = useBooks();
   const [selectedUserId, setSelectedUserId] = useState<string>('dad');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -89,6 +89,13 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {loading && (
+        <div className="loading-overlay">
+          <img src="/logo.png" alt="북스탯" className="loading-logo" />
+          <p>불러오는 중...</p>
+        </div>
+      )}
 
       <div className="app-body">
         {/* 유저 사이드바 */}

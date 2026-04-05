@@ -83,7 +83,6 @@ export default function App() {
     {introVisible && (
       <div className={`intro-screen ${introFading ? 'fading' : ''}`}>
         <img src="/logo.png" alt="북스탯" className="intro-logo" />
-        <span className="intro-title">북스탯</span>
       </div>
     )}
     <div className="app">

@@ -18,15 +18,9 @@
 }
 .intro-screen.fading { opacity: 0; }
 .intro-logo {
-  width: 96px;
-  height: 96px;
+  width: 180px;
+  height: 180px;
   object-fit: contain;
-}
-.intro-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-heading);
-  letter-spacing: 0.02em;
 }
 
 /* ===== App Layout ===== */

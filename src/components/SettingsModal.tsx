@@ -32,7 +32,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
               autoComplete="off"
             />
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-              단어 AI 자동 검색 기능에 사용됩니다.
+              단어 AI 자동 검색 기능에 사용됩니다. 비워두면 서버 환경변수를 사용해요.
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0', fontFamily: 'monospace' }}>
+              환경변수: {import.meta.env.VITE_ANTHROPIC_API_KEY ? `✓ ${(import.meta.env.VITE_ANTHROPIC_API_KEY as string).slice(0, 12)}...` : '❌ 없음'}
             </p>
           </div>
           <div className="form-group">

@@ -155,58 +155,6 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
             <Camera size={14} />
           </button>
         </div>
-
-        {editingCover && (
-          <div className="cover-edit-popup">
-            {coverSearching ? (
-              <div className="cover-searching">
-                <div className="cover-spinner" />
-                <span>표지 검색 중...</span>
-              </div>
-            ) : manualCoverMode ? (
-              <div className="cover-manual-area">
-                <input
-                  className="cover-url-input"
-                  value={manualCoverUrl}
-                  onChange={e => setManualCoverUrl(e.target.value)}
-                  placeholder="https://... (이미지 URL)"
-                  autoFocus
-                />
-                {manualCoverUrl && (
-                  <img src={manualCoverUrl} alt="미리보기" className="cover-manual-preview" onError={e => (e.currentTarget.style.display = 'none')} />
-                )}
-              </div>
-            ) : coverCandidates.length > 0 ? (
-              <div className="cover-candidate-area">
-                <img src={coverCandidates[coverIdx]} alt="표지 후보" className="cover-candidate-img" />
-                <div className="cover-nav">
-                  <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.max(0, i - 1))} disabled={coverIdx === 0}>
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span className="cover-nav-label">{coverIdx + 1} / {coverCandidates.length}</span>
-                  <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.min(coverCandidates.length - 1, i + 1))} disabled={coverIdx === coverCandidates.length - 1}>
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="cover-hint">검색 결과가 없습니다.</p>
-            )}
-            <div className="cover-edit-popup-actions">
-              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualCoverMode(m => !m)}>
-                {manualCoverMode ? <><Search size={13} /> 검색 결과로</> : <><Edit2 size={13} /> 직접 입력</>}
-              </button>
-              {!manualCoverMode && (
-                <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { coverSearchedFor.current = ''; openCoverEdit(); }}>
-                  <Search size={13} /> 다시 검색
-                </button>
-              )}
-              <div style={{ flex: 1 }} />
-              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setEditingCover(false)}><X size={13} /> 취소</button>
-              <button type="button" className="btn-primary cover-edit-btn" onClick={saveCover}><Check size={13} /> 저장</button>
-            </div>
-          </div>
-        )}
         <div className="detail-hero-info">
           <h1>{book.title}</h1>
           <p className="detail-author">{book.author}</p>
@@ -223,6 +171,58 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
           )}
         </div>
       </div>
+
+      {editingCover && (
+        <div className="cover-edit-panel">
+          {coverSearching ? (
+            <div className="cover-searching">
+              <div className="cover-spinner" />
+              <span>표지 검색 중...</span>
+            </div>
+          ) : manualCoverMode ? (
+            <div className="cover-manual-area">
+              <input
+                className="cover-url-input"
+                value={manualCoverUrl}
+                onChange={e => setManualCoverUrl(e.target.value)}
+                placeholder="https://... (이미지 URL)"
+                autoFocus
+              />
+              {manualCoverUrl && (
+                <img src={manualCoverUrl} alt="미리보기" className="cover-manual-preview" onError={e => (e.currentTarget.style.display = 'none')} />
+              )}
+            </div>
+          ) : coverCandidates.length > 0 ? (
+            <div className="cover-candidate-area">
+              <img src={coverCandidates[coverIdx]} alt="표지 후보" className="cover-candidate-img" />
+              <div className="cover-nav">
+                <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.max(0, i - 1))} disabled={coverIdx === 0}>
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="cover-nav-label">{coverIdx + 1} / {coverCandidates.length}</span>
+                <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.min(coverCandidates.length - 1, i + 1))} disabled={coverIdx === coverCandidates.length - 1}>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="cover-hint">검색 결과가 없습니다.</p>
+          )}
+          <div className="cover-edit-popup-actions">
+            <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualCoverMode(m => !m)}>
+              {manualCoverMode ? <><Search size={13} /> 검색 결과로</> : <><Edit2 size={13} /> 직접 입력</>}
+            </button>
+            {!manualCoverMode && (
+              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { coverSearchedFor.current = ''; openCoverEdit(); }}>
+                <Search size={13} /> 다시 검색
+              </button>
+            )}
+            <div style={{ flex: 1 }} />
+            <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setEditingCover(false)}><X size={13} /> 취소</button>
+            <button type="button" className="btn-primary cover-edit-btn" onClick={saveCover}><Check size={13} /> 저장</button>
+          </div>
+        </div>
+      )}
 
       <div className="detail-tabs">
         <button className={`tab-btn ${tab === 'info' ? 'active' : ''}`} onClick={() => setTab('info')}>

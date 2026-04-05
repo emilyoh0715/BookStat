@@ -137,7 +137,7 @@ export default function App() {
                 <h2>{selectedUser.name}의 서재</h2>
               </div>
 
-              <Dashboard stats={stats} />
+              <Dashboard stats={stats} statusFilter={statusFilter} onStatusFilter={setStatusFilter} />
 
               <div className="list-controls">
                 <div className="search-wrap">

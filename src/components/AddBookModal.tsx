@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
+import { GENRES } from '../lib/genres';
 import StarRating from './StarRating';
 import { X, Search, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 
@@ -216,7 +217,10 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
           <div className="form-row">
             <div className="form-group">
               <label>장르</label>
-              <input value={form.genre} onChange={e => set('genre', e.target.value)} placeholder="소설, 에세이, 자기계발..." />
+              <select value={form.genre} onChange={e => set('genre', e.target.value)}>
+                <option value="">선택 안함</option>
+                {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
             </div>
             <div className="form-group">
               <label>상태</label>

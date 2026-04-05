@@ -183,6 +183,15 @@
   box-shadow: 0 8px 24px rgba(0,0,0,0.12);
 }
 
+.stat-card-btn {
+  cursor: pointer;
+  width: 100%;
+}
+.stat-card-btn.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
+}
+
 .stat-icon { margin-bottom: 8px; }
 
 .stat-value {

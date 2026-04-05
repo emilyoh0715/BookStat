@@ -3,6 +3,7 @@ import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import { lookupVocab, getApiKey, getKakaoKey } from '../services/claudeVocab';
+import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, Camera, Search } from 'lucide-react';
 
 async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
@@ -312,7 +313,10 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                   <div className="form-row">
                     <div className="form-group">
                       <label>장르</label>
-                      <input value={metaForm.genre} onChange={e => setMetaForm(f => ({ ...f, genre: e.target.value }))} placeholder="소설, 에세이..." />
+                      <select value={metaForm.genre} onChange={e => setMetaForm(f => ({ ...f, genre: e.target.value }))}>
+                        <option value="">선택 안함</option>
+                        {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
                     </div>
                     <div className="form-group">
                       <label>전체 페이지</label>

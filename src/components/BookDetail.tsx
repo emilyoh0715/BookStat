@@ -1,17 +1,33 @@
 import { useState, useRef } from 'react';
-import type { Book, ReadingStatus } from '../types';
+import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
-import { lookupVocab, getApiKey } from '../services/claudeVocab';
-import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, ChevronLeft, ChevronRight, Camera, Search } from 'lucide-react';
+import { lookupVocab, getApiKey, getKakaoKey } from '../services/claudeVocab';
+import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, Camera, Search } from 'lucide-react';
 
 async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
+  const kakaoKey = getKakaoKey();
+
+  // 카카오 Books API (한국 책에 최적)
+  if (kakaoKey) {
+    try {
+      const query = encodeURIComponent(`${title} ${author}`);
+      const res = await fetch(`https://dapi.kakao.com/v3/search/book?query=${query}&size=12`, {
+        headers: { Authorization: `KakaoAK ${kakaoKey}` },
+      });
+      const data = await res.json() as { documents?: Array<{ thumbnail: string }> };
+      const urls = (data.documents ?? []).map(d => d.thumbnail).filter(Boolean);
+      if (urls.length > 0) return urls;
+    } catch { /* fall through to Google */ }
+  }
+
+  // Google Books 폴백
   const query = encodeURIComponent(`${title} ${author}`);
-  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=8`);
-  const data = await res.json();
+  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=12`);
+  const data = await res.json() as { items?: Array<Record<string, unknown>> };
   if (!data.items) return [];
   return data.items
-    .map((item: Record<string, unknown>) => {
+    .map((item) => {
       const info = item.volumeInfo as Record<string, unknown>;
       const links = info?.imageLinks as Record<string, string> | undefined;
       const url = links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
@@ -39,6 +55,12 @@ const STATUS_OPTIONS: { value: ReadingStatus; label: string }[] = [
   { value: 'paused', label: '잠시 멈춤' },
 ];
 
+const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
+  { value: 'korean', label: '한국어', flag: '🇰🇷' },
+  { value: 'english', label: '영어 원서', flag: '🇺🇸' },
+  { value: 'other', label: '기타', flag: '🌐' },
+];
+
 export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote }: Props) {
   const [tab, setTab] = useState<Tab>('info');
   const [editingInfo, setEditingInfo] = useState(false);
@@ -49,6 +71,28 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     review: book.review ?? '',
     finishDate: book.finishDate ?? '',
   });
+
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [metaForm, setMetaForm] = useState({
+    title: book.title,
+    author: book.author,
+    genre: book.genre ?? '',
+    language: book.language,
+    totalPages: book.totalPages?.toString() ?? '',
+    startDate: book.startDate ?? '',
+  });
+
+  const saveMeta = () => {
+    onUpdate({
+      title: metaForm.title.trim() || book.title,
+      author: metaForm.author.trim(),
+      genre: metaForm.genre.trim() || undefined,
+      language: metaForm.language,
+      totalPages: metaForm.totalPages ? Number(metaForm.totalPages) : undefined,
+      startDate: metaForm.startDate || undefined,
+    });
+    setEditingMeta(false);
+  };
 
   const [vocabForm, setVocabForm] = useState({ word: '', meaning: '', sentence: '', page: '' });
   const [noteForm, setNoteForm] = useState({ content: '', page: '' });
@@ -174,6 +218,21 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
       {editingCover && (
         <div className="cover-edit-panel">
+          <div className="cover-panel-header">
+            <span className="cover-panel-title">표지 변경</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualCoverMode(m => !m)}>
+                {manualCoverMode ? <><Search size={13} /> 검색 결과로</> : <><Edit2 size={13} /> 직접 입력</>}
+              </button>
+              {!manualCoverMode && (
+                <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { coverSearchedFor.current = ''; openCoverEdit(); }}>
+                  <Search size={13} /> 다시 검색
+                </button>
+              )}
+              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setEditingCover(false)}><X size={13} /></button>
+              <button type="button" className="btn-primary cover-edit-btn" onClick={saveCover}><Check size={13} /> 저장</button>
+            </div>
+          </div>
           {coverSearching ? (
             <div className="cover-searching">
               <div className="cover-spinner" />
@@ -193,34 +252,21 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
               )}
             </div>
           ) : coverCandidates.length > 0 ? (
-            <div className="cover-candidate-area">
-              <img src={coverCandidates[coverIdx]} alt="표지 후보" className="cover-candidate-img" />
-              <div className="cover-nav">
-                <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.max(0, i - 1))} disabled={coverIdx === 0}>
-                  <ChevronLeft size={16} />
+            <div className="cover-grid">
+              {coverCandidates.map((url, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`cover-grid-item ${coverIdx === i ? 'selected' : ''}`}
+                  onClick={() => setCoverIdx(i)}
+                >
+                  <img src={url} alt={`표지 후보 ${i + 1}`} onError={e => (e.currentTarget.parentElement!.style.display = 'none')} />
                 </button>
-                <span className="cover-nav-label">{coverIdx + 1} / {coverCandidates.length}</span>
-                <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.min(coverCandidates.length - 1, i + 1))} disabled={coverIdx === coverCandidates.length - 1}>
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+              ))}
             </div>
           ) : (
-            <p className="cover-hint">검색 결과가 없습니다.</p>
+            <p className="cover-hint">검색 결과가 없습니다. 직접 입력을 시도해보세요.</p>
           )}
-          <div className="cover-edit-popup-actions">
-            <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualCoverMode(m => !m)}>
-              {manualCoverMode ? <><Search size={13} /> 검색 결과로</> : <><Edit2 size={13} /> 직접 입력</>}
-            </button>
-            {!manualCoverMode && (
-              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { coverSearchedFor.current = ''; openCoverEdit(); }}>
-                <Search size={13} /> 다시 검색
-              </button>
-            )}
-            <div style={{ flex: 1 }} />
-            <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setEditingCover(false)}><X size={13} /> 취소</button>
-            <button type="button" className="btn-primary cover-edit-btn" onClick={saveCover}><Check size={13} /> 저장</button>
-          </div>
         </div>
       )}
 
@@ -239,6 +285,69 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       <div className="detail-content">
         {tab === 'info' && (
           <div className="info-tab">
+            {/* 기본 정보 섹션 */}
+            <div className="info-section">
+              <div className="section-header">
+                <h3>기본 정보</h3>
+                {!editingMeta
+                  ? <button className="icon-btn" onClick={() => setEditingMeta(true)}><Edit2 size={16} /></button>
+                  : <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="icon-btn success" onClick={saveMeta}><Check size={16} /></button>
+                    <button className="icon-btn" onClick={() => setEditingMeta(false)}><X size={16} /></button>
+                  </div>
+                }
+              </div>
+              {editingMeta ? (
+                <div className="edit-form">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>제목</label>
+                      <input value={metaForm.title} onChange={e => setMetaForm(f => ({ ...f, title: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>저자</label>
+                      <input value={metaForm.author} onChange={e => setMetaForm(f => ({ ...f, author: e.target.value }))} placeholder="저자명" />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>장르</label>
+                      <input value={metaForm.genre} onChange={e => setMetaForm(f => ({ ...f, genre: e.target.value }))} placeholder="소설, 에세이..." />
+                    </div>
+                    <div className="form-group">
+                      <label>전체 페이지</label>
+                      <input type="number" value={metaForm.totalPages} onChange={e => setMetaForm(f => ({ ...f, totalPages: e.target.value }))} placeholder="0" min="1" />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>언어</label>
+                      <div className="lang-selector">
+                        {LANG_OPTIONS.map(o => (
+                          <button key={o.value} type="button"
+                            className={`lang-btn ${metaForm.language === o.value ? 'active' : ''}`}
+                            onClick={() => setMetaForm(f => ({ ...f, language: o.value }))}
+                          >{o.flag} {o.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>시작일</label>
+                      <input type="date" value={metaForm.startDate} onChange={e => setMetaForm(f => ({ ...f, startDate: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="info-grid">
+                  <div className="info-item"><span className="info-label">제목</span><span>{book.title}</span></div>
+                  <div className="info-item"><span className="info-label">저자</span><span>{book.author || '—'}</span></div>
+                  <div className="info-item"><span className="info-label">장르</span><span>{book.genre || '—'}</span></div>
+                  <div className="info-item"><span className="info-label">언어</span><span>{LANG_OPTIONS.find(o => o.value === book.language)?.label ?? '—'}</span></div>
+                </div>
+              )}
+            </div>
+
+            {/* 독서 정보 섹션 */}
             <div className="info-section">
               <div className="section-header">
                 <h3>독서 정보</h3>

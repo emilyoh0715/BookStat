@@ -676,8 +676,33 @@ textarea { resize: vertical; }
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 16px;
-  display: flex; flex-direction: row; gap: 16px; align-items: center; flex-wrap: wrap;
+  display: flex; flex-direction: column; gap: 12px;
 }
+
+.cover-panel-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.cover-panel-title { font-size: 14px; font-weight: 600; color: var(--text-heading); }
+
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.cover-grid-item {
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  background: var(--bg-base);
+  aspect-ratio: 2/3;
+  transition: border-color 0.15s;
+}
+.cover-grid-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cover-grid-item:hover { border-color: var(--text-muted); }
+.cover-grid-item.selected { border-color: var(--accent); }
 
 .cover-candidate-area { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .cover-candidate-img { width: 80px; height: 112px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }

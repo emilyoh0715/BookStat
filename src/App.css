@@ -672,7 +672,7 @@ textarea { resize: vertical; }
 
 .cover-edit-popup {
   position: absolute;
-  top: calc(100% + 8px); left: 0;
+  bottom: 0; left: calc(100% + 10px);
   z-index: 20;
   background: var(--bg-surface);
   border: 1px solid var(--border);

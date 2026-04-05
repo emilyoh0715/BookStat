@@ -2,7 +2,7 @@ const API_KEY_STORAGE = 'book-recorder-api-key';
 const KAKAO_KEY_STORAGE = 'book-recorder-kakao-key';
 
 export function getApiKey(): string {
-  return localStorage.getItem(API_KEY_STORAGE) ?? import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
+  return localStorage.getItem(API_KEY_STORAGE) || import.meta.env.VITE_ANTHROPIC_API_KEY || '';
 }
 
 export function setApiKey(key: string) {

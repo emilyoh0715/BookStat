@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StarRating from './StarRating';
-import { X } from 'lucide-react';
+import { X, Search, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 
 interface Props {
   onAdd: (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>) => void;
@@ -21,6 +21,21 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
   { value: 'other', label: '기타', flag: '🌐' },
 ];
 
+async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
+  const query = encodeURIComponent(`${title} ${author}`);
+  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=8`);
+  const data = await res.json();
+  if (!data.items) return [];
+  return data.items
+    .map((item: Record<string, unknown>) => {
+      const info = item.volumeInfo as Record<string, unknown>;
+      const links = info?.imageLinks as Record<string, string> | undefined;
+      const url = links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
+      return url ? url.replace('http://', 'https://').replace('zoom=1', 'zoom=2') : null;
+    })
+    .filter(Boolean) as string[];
+}
+
 export default function AddBookModal({ onAdd, onClose }: Props) {
   const [form, setForm] = useState({
     title: '',
@@ -34,12 +49,37 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     review: '',
     startDate: '',
     finishDate: '',
-    cover: '',
   });
+
+  const [coverCandidates, setCoverCandidates] = useState<string[]>([]);
+  const [coverIdx, setCoverIdx] = useState(0);
+  const [coverSearching, setCoverSearching] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualUrl, setManualUrl] = useState('');
+  const searchedFor = useRef('');
 
   const set = (key: string, value: unknown) => setForm(f => ({ ...f, [key]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const currentCover = manualMode ? manualUrl : coverCandidates[coverIdx] ?? '';
+
+  const triggerSearch = async (title: string, author: string) => {
+    const key = `${title.trim()}|${author.trim()}`;
+    if (!title.trim() || !author.trim()) return;
+    if (searchedFor.current === key) return;
+    searchedFor.current = key;
+    setCoverSearching(true);
+    setManualMode(false);
+    const candidates = await fetchCoverCandidates(title.trim(), author.trim());
+    setCoverCandidates(candidates);
+    setCoverIdx(0);
+    setCoverSearching(false);
+  };
+
+  const handleBlur = () => {
+    triggerSearch(form.title, form.author);
+  };
+
+  const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!form.title.trim() || !form.author.trim()) return;
     onAdd({
@@ -54,7 +94,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
       review: form.review || undefined,
       startDate: form.startDate || undefined,
       finishDate: form.finishDate || undefined,
-      cover: form.cover || undefined,
+      cover: currentCover || undefined,
     });
     onClose();
   };
@@ -71,11 +111,87 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
           <div className="form-row">
             <div className="form-group">
               <label>제목 *</label>
-              <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="책 제목" required />
+              <input
+                value={form.title}
+                onChange={e => set('title', e.target.value)}
+                onBlur={handleBlur}
+                placeholder="책 제목"
+                required
+              />
             </div>
             <div className="form-group">
               <label>저자 *</label>
-              <input value={form.author} onChange={e => set('author', e.target.value)} placeholder="저자명" required />
+              <input
+                value={form.author}
+                onChange={e => set('author', e.target.value)}
+                onBlur={handleBlur}
+                placeholder="저자명"
+                required
+              />
+            </div>
+          </div>
+
+          {/* 표지 섹션 */}
+          <div className="form-group">
+            <label>표지</label>
+            <div className="cover-search-area">
+              {coverSearching ? (
+                <div className="cover-searching">
+                  <div className="cover-spinner" />
+                  <span>표지 검색 중...</span>
+                </div>
+              ) : currentCover ? (
+                <div className="cover-preview-row">
+                  <div className="cover-preview-img">
+                    <img src={currentCover} alt="표지 미리보기" onError={() => {
+                      if (!manualMode) setCoverIdx(i => i + 1);
+                    }} />
+                  </div>
+                  <div className="cover-preview-controls">
+                    {!manualMode && coverCandidates.length > 1 && (
+                      <div className="cover-nav">
+                        <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.max(0, i - 1))} disabled={coverIdx === 0}>
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span className="cover-nav-label">{coverIdx + 1} / {coverCandidates.length}</span>
+                        <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.min(coverCandidates.length - 1, i + 1))} disabled={coverIdx === coverCandidates.length - 1}>
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
+                    <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { setManualMode(m => !m); setManualUrl(currentCover); }}>
+                      <Edit2 size={14} /> {manualMode ? '검색 결과로' : '직접 수정'}
+                    </button>
+                    {form.title && form.author && !manualMode && (
+                      <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { searchedFor.current = ''; triggerSearch(form.title, form.author); }}>
+                        <Search size={14} /> 다시 검색
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="cover-empty">
+                  {form.title && form.author ? (
+                    <button type="button" className="btn-secondary" onClick={() => { searchedFor.current = ''; triggerSearch(form.title, form.author); }}>
+                      <Search size={14} /> 표지 검색
+                    </button>
+                  ) : (
+                    <span className="cover-hint">제목과 저자를 입력하면 자동으로 표지를 찾아드려요</span>
+                  )}
+                  <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualMode(true)}>
+                    <Edit2 size={14} /> 직접 입력
+                  </button>
+                </div>
+              )}
+              {manualMode && (
+                <input
+                  className="cover-url-input"
+                  value={manualUrl}
+                  onChange={e => setManualUrl(e.target.value)}
+                  placeholder="https://... (이미지 URL)"
+                  autoFocus
+                />
+              )}
             </div>
           </div>
 
@@ -130,11 +246,6 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
               <label>완독일</label>
               <input type="date" value={form.finishDate} onChange={e => set('finishDate', e.target.value)} />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label>커버 이미지 URL</label>
-            <input value={form.cover} onChange={e => set('cover', e.target.value)} placeholder="https://..." />
           </div>
 
           <div className="form-group">

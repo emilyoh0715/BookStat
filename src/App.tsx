@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBooks } from './useBooks';
 import type { ReadingStatus, BookLanguage } from './types';
 import BookCard from './components/BookCard';
@@ -32,10 +32,19 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 
 export default function App() {
   const { books, loading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear } = useBooks();
+  const [introVisible, setIntroVisible] = useState(true);
+  const [introFading, setIntroFading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>('dad');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // 인트로: 1.2초 보여주다가 fade out
+  useEffect(() => {
+    const t1 = setTimeout(() => setIntroFading(true), 1200);
+    const t2 = setTimeout(() => setIntroVisible(false), 2000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
@@ -70,6 +79,13 @@ export default function App() {
   const grouped = groupByYearEnabled ? groupByYear(filtered) : null;
 
   return (
+    <>
+    {introVisible && (
+      <div className={`intro-screen ${introFading ? 'fading' : ''}`}>
+        <img src="/logo.png" alt="북스탯" className="intro-logo" />
+        <span className="intro-title">북스탯</span>
+      </div>
+    )}
     <div className="app">
       <header className="app-header">
         <div className="header-inner">
@@ -294,5 +310,6 @@ export default function App() {
       )}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
+    </>
   );
 }

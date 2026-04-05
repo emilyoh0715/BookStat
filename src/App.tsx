@@ -41,8 +41,8 @@ export default function App() {
 
   // 인트로: 1.2초 보여주다가 fade out
   useEffect(() => {
-    const t1 = setTimeout(() => setIntroFading(true), 1200);
-    const t2 = setTimeout(() => setIntroVisible(false), 2000);
+    const t1 = setTimeout(() => setIntroFading(true), 600);
+    const t2 = setTimeout(() => setIntroVisible(false), 2200);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');

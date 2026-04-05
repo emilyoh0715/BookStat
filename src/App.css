@@ -637,11 +637,16 @@ textarea { resize: vertical; }
   border-radius: 16px;
 }
 
+.detail-cover-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 120px;
+}
+
 .detail-cover {
   width: 120px;
   height: 168px;
   border-radius: 8px;
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -649,6 +654,40 @@ textarea { resize: vertical; }
 }
 
 .detail-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+.cover-edit-overlay {
+  position: absolute;
+  bottom: 6px; right: 6px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  border: none;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.detail-cover-wrap:hover .cover-edit-overlay { opacity: 1; }
+
+.cover-edit-popup {
+  position: absolute;
+  top: 0; left: 130px;
+  z-index: 20;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  width: 240px;
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.cover-candidate-area { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cover-candidate-img { width: 80px; height: 112px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.cover-manual-area { display: flex; flex-direction: column; gap: 8px; }
+.cover-manual-preview { width: 60px; height: 84px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.cover-edit-popup-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
 .detail-hero-info {
   flex: 1;
@@ -1124,6 +1163,8 @@ textarea { resize: vertical; }
   .detail-hero { flex-direction: column; align-items: center; text-align: center; }
   .info-grid { grid-template-columns: 1fr; }
   .detail-hero-info { align-items: center; }
+  .cover-edit-overlay { opacity: 1; }
+  .cover-edit-popup { position: fixed; top: auto; bottom: 20px; left: 50%; transform: translateX(-50%); width: calc(100vw - 40px); max-width: 340px; }
 
   /* 탭 */
   .detail-tabs { gap: 4px; }

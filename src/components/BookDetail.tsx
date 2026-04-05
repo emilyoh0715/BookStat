@@ -1,9 +1,24 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { Book, ReadingStatus } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import { lookupVocab, getApiKey } from '../services/claudeVocab';
-import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, ChevronLeft, ChevronRight, Camera, Search } from 'lucide-react';
+
+async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
+  const query = encodeURIComponent(`${title} ${author}`);
+  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=8`);
+  const data = await res.json();
+  if (!data.items) return [];
+  return data.items
+    .map((item: Record<string, unknown>) => {
+      const info = item.volumeInfo as Record<string, unknown>;
+      const links = info?.imageLinks as Record<string, string> | undefined;
+      const url = links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
+      return url ? url.replace('http://', 'https://').replace('zoom=1', 'zoom=2') : null;
+    })
+    .filter(Boolean) as string[];
+}
 
 interface Props {
   book: Book;
@@ -39,6 +54,35 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   const [noteForm, setNoteForm] = useState({ content: '', page: '' });
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState('');
+
+  const [editingCover, setEditingCover] = useState(false);
+  const [coverCandidates, setCoverCandidates] = useState<string[]>([]);
+  const [coverIdx, setCoverIdx] = useState(0);
+  const [coverSearching, setCoverSearching] = useState(false);
+  const [manualCoverUrl, setManualCoverUrl] = useState('');
+  const [manualCoverMode, setManualCoverMode] = useState(false);
+  const coverSearchedFor = useRef('');
+
+  const openCoverEdit = async () => {
+    setEditingCover(true);
+    setManualCoverMode(false);
+    setManualCoverUrl(book.cover ?? '');
+    const key = `${book.title}|${book.author}`;
+    if (coverSearchedFor.current !== key) {
+      coverSearchedFor.current = key;
+      setCoverSearching(true);
+      const candidates = await fetchCoverCandidates(book.title, book.author);
+      setCoverCandidates(candidates);
+      setCoverIdx(0);
+      setCoverSearching(false);
+    }
+  };
+
+  const saveCover = () => {
+    const url = manualCoverMode ? manualCoverUrl : coverCandidates[coverIdx] ?? '';
+    onUpdate({ cover: url || undefined });
+    setEditingCover(false);
+  };
 
   const progress = book.totalPages && book.currentPage
     ? Math.round((book.currentPage / book.totalPages) * 100) : null;
@@ -100,12 +144,69 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       </button>
 
       <div className="detail-hero">
-        <div className="detail-cover" style={{ backgroundColor: book.cover ? undefined : coverColors[colorIdx] }}>
-          {book.cover
-            ? <img src={book.cover} alt={book.title} />
-            : <BookOpen size={48} color="rgba(255,255,255,0.5)" />
-          }
+        <div className="detail-cover-wrap">
+          <div className="detail-cover" style={{ backgroundColor: book.cover ? undefined : coverColors[colorIdx] }}>
+            {book.cover
+              ? <img src={book.cover} alt={book.title} />
+              : <BookOpen size={48} color="rgba(255,255,255,0.5)" />
+            }
+          </div>
+          <button className="cover-edit-overlay" onClick={openCoverEdit} title="표지 변경">
+            <Camera size={14} />
+          </button>
         </div>
+
+        {editingCover && (
+          <div className="cover-edit-popup">
+            {coverSearching ? (
+              <div className="cover-searching">
+                <div className="cover-spinner" />
+                <span>표지 검색 중...</span>
+              </div>
+            ) : manualCoverMode ? (
+              <div className="cover-manual-area">
+                <input
+                  className="cover-url-input"
+                  value={manualCoverUrl}
+                  onChange={e => setManualCoverUrl(e.target.value)}
+                  placeholder="https://... (이미지 URL)"
+                  autoFocus
+                />
+                {manualCoverUrl && (
+                  <img src={manualCoverUrl} alt="미리보기" className="cover-manual-preview" onError={e => (e.currentTarget.style.display = 'none')} />
+                )}
+              </div>
+            ) : coverCandidates.length > 0 ? (
+              <div className="cover-candidate-area">
+                <img src={coverCandidates[coverIdx]} alt="표지 후보" className="cover-candidate-img" />
+                <div className="cover-nav">
+                  <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.max(0, i - 1))} disabled={coverIdx === 0}>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="cover-nav-label">{coverIdx + 1} / {coverCandidates.length}</span>
+                  <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.min(coverCandidates.length - 1, i + 1))} disabled={coverIdx === coverCandidates.length - 1}>
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="cover-hint">검색 결과가 없습니다.</p>
+            )}
+            <div className="cover-edit-popup-actions">
+              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualCoverMode(m => !m)}>
+                {manualCoverMode ? <><Search size={13} /> 검색 결과로</> : <><Edit2 size={13} /> 직접 입력</>}
+              </button>
+              {!manualCoverMode && (
+                <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { coverSearchedFor.current = ''; openCoverEdit(); }}>
+                  <Search size={13} /> 다시 검색
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setEditingCover(false)}><X size={13} /> 취소</button>
+              <button type="button" className="btn-primary cover-edit-btn" onClick={saveCover}><Check size={13} /> 저장</button>
+            </div>
+          </div>
+        )}
         <div className="detail-hero-info">
           <h1>{book.title}</h1>
           <p className="detail-author">{book.author}</p>

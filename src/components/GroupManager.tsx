@@ -144,9 +144,9 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
       const { error: e2 } = await supabase.from('groups').delete().eq('id', groupId);
       if (e2) { alert('그룹 삭제 실패: ' + e2.message); return; }
     } else {
-      const { error } = await supabase.rpc('leave_group', { gid: groupId });
+      const { error } = await supabase.rpc('leave_group', { gid: groupId, uid: user.id });
       if (error) {
-        console.error('leave_group error:', error);
+        alert('나가기 실패: ' + error.message);
         return;
       }
     }

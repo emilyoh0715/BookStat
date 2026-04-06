@@ -45,7 +45,9 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
     if (!user) return;
     const { data, error } = await supabase.rpc('get_my_groups');
     if (error) { console.error('[loadGroups] error:', error); return; }
-    setGroups((data as Group[]) ?? []);
+    // RPC가 json 타입을 반환할 때 문자열로 올 수 있음
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+    setGroups((parsed as Group[]) ?? []);
   };
 
   const loadPendingInvites = async () => {
@@ -142,13 +144,11 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
       const { error: e2 } = await supabase.from('groups').delete().eq('id', groupId);
       if (e2) { alert('그룹 삭제 실패: ' + e2.message); return; }
     } else {
-      const { data, error, status, statusText } = await supabase.from('group_members')
-        .delete()
-        .eq('group_id', groupId)
-        .eq('user_id', user.id)
-        .select();
-      alert(`status: ${status} ${statusText} / error: ${error?.message ?? 'none'} / deleted: ${JSON.stringify(data)}`);
-      if (error) return;
+      const { error } = await supabase.rpc('leave_group', { gid: groupId });
+      if (error) {
+        console.error('leave_group error:', error);
+        return;
+      }
     }
     await loadGroups();
     await onGroupChange();

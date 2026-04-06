@@ -67,7 +67,7 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
 
     const gs: Group[] = (groupData ?? []).map((g: { id: string; name: string; created_by: string }) => ({
       ...g,
-      group_members: (memberData ?? []).filter((m: { group_id: string }) => m.group_id === g.id) as GroupMember[],
+      group_members: (memberData ?? []).filter((m: { group_id: string }) => m.group_id === g.id) as unknown as GroupMember[],
     }));
     setGroups(gs);
   };

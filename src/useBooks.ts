@@ -52,14 +52,22 @@ export function useBooks() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 초기 로드
+  // 초기 로드 — 세션 준비 후 실행
   useEffect(() => {
     const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setLoading(false); return; }
       const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
       if (data) setBooks(data.map(dbToBook));
       setLoading(false);
     };
     load();
+
+    // 로그인/로그아웃 시 재로드
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) load();
+      else setBooks([]);
+    });
 
     // 실시간 동기화 — 다른 가족이 추가/수정/삭제하면 자동 반영
     const channel = supabase
@@ -69,7 +77,10 @@ export function useBooks() {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const addBook = async (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>, userId: string) => {

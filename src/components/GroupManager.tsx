@@ -43,36 +43,9 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
 
   const loadGroups = async () => {
     if (!user) return;
-
-    // 1. 내가 속한 그룹 ID 목록
-    const { data: myMemberships, error: membershipError } = await supabase
-      .from('group_members')
-      .select('group_id')
-      .eq('user_id', user.id)
-      .eq('status', 'accepted');
-
-    console.log('[loadGroups] myMemberships:', myMemberships, 'error:', membershipError);
-
-    const groupIds = (myMemberships ?? []).map((m: { group_id: string }) => m.group_id);
-    console.log('[loadGroups] groupIds:', groupIds);
-    if (groupIds.length === 0) { setGroups([]); return; }
-
-    // 2. 그룹 정보 + 멤버 목록
-    const { data: groupData } = await supabase
-      .from('groups')
-      .select('id, name, created_by')
-      .in('id', groupIds);
-
-    const { data: memberData } = await supabase
-      .from('group_members')
-      .select('id, group_id, user_id, role, status, profiles(display_name, handle, avatar_url)')
-      .in('group_id', groupIds);
-
-    const gs: Group[] = (groupData ?? []).map((g: { id: string; name: string; created_by: string }) => ({
-      ...g,
-      group_members: (memberData ?? []).filter((m: { group_id: string }) => m.group_id === g.id) as unknown as GroupMember[],
-    }));
-    setGroups(gs);
+    const { data, error } = await supabase.rpc('get_my_groups');
+    if (error) { console.error('[loadGroups] error:', error); return; }
+    setGroups((data as Group[]) ?? []);
   };
 
   const loadPendingInvites = async () => {

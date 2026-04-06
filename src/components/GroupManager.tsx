@@ -70,9 +70,14 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
   const createGroup = async () => {
     if (!user || !newGroupName.trim()) return;
     setLoading(true);
-    const { data: group } = await supabase.from('groups').insert({ name: newGroupName.trim(), created_by: user.id }).select().single();
+    const { data: group, error: groupError } = await supabase
+      .from('groups').insert({ name: newGroupName.trim(), created_by: user.id }).select().single();
+    console.log('[createGroup] group:', group, 'error:', groupError);
     if (group) {
-      await supabase.from('group_members').insert({ group_id: group.id, user_id: user.id, role: 'owner', status: 'accepted' });
+      const { error: memberError } = await supabase.from('group_members').insert({
+        group_id: group.id, user_id: user.id, role: 'owner', status: 'accepted'
+      });
+      console.log('[createGroup] member error:', memberError);
       setNewGroupName('');
       await loadGroups();
       onGroupChange();

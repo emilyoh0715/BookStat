@@ -95,25 +95,23 @@ export default function App() {
     });
 
     setGroupMembers(members);
-    if (members.length > 0 && !selectedUserId) {
-      setSelectedUserId(members[0].id);
-    }
+    // 선택된 유저가 없으면 본인으로 설정
+    setSelectedUserId(prev => prev || (members[0]?.id ?? user.id));
   };
 
   useEffect(() => {
     if (user && profile) {
       loadGroupMembers();
+    } else if (user && !profile) {
+      // 프로필 없어도 본인 id로 일단 설정
+      setSelectedUserId(user.id);
     }
   }, [user, profile]);
-
-  // 선택된 유저 기본값 = 본인
-  useEffect(() => {
-    if (user && !selectedUserId) setSelectedUserId(user.id);
-  }, [user]);
 
   const selectedUser = groupMembers.find(m => m.id === selectedUserId) ?? profile;
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
 
+  console.log('[App] books:', books.length, 'selectedUserId:', selectedUserId);
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search).slice().sort((a, b) => {
     if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
     const dateA = a.finishDate ?? a.startDate ?? a.createdAt;

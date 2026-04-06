@@ -57,7 +57,8 @@ export function useBooks() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setLoading(false); return; }
-      const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('books').select('*').order('created_at', { ascending: false });
+      console.log('[useBooks] fetched:', data?.length, 'error:', error);
       if (data) setBooks(data.map(dbToBook));
       setLoading(false);
     };
@@ -65,6 +66,7 @@ export function useBooks() {
 
     // 로그인/로그아웃 시 재로드
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('[useBooks] auth state change:', _event, !!session);
       if (session) load();
       else setBooks([]);
     });

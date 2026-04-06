@@ -163,18 +163,14 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
     if (!confirm(msg)) return;
 
     if (isOwner) {
-      // 그룹 전체 삭제 (멤버도 cascade)
-      const { error } = await supabase.from('groups').delete().eq('id', groupId);
+      const { error } = await supabase.rpc('delete_group', { gid: groupId });
       if (error) { alert('그룹 삭제 실패: ' + error.message); return; }
     } else {
-      const myMember = group?.group_members.find(m => m.user_id === user.id);
-      if (myMember) {
-        const { error } = await supabase.from('group_members').delete().eq('id', myMember.id);
-        if (error) { alert('나가기 실패: ' + error.message); return; }
-      }
+      const { error } = await supabase.rpc('leave_group', { gid: groupId });
+      if (error) { alert('나가기 실패: ' + error.message); return; }
     }
     await loadGroups();
-    onGroupChange();
+    await onGroupChange();
   };
 
   return (
@@ -228,9 +224,15 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
               ) : groups.map(group => (
                 <div key={group.id} className="group-card">
                   <div className="group-card-header">
-                    <span className="group-name">{group.name}</span>
-                    <button className="icon-btn" style={{ fontSize: 12 }} onClick={() => leaveGroup(group.id)} title="그룹 나가기">
-                      <LogOut size={14} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="group-name">{group.name}</span>
+                      {group.created_by === user?.id && (
+                        <span style={{ fontSize: 10, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>그룹장</span>
+                      )}
+                    </div>
+                    <button className="icon-btn" style={{ fontSize: 12 }} onClick={() => leaveGroup(group.id)}
+                      title={group.created_by === user?.id ? '그룹 삭제' : '그룹 나가기'}>
+                      {group.created_by === user?.id ? <Trash2 size={14} /> : <LogOut size={14} />}
                     </button>
                   </div>
                   <div className="group-members-list">

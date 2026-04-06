@@ -111,29 +111,39 @@ export default function App() {
     if (!user) return;
     loadPendingInviteCount();
 
+    // 15초마다 초대 확인
+    const pollInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from('group_members')
+        .select('id, groups(name)')
+        .eq('user_id', user.id)
+        .eq('status', 'pending');
+      const count = (data ?? []).length;
+      setPendingInviteCount(prev => {
+        if (count > prev && count > 0) {
+          const newest = (data as { groups: { name: string } }[])[0];
+          setInviteToast(`"${newest?.groups?.name ?? '새 그룹'}" 초대가 도착했어요!`);
+          setTimeout(() => setInviteToast(null), 5000);
+        }
+        return count;
+      });
+    }, 15000);
+
     const channel = supabase
       .channel('group-members-changes')
       .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'group_members', filter: `user_id=eq.${user.id}` },
-        async (payload) => {
-          if (payload.new.status === 'pending') {
-            // 그룹 이름 가져오기
-            const { data: grp } = await supabase
-              .from('groups').select('name').eq('id', payload.new.group_id).single();
-            setInviteToast(`"${grp?.name ?? '새 그룹'}" 초대가 도착했어요!`);
-            setTimeout(() => setInviteToast(null), 5000);
-            loadPendingInviteCount();
-          }
-        })
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'group_members' },
+        { event: '*', schema: 'public', table: 'group_members' },
         async () => {
           await loadGroupMembers();
           await refetchBooks();
           loadPendingInviteCount();
         })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const selectedUser = groupMembers.find(m => m.id === selectedUserId) ?? profile;

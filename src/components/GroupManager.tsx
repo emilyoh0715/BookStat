@@ -74,7 +74,11 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
     });
 
     if (error) {
-      if (error.code === '23505' || error.code === 'P0001') {
+      if (
+        error.code === '23505' ||
+        error.code === 'P0001' ||
+        error.message?.includes('같은 이름')
+      ) {
         alert('같은 이름의 그룹이 이미 있어요.');
       } else {
         alert('그룹 만들기 실패: ' + error.message);

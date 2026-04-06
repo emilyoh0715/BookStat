@@ -72,46 +72,13 @@ export default function App() {
       seen.add(profile.id);
     }
 
-    // 내가 속한 그룹 ID 조회
-    const { data: myGroups } = await supabase
-      .from('group_members')
-      .select('group_id')
-      .eq('user_id', user.id)
-      .eq('status', 'accepted');
-
-    const groupIds = (myGroups ?? []).map((d: { group_id: string }) => d.group_id);
-    console.log('[loadGroupMembers] groupIds:', groupIds);
-
-    if (groupIds.length > 0) {
-      const { data: otherMemberships, error: e1 } = await supabase
-        .from('group_members')
-        .select('user_id')
-        .eq('status', 'accepted')
-        .in('group_id', groupIds)
-        .neq('user_id', user.id);
-      console.log('[loadGroupMembers] otherMemberships:', otherMemberships, e1);
-
-      const otherUserIds = (otherMemberships ?? [])
-        .map((d: { user_id: string }) => d.user_id)
-        .filter(id => !seen.has(id));
-      console.log('[loadGroupMembers] otherUserIds:', otherUserIds);
-
-      if (otherUserIds.length > 0) {
-        const { data: otherProfiles, error: e2 } = await supabase
-          .from('profiles')
-          .select('id, display_name, handle, avatar_url')
-          .in('id', otherUserIds);
-        console.log('[loadGroupMembers] otherProfiles:', otherProfiles, e2);
-
-        (otherProfiles ?? []).forEach((p: Profile) => {
-          if (!seen.has(p.id)) {
-            members.push(p);
-            seen.add(p.id);
-          }
-        });
+    const { data: otherProfiles } = await supabase.rpc('get_group_member_profiles');
+    (otherProfiles ?? []).forEach((p: Profile) => {
+      if (!seen.has(p.id)) {
+        members.push(p);
+        seen.add(p.id);
       }
-    }
-    console.log('[loadGroupMembers] final members:', members.map(m => m.display_name));
+    });
 
     setGroupMembers(members);
     setSelectedUserId(prev => prev || (members[0]?.id ?? user.id));

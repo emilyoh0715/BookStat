@@ -49,12 +49,19 @@ export default function App() {
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<'recent' | 'title'>('recent');
   const [groupByYearEnabled, setGroupByYearEnabled] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState<Set<number>>(new Set());
 
   const selectedUser = USERS.find(u => u.id === selectedUserId)!;
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
-  const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search);
+  const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search).slice().sort((a, b) => {
+    if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
+    // recent: finishDate > startDate > createdAt
+    const dateA = a.finishDate ?? a.startDate ?? a.createdAt;
+    const dateB = b.finishDate ?? b.startDate ?? b.createdAt;
+    return dateB.localeCompare(dateA);
+  });
   const stats = getStats(selectedUserId);
   const years = getYears(selectedUserId);
 
@@ -65,6 +72,7 @@ export default function App() {
     setLangFilter('all');
     setYearFilter('all');
     setSearch('');
+    setSortOrder('recent');
   };
 
   const toggleYear = (year: number) => {
@@ -221,6 +229,24 @@ export default function App() {
                   >
                     연도별 묶기
                   </button>
+                </div>
+
+                <div className="filter-row">
+                  <span className="filter-label">정렬</span>
+                  <div className="filter-tabs">
+                    <button
+                      className={`filter-btn ${sortOrder === 'recent' ? 'active' : ''}`}
+                      onClick={() => setSortOrder('recent')}
+                    >
+                      최근 읽은 순
+                    </button>
+                    <button
+                      className={`filter-btn ${sortOrder === 'title' ? 'active' : ''}`}
+                      onClick={() => setSortOrder('title')}
+                    >
+                      제목 가나다순
+                    </button>
+                  </div>
                 </div>
               </div>
 

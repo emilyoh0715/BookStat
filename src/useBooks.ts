@@ -211,6 +211,13 @@ export function useBooks() {
     return new Map([...map.entries()].sort((a, b) => b[0] - a[0]));
   };
 
+  const refetchBooks = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
+    if (data) setBooks(data.map(dbToBook));
+  };
+
   return {
     books,
     loading,
@@ -218,5 +225,6 @@ export function useBooks() {
     addVocab, deleteVocab,
     addNote, deleteNote,
     getStats, filterBooks, getYears, groupByYear,
+    refetchBooks,
   };
 }

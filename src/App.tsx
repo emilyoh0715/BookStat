@@ -32,7 +32,7 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 
 export default function App() {
   const { user, profile, loading: authLoading, signOut } = useAuth();
-  const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear } = useBooks();
+  const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear, refetchBooks } = useBooks();
 
   const [introVisible, setIntroVisible] = useState(true);
   const [introFading, setIntroFading] = useState(false);
@@ -63,20 +63,6 @@ export default function App() {
   const loadGroupMembers = async () => {
     if (!user) return;
 
-    // 내가 속한 그룹의 모든 accepted 멤버 프로필 가져오기
-    const { data } = await supabase
-      .from('group_members')
-      .select('profiles(id, display_name, handle, avatar_url)')
-      .eq('status', 'accepted')
-      .in('group_id',
-        (await supabase
-          .from('group_members')
-          .select('group_id')
-          .eq('user_id', user.id)
-          .eq('status', 'accepted')
-        ).data?.map((d: { group_id: string }) => d.group_id) ?? []
-      );
-
     const members: Profile[] = [];
     const seen = new Set<string>();
 
@@ -86,16 +72,48 @@ export default function App() {
       seen.add(profile.id);
     }
 
-    (data ?? []).forEach((d: Record<string, unknown>) => {
-      const p = d.profiles as Profile;
-      if (p && !seen.has(p.id)) {
-        members.push(p);
-        seen.add(p.id);
+    // 내가 속한 그룹 ID 조회
+    const { data: myGroups } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .eq('user_id', user.id)
+      .eq('status', 'accepted');
+
+    const groupIds = (myGroups ?? []).map((d: { group_id: string }) => d.group_id);
+    console.log('[loadGroupMembers] groupIds:', groupIds);
+
+    if (groupIds.length > 0) {
+      const { data: otherMemberships, error: e1 } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .eq('status', 'accepted')
+        .in('group_id', groupIds)
+        .neq('user_id', user.id);
+      console.log('[loadGroupMembers] otherMemberships:', otherMemberships, e1);
+
+      const otherUserIds = (otherMemberships ?? [])
+        .map((d: { user_id: string }) => d.user_id)
+        .filter(id => !seen.has(id));
+      console.log('[loadGroupMembers] otherUserIds:', otherUserIds);
+
+      if (otherUserIds.length > 0) {
+        const { data: otherProfiles, error: e2 } = await supabase
+          .from('profiles')
+          .select('id, display_name, handle, avatar_url')
+          .in('id', otherUserIds);
+        console.log('[loadGroupMembers] otherProfiles:', otherProfiles, e2);
+
+        (otherProfiles ?? []).forEach((p: Profile) => {
+          if (!seen.has(p.id)) {
+            members.push(p);
+            seen.add(p.id);
+          }
+        });
       }
-    });
+    }
+    console.log('[loadGroupMembers] final members:', members.map(m => m.display_name));
 
     setGroupMembers(members);
-    // 선택된 유저가 없으면 본인으로 설정
     setSelectedUserId(prev => prev || (members[0]?.id ?? user.id));
   };
 
@@ -103,10 +121,22 @@ export default function App() {
     if (user && profile) {
       loadGroupMembers();
     } else if (user && !profile) {
-      // 프로필 없어도 본인 id로 일단 설정
       setSelectedUserId(user.id);
     }
   }, [user, profile]);
+
+  // 그룹 멤버 변경 실시간 감지
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('group-members-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, async () => {
+        await loadGroupMembers();
+        await refetchBooks();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   const selectedUser = groupMembers.find(m => m.id === selectedUserId) ?? profile;
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
@@ -402,7 +432,7 @@ export default function App() {
       {showGroupManager && (
         <GroupManager
           onClose={() => setShowGroupManager(false)}
-          onGroupChange={loadGroupMembers}
+          onGroupChange={async () => { await loadGroupMembers(); await refetchBooks(); }}
         />
       )}
     </div>

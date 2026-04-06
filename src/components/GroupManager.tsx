@@ -45,13 +45,16 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
     if (!user) return;
 
     // 1. 내가 속한 그룹 ID 목록
-    const { data: myMemberships } = await supabase
+    const { data: myMemberships, error: membershipError } = await supabase
       .from('group_members')
       .select('group_id')
       .eq('user_id', user.id)
       .eq('status', 'accepted');
 
+    console.log('[loadGroups] myMemberships:', myMemberships, 'error:', membershipError);
+
     const groupIds = (myMemberships ?? []).map((m: { group_id: string }) => m.group_id);
+    console.log('[loadGroups] groupIds:', groupIds);
     if (groupIds.length === 0) { setGroups([]); return; }
 
     // 2. 그룹 정보 + 멤버 목록
@@ -90,12 +93,18 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
   const createGroup = async () => {
     if (!user || !newGroupName.trim()) return;
     setLoading(true);
-    const { data: group } = await supabase
-      .from('groups').insert({ name: newGroupName.trim(), created_by: user.id }).select().single();
-    if (group) {
-      await supabase.from('group_members').insert({
-        group_id: group.id, user_id: user.id, role: 'owner', status: 'accepted'
-      });
+
+    const { error } = await supabase.rpc('create_group_with_owner', {
+      group_name: newGroupName.trim(),
+    });
+
+    if (error) {
+      if (error.code === '23505' || error.code === 'P0001') {
+        alert('같은 이름의 그룹이 이미 있어요.');
+      } else {
+        alert('그룹 만들기 실패: ' + error.message);
+      }
+    } else {
       setNewGroupName('');
       await loadGroups();
       onGroupChange();
@@ -130,7 +139,7 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
     await supabase.from('group_members').update({ status: 'accepted' }).eq('id', inviteId);
     await loadPendingInvites();
     await loadGroups();
-    onGroupChange();
+    await onGroupChange();
   };
 
   const declineInvite = async (inviteId: string) => {
@@ -146,8 +155,24 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
 
   const leaveGroup = async (groupId: string) => {
     if (!user) return;
-    if (!confirm('그룹에서 나가시겠어요?')) return;
-    await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', user.id);
+    const group = groups.find(g => g.id === groupId);
+    const isOwner = group?.created_by === user.id;
+    const msg = isOwner
+      ? '운영자가 그룹을 나가면 그룹이 삭제돼요. 계속할까요?'
+      : '그룹에서 나가시겠어요?';
+    if (!confirm(msg)) return;
+
+    if (isOwner) {
+      // 그룹 전체 삭제 (멤버도 cascade)
+      const { error } = await supabase.from('groups').delete().eq('id', groupId);
+      if (error) { alert('그룹 삭제 실패: ' + error.message); return; }
+    } else {
+      const myMember = group?.group_members.find(m => m.user_id === user.id);
+      if (myMember) {
+        const { error } = await supabase.from('group_members').delete().eq('id', myMember.id);
+        if (error) { alert('나가기 실패: ' + error.message); return; }
+      }
+    }
     await loadGroups();
     onGroupChange();
   };

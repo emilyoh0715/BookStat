@@ -111,7 +111,6 @@ export default function App() {
   const selectedUser = groupMembers.find(m => m.id === selectedUserId) ?? profile;
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
 
-  console.log('[App] books:', books.length, 'selectedUserId:', selectedUserId);
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search).slice().sort((a, b) => {
     if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
     const dateA = a.finishDate ?? a.startDate ?? a.createdAt;

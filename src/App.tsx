@@ -6,14 +6,14 @@ import BookDetail from './components/BookDetail';
 import AddBookModal from './components/AddBookModal';
 import Dashboard from './components/Dashboard';
 import SettingsModal from './components/SettingsModal';
-import { Plus, Search, Settings, ChevronDown, ChevronRight } from 'lucide-react';
+import AuthScreen from './components/AuthScreen';
+import ProfileSetup from './components/ProfileSetup';
+import GroupManager from './components/GroupManager';
+import { useAuth } from './contexts/AuthContext';
+import { supabase } from './lib/supabase';
+import type { Profile } from './contexts/AuthContext';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut } from 'lucide-react';
 import './App.css';
-
-const USERS = [
-  { id: 'dad',    name: '아빠', emoji: '👨' },
-  { id: 'mom',    name: '엄마', emoji: '👩' },
-  { id: 'suyeon', name: '수연', emoji: '👧' },
-];
 
 const STATUS_FILTERS: { value: ReadingStatus | 'all'; label: string }[] = [
   { value: 'all', label: '전체' },
@@ -31,20 +31,20 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 ];
 
 export default function App() {
-  const { books, loading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear } = useBooks();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear } = useBooks();
+
   const [introVisible, setIntroVisible] = useState(true);
   const [introFading, setIntroFading] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string>('dad');
+
+  // 그룹 멤버 (사이드바용)
+  const [groupMembers, setGroupMembers] = useState<Profile[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [showGroupManager, setShowGroupManager] = useState(false);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-
-  // 인트로: 1.2초 보여주다가 fade out
-  useEffect(() => {
-    const t1 = setTimeout(() => setIntroFading(true), 600);
-    const t2 = setTimeout(() => setIntroVisible(false), 2200);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
@@ -53,15 +53,74 @@ export default function App() {
   const [groupByYearEnabled, setGroupByYearEnabled] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState<Set<number>>(new Set());
 
-  const selectedUser = USERS.find(u => u.id === selectedUserId)!;
+  useEffect(() => {
+    const t1 = setTimeout(() => setIntroFading(true), 600);
+    const t2 = setTimeout(() => setIntroVisible(false), 2200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  // 그룹 멤버 로드
+  const loadGroupMembers = async () => {
+    if (!user) return;
+
+    // 내가 속한 그룹의 모든 accepted 멤버 프로필 가져오기
+    const { data } = await supabase
+      .from('group_members')
+      .select('profiles(id, display_name, handle, avatar_url)')
+      .eq('status', 'accepted')
+      .in('group_id',
+        (await supabase
+          .from('group_members')
+          .select('group_id')
+          .eq('user_id', user.id)
+          .eq('status', 'accepted')
+        ).data?.map((d: { group_id: string }) => d.group_id) ?? []
+      );
+
+    const members: Profile[] = [];
+    const seen = new Set<string>();
+
+    // 항상 본인 먼저
+    if (profile && !seen.has(profile.id)) {
+      members.push(profile);
+      seen.add(profile.id);
+    }
+
+    (data ?? []).forEach((d: Record<string, unknown>) => {
+      const p = d.profiles as Profile;
+      if (p && !seen.has(p.id)) {
+        members.push(p);
+        seen.add(p.id);
+      }
+    });
+
+    setGroupMembers(members);
+    if (members.length > 0 && !selectedUserId) {
+      setSelectedUserId(members[0].id);
+    }
+  };
+
+  useEffect(() => {
+    if (user && profile) {
+      loadGroupMembers();
+    }
+  }, [user, profile]);
+
+  // 선택된 유저 기본값 = 본인
+  useEffect(() => {
+    if (user && !selectedUserId) setSelectedUserId(user.id);
+  }, [user]);
+
+  const selectedUser = groupMembers.find(m => m.id === selectedUserId) ?? profile;
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
+
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search).slice().sort((a, b) => {
     if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
-    // recent: finishDate > startDate > createdAt
     const dateA = a.finishDate ?? a.startDate ?? a.createdAt;
     const dateB = b.finishDate ?? b.startDate ?? b.createdAt;
     return dateB.localeCompare(dateA);
   });
+
   const stats = getStats(selectedUserId);
   const years = getYears(selectedUserId);
 
@@ -86,13 +145,25 @@ export default function App() {
 
   const grouped = groupByYearEnabled ? groupByYear(filtered) : null;
 
-  return (
-    <>
-    {introVisible && (
+  // ─── 인트로 ───
+  if (introVisible) {
+    return (
       <div className={`intro-screen ${introFading ? 'fading' : ''}`}>
         <img src="/logo.png" alt="북스탯" className="intro-logo" />
       </div>
-    )}
+    );
+  }
+
+  // ─── 인증 로딩 ───
+  if (authLoading) return null;
+
+  // ─── 비로그인 ───
+  if (!user) return <AuthScreen />;
+
+  // ─── 프로필 미설정 ───
+  if (!profile) return <ProfileSetup />;
+
+  return (
     <div className="app">
       <header className="app-header">
         <div className="header-inner">
@@ -100,20 +171,26 @@ export default function App() {
             <img src="/logo.png" alt="북스탯" className="logo-img" />
             <span>북스탯</span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {!selectedBook && (
               <button className="btn-primary header-add-btn" onClick={() => setShowAdd(true)}>
                 <Plus size={18} /> 책 추가
               </button>
             )}
+            <button className="icon-btn" onClick={() => setShowGroupManager(true)} title="그룹 관리">
+              <Users size={20} />
+            </button>
             <button className="icon-btn" onClick={() => setShowSettings(true)} title="설정">
               <Settings size={20} />
+            </button>
+            <button className="icon-btn" onClick={signOut} title="로그아웃">
+              <LogOut size={18} />
             </button>
           </div>
         </div>
       </header>
 
-      {loading && (
+      {booksLoading && (
         <div className="loading-overlay">
           <img src="/logo.png" alt="북스탯" className="loading-logo" />
           <p>불러오는 중...</p>
@@ -123,21 +200,29 @@ export default function App() {
       <div className="app-body">
         {/* 유저 사이드바 */}
         <aside className="user-sidebar">
-          <div className="sidebar-title">가족 서재</div>
+          <div className="sidebar-title">서재</div>
           <nav className="user-list">
-            {USERS.map(user => (
+            {groupMembers.map(member => (
               <button
-                key={user.id}
-                className={`user-item ${selectedUserId === user.id ? 'active' : ''}`}
-                onClick={() => handleSelectUser(user.id)}
+                key={member.id}
+                className={`user-item ${selectedUserId === member.id ? 'active' : ''}`}
+                onClick={() => handleSelectUser(member.id)}
               >
-                <span className="user-avatar">{user.emoji}</span>
-                <span className="user-name">{user.name}</span>
+                <span className="user-avatar">
+                  {member.avatar_url
+                    ? <img src={member.avatar_url} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+                    : member.display_name[0].toUpperCase()}
+                </span>
+                <span className="user-name">{member.display_name}</span>
                 <span className="user-count">
-                  {books.filter(b => b.userId === user.id).length}
+                  {books.filter(b => b.userId === member.id).length}
                 </span>
               </button>
             ))}
+            <button className="user-item add-group-btn" onClick={() => setShowGroupManager(true)}>
+              <span className="user-avatar"><Users size={16} /></span>
+              <span className="user-name">그룹 관리</span>
+            </button>
           </nav>
         </aside>
 
@@ -156,8 +241,12 @@ export default function App() {
           ) : (
             <>
               <div className="user-heading">
-                <span className="user-heading-emoji">{selectedUser.emoji}</span>
-                <h2>{selectedUser.name}의 서재</h2>
+                <span className="user-heading-emoji">
+                  {selectedUser?.avatar_url
+                    ? <img src={selectedUser.avatar_url} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                    : selectedUser?.display_name[0].toUpperCase()}
+                </span>
+                <h2>{selectedUser?.display_name}의 서재</h2>
               </div>
 
               <Dashboard stats={stats} statusFilter={statusFilter} onStatusFilter={setStatusFilter} />
@@ -225,7 +314,6 @@ export default function App() {
                   <button
                     className={`filter-btn group-toggle ${groupByYearEnabled ? 'active' : ''}`}
                     onClick={() => setGroupByYearEnabled(v => !v)}
-                    title="연도별 그룹화"
                   >
                     연도별 묶기
                   </button>
@@ -234,18 +322,8 @@ export default function App() {
                 <div className="filter-row">
                   <span className="filter-label">정렬</span>
                   <div className="filter-tabs">
-                    <button
-                      className={`filter-btn ${sortOrder === 'recent' ? 'active' : ''}`}
-                      onClick={() => setSortOrder('recent')}
-                    >
-                      최근 읽은 순
-                    </button>
-                    <button
-                      className={`filter-btn ${sortOrder === 'title' ? 'active' : ''}`}
-                      onClick={() => setSortOrder('title')}
-                    >
-                      제목 가나다순
-                    </button>
+                    <button className={`filter-btn ${sortOrder === 'recent' ? 'active' : ''}`} onClick={() => setSortOrder('recent')}>최근 읽은 순</button>
+                    <button className={`filter-btn ${sortOrder === 'title' ? 'active' : ''}`} onClick={() => setSortOrder('title')}>제목 가나다순</button>
                   </div>
                 </div>
               </div>
@@ -262,23 +340,15 @@ export default function App() {
                 <div className="year-groups">
                   {Array.from(grouped.entries()).map(([year, yearBooks]) => (
                     <div key={year} className="year-group">
-                      <button
-                        className="year-group-header"
-                        onClick={() => toggleYear(year)}
-                      >
-                        {collapsedYears.has(year)
-                          ? <ChevronRight size={18} />
-                          : <ChevronDown size={18} />}
+                      <button className="year-group-header" onClick={() => toggleYear(year)}>
+                        {collapsedYears.has(year) ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                         <span>{year}년</span>
                         <span className="year-count">{yearBooks.length}권</span>
                       </button>
                       {!collapsedYears.has(year) && (
                         <div className="book-grid">
                           {yearBooks.map((book, idx) => (
-                            <BookCard
-                              key={book.id}
-                              book={book}
-                              number={idx + 1}
+                            <BookCard key={book.id} book={book} number={idx + 1}
                               onClick={() => setSelectedId(book.id)}
                               onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
                             />
@@ -291,10 +361,7 @@ export default function App() {
               ) : (
                 <div className="book-grid">
                   {filtered.map((book, idx) => (
-                    <BookCard
-                      key={book.id}
-                      book={book}
-                      number={idx + 1}
+                    <BookCard key={book.id} book={book} number={idx + 1}
                       onClick={() => setSelectedId(book.id)}
                       onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
                     />
@@ -308,20 +375,21 @@ export default function App() {
 
       {/* 모바일 하단 탭 바 */}
       <nav className="mobile-tab-bar">
-        {USERS.map(user => (
+        {groupMembers.slice(0, 3).map(member => (
           <button
-            key={user.id}
-            className={`mobile-tab ${selectedUserId === user.id ? 'active' : ''}`}
-            onClick={() => handleSelectUser(user.id)}
+            key={member.id}
+            className={`mobile-tab ${selectedUserId === member.id ? 'active' : ''}`}
+            onClick={() => handleSelectUser(member.id)}
           >
-            <span className="mobile-tab-emoji">{user.emoji}</span>
-            <span className="mobile-tab-name">{user.name}</span>
+            <span className="mobile-tab-emoji">
+              {member.avatar_url
+                ? <img src={member.avatar_url} style={{ width: 22, height: 22, borderRadius: '50%' }} />
+                : member.display_name[0].toUpperCase()}
+            </span>
+            <span className="mobile-tab-name">{member.display_name}</span>
           </button>
         ))}
-        <button
-          className="mobile-tab"
-          onClick={() => setShowAdd(true)}
-        >
+        <button className="mobile-tab" onClick={() => setShowAdd(true)}>
           <Plus size={22} />
           <span className="mobile-tab-name">추가</span>
         </button>
@@ -329,12 +397,17 @@ export default function App() {
 
       {showAdd && (
         <AddBookModal
-          onAdd={book => addBook(book, selectedUserId)}
+          onAdd={book => addBook(book, user.id)}
           onClose={() => setShowAdd(false)}
         />
       )}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showGroupManager && (
+        <GroupManager
+          onClose={() => setShowGroupManager(false)}
+          onGroupChange={loadGroupMembers}
+        />
+      )}
     </div>
-    </>
   );
 }

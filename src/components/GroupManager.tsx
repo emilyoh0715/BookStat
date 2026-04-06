@@ -43,12 +43,32 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
 
   const loadGroups = async () => {
     if (!user) return;
-    const { data } = await supabase
+
+    // 1. 내가 속한 그룹 ID 목록
+    const { data: myMemberships } = await supabase
       .from('group_members')
-      .select('group_id, groups(id, name, created_by, group_members(id, user_id, role, status, profiles(display_name, handle, avatar_url)))')
+      .select('group_id')
       .eq('user_id', user.id)
       .eq('status', 'accepted');
-    const gs = (data ?? []).map((d: Record<string, unknown>) => d.groups as Group).filter(Boolean);
+
+    const groupIds = (myMemberships ?? []).map((m: { group_id: string }) => m.group_id);
+    if (groupIds.length === 0) { setGroups([]); return; }
+
+    // 2. 그룹 정보 + 멤버 목록
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('id, name, created_by')
+      .in('id', groupIds);
+
+    const { data: memberData } = await supabase
+      .from('group_members')
+      .select('id, group_id, user_id, role, status, profiles(display_name, handle, avatar_url)')
+      .in('group_id', groupIds);
+
+    const gs: Group[] = (groupData ?? []).map((g: { id: string; name: string; created_by: string }) => ({
+      ...g,
+      group_members: (memberData ?? []).filter((m: { group_id: string }) => m.group_id === g.id) as GroupMember[],
+    }));
     setGroups(gs);
   };
 

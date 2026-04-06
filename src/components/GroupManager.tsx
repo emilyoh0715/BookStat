@@ -136,10 +136,16 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
     if (!confirm(msg)) return;
 
     if (isOwner) {
-      const { error } = await supabase.rpc('delete_group', { gid: groupId });
-      if (error) { alert('그룹 삭제 실패: ' + error.message); return; }
+      // 멤버 먼저 삭제 후 그룹 삭제
+      const { error: e1 } = await supabase.from('group_members').delete().eq('group_id', groupId);
+      if (e1) { alert('멤버 삭제 실패: ' + e1.message); return; }
+      const { error: e2 } = await supabase.from('groups').delete().eq('id', groupId);
+      if (e2) { alert('그룹 삭제 실패: ' + e2.message); return; }
     } else {
-      const { error } = await supabase.rpc('leave_group', { gid: groupId });
+      const { error } = await supabase.from('group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', user.id);
       if (error) { alert('나가기 실패: ' + error.message); return; }
     }
     await loadGroups();

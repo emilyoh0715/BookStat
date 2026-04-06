@@ -142,11 +142,13 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
       const { error: e2 } = await supabase.from('groups').delete().eq('id', groupId);
       if (e2) { alert('그룹 삭제 실패: ' + e2.message); return; }
     } else {
-      const { error } = await supabase.from('group_members')
+      const { data, error, status, statusText } = await supabase.from('group_members')
         .delete()
         .eq('group_id', groupId)
-        .eq('user_id', user.id);
-      if (error) { alert('나가기 실패: ' + error.message); return; }
+        .eq('user_id', user.id)
+        .select();
+      alert(`status: ${status} ${statusText} / error: ${error?.message ?? 'none'} / deleted: ${JSON.stringify(data)}`);
+      if (error) return;
     }
     await loadGroups();
     await onGroupChange();

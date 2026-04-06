@@ -121,7 +121,7 @@ export default function App() {
       const count = (data ?? []).length;
       setPendingInviteCount(prev => {
         if (count > prev && count > 0) {
-          const newest = (data as { groups: { name: string } }[])[0];
+          const newest = (data as unknown as { groups: { name: string } }[])[0];
           setInviteToast(`"${newest?.groups?.name ?? '새 그룹'}" 초대가 도착했어요!`);
           setTimeout(() => setInviteToast(null), 5000);
         }

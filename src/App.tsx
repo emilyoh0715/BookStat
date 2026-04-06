@@ -41,6 +41,8 @@ export default function App() {
   const [groupMembers, setGroupMembers] = useState<Profile[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [showGroupManager, setShowGroupManager] = useState(false);
+  const [pendingInviteCount, setPendingInviteCount] = useState(0);
+  const [inviteToast, setInviteToast] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -93,14 +95,43 @@ export default function App() {
   }, [user, profile]);
 
   // 그룹 멤버 변경 실시간 감지
+  // 초대 카운트 로드
+  const loadPendingInviteCount = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('group_members')
+      .select('id, groups(name)')
+      .eq('user_id', user.id)
+      .eq('status', 'pending');
+    setPendingInviteCount((data ?? []).length);
+    return data ?? [];
+  };
+
   useEffect(() => {
     if (!user) return;
+    loadPendingInviteCount();
+
     const channel = supabase
       .channel('group-members-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, async () => {
-        await loadGroupMembers();
-        await refetchBooks();
-      })
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'group_members', filter: `user_id=eq.${user.id}` },
+        async (payload) => {
+          if (payload.new.status === 'pending') {
+            // 그룹 이름 가져오기
+            const { data: grp } = await supabase
+              .from('groups').select('name').eq('id', payload.new.group_id).single();
+            setInviteToast(`"${grp?.name ?? '새 그룹'}" 초대가 도착했어요!`);
+            setTimeout(() => setInviteToast(null), 5000);
+            loadPendingInviteCount();
+          }
+        })
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'group_members' },
+        async () => {
+          await loadGroupMembers();
+          await refetchBooks();
+          loadPendingInviteCount();
+        })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user]);
@@ -171,8 +202,17 @@ export default function App() {
                 <Plus size={18} /> 책 추가
               </button>
             )}
-            <button className="icon-btn" onClick={() => setShowGroupManager(true)} title="그룹 관리">
+            <button className="icon-btn" onClick={() => { setShowGroupManager(true); setPendingInviteCount(0); }} title="그룹 관리" style={{ position: 'relative' }}>
               <Users size={20} />
+              {pendingInviteCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: 2, right: 2,
+                  background: 'var(--accent)', color: '#fff',
+                  borderRadius: '50%', fontSize: 10, fontWeight: 700,
+                  width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  lineHeight: 1,
+                }}>{pendingInviteCount}</span>
+              )}
             </button>
             <button className="icon-btn" onClick={() => setShowSettings(true)} title="설정">
               <Settings size={20} />
@@ -388,6 +428,18 @@ export default function App() {
           <span className="mobile-tab-name">추가</span>
         </button>
       </nav>
+
+      {inviteToast && (
+        <div onClick={() => { setShowGroupManager(true); setInviteToast(null); }} style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--accent)', color: '#fff', padding: '12px 20px',
+          borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+          zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <Users size={16} /> {inviteToast}
+        </div>
+      )}
 
       {showAdd && (
         <AddBookModal

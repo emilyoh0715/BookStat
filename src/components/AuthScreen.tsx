@@ -22,8 +22,15 @@ export default function AuthScreen() {
       if (error) setError(error);
     } else {
       const { error } = await signUpWithEmail(email, password);
-      if (error) setError(error);
-      else setMessage('가입 확인 이메일을 보냈어요.\n받은 편지함에서 링크를 클릭하면 가입이 완료돼요!');
+      if (error) {
+        if (error.toLowerCase().includes('already') || error.toLowerCase().includes('registered')) {
+          setError('이미 가입된 이메일이에요. 로그인 탭에서 로그인해주세요.');
+        } else {
+          setError(error);
+        }
+      } else {
+        setMessage('가입 확인 이메일을 보냈어요.\n받은 편지함에서 링크를 클릭하면 가입이 완료돼요!');
+      }
     }
     setLoading(false);
   };

@@ -64,8 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return { error: error?.message ?? null };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error: error.message };
+    // Supabase가 중복 이메일에도 성공처럼 응답하지만 identities가 비어있음
+    if (data.user && data.user.identities?.length === 0) {
+      return { error: '이미 가입된 이메일이에요. 로그인 탭에서 로그인해주세요.' };
+    }
+    return { error: null };
   };
 
   const signInWithGoogle = async () => {

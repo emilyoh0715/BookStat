@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function AuthScreen() {
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithKakao } = useAuth();
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +23,7 @@ export default function AuthScreen() {
     } else {
       const { error } = await signUpWithEmail(email, password);
       if (error) setError(error);
-      else setMessage('가입 확인 이메일을 보냈어요. 이메일을 확인해주세요!');
+      else setMessage('가입 확인 이메일을 보냈어요.\n받은 편지함에서 링크를 클릭하면 가입이 완료돼요!');
     }
     setLoading(false);
   };
@@ -51,12 +51,6 @@ export default function AuthScreen() {
               <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
             </svg>
             Google로 계속하기
-          </button>
-          <button className="social-btn kakao" onClick={signInWithKakao}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M9 0C4.029 0 0 3.134 0 7c0 2.493 1.607 4.677 4.027 5.934L3.09 16.5l4.09-2.72A10.77 10.77 0 009 14c4.971 0 9-3.134 9-7S13.971 0 9 0z" fill="#3A1D1D"/>
-            </svg>
-            카카오로 계속하기
           </button>
         </div>
 

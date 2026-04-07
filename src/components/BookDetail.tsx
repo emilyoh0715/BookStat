@@ -2,39 +2,45 @@ import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
-import { lookupVocab, getApiKey, getKakaoKey } from '../services/claudeVocab';
+import { lookupVocab, getApiKey, getAladinKey } from '../services/claudeVocab';
 import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, Camera, Search } from 'lucide-react';
 
 async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
-  const kakaoKey = getKakaoKey();
+  const aladinKey = getAladinKey();
+  const results: string[] = [];
 
-  // 카카오 Books API (한국 책에 최적)
-  if (kakaoKey) {
+  // 알라딘 API (한국 책에 최적)
+  if (aladinKey) {
     try {
       const query = encodeURIComponent(`${title} ${author}`);
-      const res = await fetch(`https://dapi.kakao.com/v3/search/book?query=${query}&size=12`, {
-        headers: { Authorization: `KakaoAK ${kakaoKey}` },
-      });
-      const data = await res.json() as { documents?: Array<{ thumbnail: string }> };
-      const urls = (data.documents ?? []).map(d => d.thumbnail).filter(Boolean);
-      if (urls.length > 0) return urls;
-    } catch { /* fall through to Google */ }
+      const res = await fetch(
+        `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${aladinKey}&Query=${query}&QueryType=Title&MaxResults=10&output=js&Version=20131101&Cover=Big`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      const data = await res.json() as { item?: Array<{ cover: string }> };
+      const urls = (data.item ?? []).map(d => d.cover).filter(Boolean);
+      results.push(...urls);
+    } catch { /* fall through */ }
   }
 
-  // Google Books 폴백
-  const query = encodeURIComponent(`${title} ${author}`);
-  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=12`);
-  const data = await res.json() as { items?: Array<Record<string, unknown>> };
-  if (!data.items) return [];
-  return data.items
-    .map((item) => {
-      const info = item.volumeInfo as Record<string, unknown>;
-      const links = info?.imageLinks as Record<string, string> | undefined;
-      const url = links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
-      return url ? url.replace('http://', 'https://').replace('zoom=1', 'zoom=2') : null;
-    })
-    .filter(Boolean) as string[];
+  // Google Books (폴백 또는 추가 결과)
+  try {
+    const query = encodeURIComponent(`${title} ${author}`);
+    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=10`);
+    const data = await res.json() as { items?: Array<Record<string, unknown>> };
+    const urls = (data.items ?? [])
+      .map((item) => {
+        const info = item.volumeInfo as Record<string, unknown>;
+        const links = info?.imageLinks as Record<string, string> | undefined;
+        const url = links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
+        return url ? url.replace('http://', 'https://').replace('zoom=1', 'zoom=2') : null;
+      })
+      .filter(Boolean) as string[];
+    results.push(...urls);
+  } catch { /* ignore */ }
+
+  return [...new Set(results)]; // 중복 제거
 }
 
 interface Props {

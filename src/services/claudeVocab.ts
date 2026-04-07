@@ -1,5 +1,5 @@
 const API_KEY_STORAGE = 'book-recorder-api-key';
-const KAKAO_KEY_STORAGE = 'book-recorder-kakao-key';
+const ALADIN_KEY_STORAGE = 'book-recorder-aladin-key';
 
 export function getApiKey(): string {
   return localStorage.getItem(API_KEY_STORAGE) || import.meta.env.VITE_ANTHROPIC_API_KEY || '';
@@ -9,12 +9,12 @@ export function setApiKey(key: string) {
   localStorage.setItem(API_KEY_STORAGE, key);
 }
 
-export function getKakaoKey(): string {
-  return localStorage.getItem(KAKAO_KEY_STORAGE) ?? import.meta.env.VITE_KAKAO_API_KEY ?? '';
+export function getAladinKey(): string {
+  return localStorage.getItem(ALADIN_KEY_STORAGE) ?? import.meta.env.VITE_ALADIN_API_KEY ?? '';
 }
 
-export function setKakaoKey(key: string) {
-  localStorage.setItem(KAKAO_KEY_STORAGE, key);
+export function setAladinKey(key: string) {
+  localStorage.setItem(ALADIN_KEY_STORAGE, key);
 }
 
 export interface VocabLookupResult {

@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const results: string[] = [];
 
   // 알라딘 API
-  const aladinKey = process.env.VITE_ALADIN_API_KEY;
+  const aladinKey = process.env.ALADIN_API_KEY || process.env.VITE_ALADIN_API_KEY;
   if (aladinKey) {
     try {
       const r = await fetch(

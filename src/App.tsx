@@ -128,7 +128,12 @@ export default function App() {
       const { data } = await supabase.rpc('get_group_member_points');
       if (data) {
         setGroupMemberPoints(
-          (data as MemberStat[]).map(m => ({ ...m, total_points: Number(m.total_points) }))
+          (data as MemberStat[]).map(m => ({
+            ...m,
+            total_points:            Number(m.total_points),
+            book_added_points:       Number(m.book_added_points ?? 0),
+            review_approved_points:  Number(m.review_approved_points ?? 0),
+          }))
         );
       }
       setGroupPointsLoading(false);

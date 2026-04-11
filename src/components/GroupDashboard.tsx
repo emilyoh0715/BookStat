@@ -7,6 +7,8 @@ export interface MemberStat {
   handle: string;
   avatar_url: string | null;
   total_points: number;
+  book_added_points: number;
+  review_approved_points: number;
 }
 
 interface Props {
@@ -71,16 +73,22 @@ export default function GroupDashboard({ members, books, loading }: Props) {
         <h3 className="gd-page-section-title">
           <Award size={16} /> 포인트 랭킹
         </h3>
+        {/* 범례 */}
+        <div className="gd-chart-legend">
+          <span className="gd-chart-legend-item">
+            <span className="gd-chart-legend-dot" style={{ background: '#3b7fd4' }} />
+            책 추가
+          </span>
+          <span className="gd-chart-legend-item">
+            <span className="gd-chart-legend-dot" style={{ background: '#f5a623' }} />
+            완독 후기
+          </span>
+        </div>
+
         <div className="gd-chart">
           {members.map((m, i) => {
-            const pct = maxPoints > 0 ? (m.total_points / maxPoints) * 100 : 0;
-            const barColor = i === 0
-              ? 'linear-gradient(90deg, #f5c518, #f5a623)'
-              : i === 1
-              ? 'linear-gradient(90deg, #adb5bd, #868e96)'
-              : i === 2
-              ? 'linear-gradient(90deg, #cd7f32, #b8692a)'
-              : 'linear-gradient(90deg, var(--accent), #5ba8e5)';
+            const addedPct    = maxPoints > 0 ? (m.book_added_points    / maxPoints) * 100 : 0;
+            const reviewPct   = maxPoints > 0 ? (m.review_approved_points / maxPoints) * 100 : 0;
 
             return (
               <div key={m.user_id} className="gd-chart-row">
@@ -98,16 +106,21 @@ export default function GroupDashboard({ members, books, loading }: Props) {
                   </div>
                 </div>
 
-                {/* 바 */}
+                {/* 스택 바 */}
                 <div className="gd-chart-bar-wrap">
-                  <div
-                    className="gd-chart-bar-fill"
-                    style={{ width: `${pct}%`, background: barColor }}
-                  />
+                  <div className="gd-chart-bar-fill" style={{ width: `${addedPct}%`, background: '#3b7fd4' }} />
+                  <div className="gd-chart-bar-fill" style={{ width: `${reviewPct}%`, background: '#f5a623' }} />
                 </div>
 
-                {/* 포인트 */}
-                <span className="gd-chart-pts">{m.total_points}pt</span>
+                {/* 포인트 상세 */}
+                <div className="gd-chart-pts-detail">
+                  <span className="gd-chart-pts">{m.total_points}pt</span>
+                  <span className="gd-chart-pts-sub">
+                    <span style={{ color: '#3b7fd4' }}>{m.book_added_points}</span>
+                    {' + '}
+                    <span style={{ color: '#f5a623' }}>{m.review_approved_points}</span>
+                  </span>
+                </div>
               </div>
             );
           })}

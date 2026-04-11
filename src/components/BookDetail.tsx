@@ -4,14 +4,54 @@ import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import { lookupVocab, getApiKey } from '../services/claudeVocab';
 import { GENRES } from '../lib/genres';
-import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, Camera, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, Camera, Search, Wand2 } from 'lucide-react';
 
-async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
+interface BookCandidate {
+  cover: string;
+  title: string;
+  author: string;
+  publisher: string;
+  pages?: number;
+  categoryName?: string;
+}
+
+function mapCategory(categoryName?: string): string {
+  if (!categoryName) return '';
+  const cat = categoryName;
+  if (/소설|시\/희곡|희곡/.test(cat)) return cat.includes('시') && !cat.includes('소설') ? '시/에세이' : '소설';
+  if (/에세이/.test(cat)) return '시/에세이';
+  if (/경제|경영/.test(cat)) return '경제/경영';
+  if (/자기계발/.test(cat)) return '자기계발';
+  if (/인문/.test(cat)) return '인문';
+  if (/사회|정치/.test(cat)) return '정치/사회';
+  if (/역사|문화/.test(cat)) return '역사/문화';
+  if (/과학/.test(cat)) return '과학';
+  if (/컴퓨터|IT|프로그래밍/.test(cat)) return '컴퓨터/IT';
+  if (/외국어/.test(cat)) return '외국어';
+  if (/여행/.test(cat)) return '여행';
+  if (/요리/.test(cat)) return '요리';
+  if (/건강|의학/.test(cat)) return '건강';
+  if (/육아|가정/.test(cat)) return '가정/육아';
+  if (/예술|대중문화|음악|영화/.test(cat)) return '예술/대중문화';
+  if (/종교/.test(cat)) return '종교';
+  if (/만화/.test(cat)) return '만화';
+  if (/청소년/.test(cat)) return '청소년';
+  if (/어린이|초등/.test(cat)) return '어린이(초등)';
+  if (/취미|스포츠|실용/.test(cat)) return '취미/실용/스포츠';
+  if (/기술|공학/.test(cat)) return '기술/공학';
+  if (/취업|수험/.test(cat)) return '취업/수험서';
+  if (/잡지/.test(cat)) return '잡지';
+  return '';
+}
+
+async function fetchBookCandidates(title: string, author: string): Promise<BookCandidate[]> {
   try {
-    const params = new URLSearchParams({ title, author });
+    const params = new URLSearchParams({ title, ...(author ? { author } : {}) });
     const res = await fetch(`/api/book-covers?${params}`);
-    const data = await res.json() as { covers?: string[] };
-    return data.covers ?? [];
+    const data = await res.json() as { books?: BookCandidate[]; covers?: string[] };
+    // 구버전 응답(covers only) 대비 폴백
+    if (data.books) return data.books;
+    return (data.covers ?? []).map(cover => ({ cover, title, author, publisher: '' }));
   } catch {
     return [];
   }
@@ -57,16 +97,19 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   const [metaForm, setMetaForm] = useState({
     title: book.title,
     author: book.author,
+    publisher: book.publisher ?? '',
     genre: book.genre ?? '',
     language: book.language,
     totalPages: book.totalPages?.toString() ?? '',
     startDate: book.startDate ?? '',
   });
+  const [metaAutoFilling, setMetaAutoFilling] = useState(false);
 
   const saveMeta = () => {
     onUpdate({
       title: metaForm.title.trim() || book.title,
       author: metaForm.author.trim(),
+      publisher: metaForm.publisher.trim() || undefined,
       genre: metaForm.genre.trim() || undefined,
       language: metaForm.language,
       totalPages: metaForm.totalPages ? Number(metaForm.totalPages) : undefined,
@@ -75,13 +118,30 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setEditingMeta(false);
   };
 
+  const handleMetaAutoFill = async () => {
+    if (!metaForm.title.trim()) return;
+    setMetaAutoFilling(true);
+    const candidates = await fetchBookCandidates(metaForm.title.trim(), metaForm.author.trim());
+    if (candidates.length > 0) {
+      const best = candidates[0];
+      setMetaForm(f => ({
+        ...f,
+        author: f.author.trim() || best.author,
+        publisher: f.publisher.trim() || best.publisher,
+        totalPages: f.totalPages || (best.pages ? String(best.pages) : ''),
+        genre: f.genre || mapCategory(best.categoryName),
+      }));
+    }
+    setMetaAutoFilling(false);
+  };
+
   const [vocabForm, setVocabForm] = useState({ word: '', meaning: '', sentence: '', page: '' });
   const [noteForm, setNoteForm] = useState({ content: '', page: '' });
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState('');
 
   const [editingCover, setEditingCover] = useState(false);
-  const [coverCandidates, setCoverCandidates] = useState<string[]>([]);
+  const [coverCandidates, setCoverCandidates] = useState<BookCandidate[]>([]);
   const [coverIdx, setCoverIdx] = useState(0);
   const [coverSearching, setCoverSearching] = useState(false);
   const [manualCoverUrl, setManualCoverUrl] = useState('');
@@ -96,7 +156,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     if (coverSearchedFor.current !== key) {
       coverSearchedFor.current = key;
       setCoverSearching(true);
-      const candidates = await fetchCoverCandidates(book.title, book.author);
+      const candidates = await fetchBookCandidates(book.title, book.author);
       setCoverCandidates(candidates);
       setCoverIdx(0);
       setCoverSearching(false);
@@ -104,7 +164,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   };
 
   const saveCover = () => {
-    const url = manualCoverMode ? manualCoverUrl : coverCandidates[coverIdx] ?? '';
+    const url = manualCoverMode ? manualCoverUrl : (coverCandidates[coverIdx]?.cover ?? '');
     onUpdate({ cover: url || undefined });
     setEditingCover(false);
   };
@@ -234,14 +294,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
             </div>
           ) : coverCandidates.length > 0 ? (
             <div className="cover-grid">
-              {coverCandidates.map((url, i) => (
+              {coverCandidates.map((b, i) => (
                 <button
                   key={i}
                   type="button"
                   className={`cover-grid-item ${coverIdx === i ? 'selected' : ''}`}
                   onClick={() => setCoverIdx(i)}
                 >
-                  <img src={url} alt={`표지 후보 ${i + 1}`} onError={e => (e.currentTarget.parentElement!.style.display = 'none')} />
+                  <img src={b.cover} alt={`표지 후보 ${i + 1}`} onError={e => (e.currentTarget.parentElement!.style.display = 'none')} />
                 </button>
               ))}
             </div>
@@ -292,15 +352,34 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                   </div>
                   <div className="form-row">
                     <div className="form-group">
+                      <label>출판사</label>
+                      <input value={metaForm.publisher} onChange={e => setMetaForm(f => ({ ...f, publisher: e.target.value }))} placeholder="출판사" />
+                    </div>
+                    <div className="form-group">
+                      <label>전체 페이지</label>
+                      <input type="number" value={metaForm.totalPages} onChange={e => setMetaForm(f => ({ ...f, totalPages: e.target.value }))} placeholder="0" min="1" />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
                       <label>장르</label>
                       <select value={metaForm.genre} onChange={e => setMetaForm(f => ({ ...f, genre: e.target.value }))}>
                         <option value="">선택 안함</option>
                         {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
                       </select>
                     </div>
-                    <div className="form-group">
-                      <label>전체 페이지</label>
-                      <input type="number" value={metaForm.totalPages} onChange={e => setMetaForm(f => ({ ...f, totalPages: e.target.value }))} placeholder="0" min="1" />
+                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handleMetaAutoFill}
+                        disabled={metaAutoFilling || !metaForm.title.trim()}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                      >
+                        {metaAutoFilling
+                          ? <><Loader size={14} className="spin" /> 검색 중...</>
+                          : <><Wand2 size={14} /> 자동완성</>}
+                      </button>
                     </div>
                   </div>
                   <div className="form-row">
@@ -325,6 +404,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                 <div className="info-grid">
                   <div className="info-item"><span className="info-label">제목</span><span>{book.title}</span></div>
                   <div className="info-item"><span className="info-label">저자</span><span>{book.author || '—'}</span></div>
+                  <div className="info-item"><span className="info-label">출판사</span><span>{book.publisher || '—'}</span></div>
                   <div className="info-item"><span className="info-label">장르</span><span>{book.genre || '—'}</span></div>
                   <div className="info-item"><span className="info-label">언어</span><span>{LANG_OPTIONS.find(o => o.value === book.language)?.label ?? '—'}</span></div>
                 </div>

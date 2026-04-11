@@ -55,7 +55,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 's-maxage=1800');
 
   const title = String(req.query.title ?? '');
-  const author = String(req.query.author ?? '');
+  const author = String(req.query.author ?? '').trim();
+  const publisher = String(req.query.publisher ?? '').trim();
   const language = String(req.query.language ?? 'korean');
   const results: BookResult[] = [];
 
@@ -73,10 +74,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       items = await searchAladin(aladinKey, titleQuery, 'Book');
     }
 
-    const sorted = author ? [
-      ...items.filter(d => d.author?.includes(author)),
-      ...items.filter(d => !d.author?.includes(author)),
-    ] : items;
+    // 저자·출판사 일치 점수순 정렬 (2: 둘 다, 1: 하나, 0: 없음)
+    const score = (d: AladinItem) => {
+      const authorMatch = author && d.author?.includes(author) ? 1 : 0;
+      const publisherMatch = publisher && d.publisher?.includes(publisher) ? 1 : 0;
+      return authorMatch + publisherMatch;
+    };
+    const sorted = (author || publisher)
+      ? [...items].sort((a, b) => score(b) - score(a))
+      : items;
 
     // 커버 있는 첫 번째 결과 ISBN으로 페이지 수 조회
     const firstWithCover = sorted.find(d => d.cover);

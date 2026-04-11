@@ -44,9 +44,9 @@ function mapCategory(categoryName?: string): string {
   return '';
 }
 
-async function fetchBookCandidates(title: string, author: string, language = 'korean'): Promise<BookCandidate[]> {
+async function fetchBookCandidates(title: string, author: string, language = 'korean', publisher = ''): Promise<BookCandidate[]> {
   try {
-    const params = new URLSearchParams({ title, language, ...(author ? { author } : {}) });
+    const params = new URLSearchParams({ title, language, ...(author ? { author } : {}), ...(publisher ? { publisher } : {}) });
     const res = await fetch(`/api/book-covers?${params}`);
     const data = await res.json() as { books?: BookCandidate[]; covers?: string[] };
     if (data.books) return data.books;
@@ -133,7 +133,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   const handleMetaAutoFill = async () => {
     if (!metaForm.title.trim()) return;
     setMetaAutoFilling(true);
-    const candidates = await fetchBookCandidates(metaForm.title.trim(), metaForm.author.trim(), metaForm.language);
+    const candidates = await fetchBookCandidates(metaForm.title.trim(), metaForm.author.trim(), metaForm.language, metaForm.publisher.trim());
     if (candidates.length > 0) {
       const best = candidates[0];
       setMetaForm(f => ({
@@ -170,7 +170,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     if (coverSearchedFor.current !== key) {
       coverSearchedFor.current = key;
       setCoverSearching(true);
-      const candidates = await fetchBookCandidates(book.title, book.author, book.language);
+      const candidates = await fetchBookCandidates(book.title, book.author, book.language, book.publisher ?? '');
       setCoverCandidates(candidates);
       setCoverIdx(0);
       setCoverSearching(false);

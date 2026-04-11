@@ -22,12 +22,20 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
   { value: 'other', label: '기타', flag: '🌐' },
 ];
 
-async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
+interface BookCandidate {
+  cover: string;
+  title: string;
+  author: string;
+  publisher: string;
+  pages?: number;
+}
+
+async function fetchBookCandidates(title: string, author: string): Promise<BookCandidate[]> {
   try {
-    const params = new URLSearchParams({ title, author });
+    const params = new URLSearchParams({ title, ...(author ? { author } : {}) });
     const res = await fetch(`/api/book-covers?${params}`);
-    const data = await res.json() as { covers?: string[] };
-    return data.covers ?? [];
+    const data = await res.json() as { books?: BookCandidate[] };
+    return data.books ?? [];
   } catch {
     return [];
   }
@@ -48,7 +56,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     finishDate: '',
   });
 
-  const [coverCandidates, setCoverCandidates] = useState<string[]>([]);
+  const [bookCandidates, setBookCandidates] = useState<BookCandidate[]>([]);
   const [coverIdx, setCoverIdx] = useState(0);
   const [coverSearching, setCoverSearching] = useState(false);
   const [manualMode, setManualMode] = useState(false);
@@ -57,23 +65,40 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
 
   const set = (key: string, value: unknown) => setForm(f => ({ ...f, [key]: value }));
 
-  const currentCover = manualMode ? manualUrl : coverCandidates[coverIdx] ?? '';
+  const currentCover = manualMode ? manualUrl : (bookCandidates[coverIdx]?.cover ?? '');
 
   const triggerSearch = async (title: string, author: string) => {
     const key = `${title.trim()}|${author.trim()}`;
-    if (!title.trim() || !author.trim()) return;
+    if (!title.trim()) return;
     if (searchedFor.current === key) return;
     searchedFor.current = key;
     setCoverSearching(true);
     setManualMode(false);
-    const candidates = await fetchCoverCandidates(title.trim(), author.trim());
-    setCoverCandidates(candidates);
+    const candidates = await fetchBookCandidates(title.trim(), author.trim());
+    setBookCandidates(candidates);
     setCoverIdx(0);
+    // 첫 번째 결과로 저자·출판사·페이지 자동완성 (비어 있는 필드만)
+    if (candidates.length > 0) {
+      const best = candidates[0];
+      setForm(f => ({
+        ...f,
+        author: f.author.trim() || best.author,
+        totalPages: f.totalPages || (best.pages ? String(best.pages) : ''),
+      }));
+    }
     setCoverSearching(false);
   };
 
-  const handleBlur = () => {
+  const handleTitleBlur = () => {
     triggerSearch(form.title, form.author);
+  };
+
+  const handleAuthorBlur = () => {
+    // 저자가 입력되면 다시 검색해서 순서 재정렬
+    if (form.title.trim() && form.author.trim()) {
+      searchedFor.current = '';
+      triggerSearch(form.title, form.author);
+    }
   };
 
   const handleSubmit = (e: { preventDefault(): void }) => {
@@ -111,7 +136,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
               <input
                 value={form.title}
                 onChange={e => set('title', e.target.value)}
-                onBlur={handleBlur}
+                onBlur={handleTitleBlur}
                 placeholder="책 제목"
                 required
               />
@@ -121,9 +146,8 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
               <input
                 value={form.author}
                 onChange={e => set('author', e.target.value)}
-                onBlur={handleBlur}
+                onBlur={handleAuthorBlur}
                 placeholder="저자명"
-                required
               />
             </div>
           </div>
@@ -141,17 +165,30 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
                 <div className="cover-preview-row">
                   <div className="cover-preview-img">
                     <img src={currentCover} alt="표지 미리보기" onError={() => {
-                      if (!manualMode) setCoverIdx(i => i + 1);
+                      if (!manualMode) {
+                        const next = Math.min(bookCandidates.length - 1, coverIdx + 1);
+                        setCoverIdx(next);
+                      }
                     }} />
                   </div>
                   <div className="cover-preview-controls">
-                    {!manualMode && coverCandidates.length > 1 && (
+                    {!manualMode && bookCandidates.length > 1 && (
                       <div className="cover-nav">
-                        <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.max(0, i - 1))} disabled={coverIdx === 0}>
+                        <button type="button" className="icon-btn" onClick={() => {
+                          const next = Math.max(0, coverIdx - 1);
+                          setCoverIdx(next);
+                          const b = bookCandidates[next];
+                          if (b) setForm(f => ({ ...f, author: b.author, totalPages: b.pages ? String(b.pages) : f.totalPages }));
+                        }} disabled={coverIdx === 0}>
                           <ChevronLeft size={16} />
                         </button>
-                        <span className="cover-nav-label">{coverIdx + 1} / {coverCandidates.length}</span>
-                        <button type="button" className="icon-btn" onClick={() => setCoverIdx(i => Math.min(coverCandidates.length - 1, i + 1))} disabled={coverIdx === coverCandidates.length - 1}>
+                        <span className="cover-nav-label">{coverIdx + 1} / {bookCandidates.length}</span>
+                        <button type="button" className="icon-btn" onClick={() => {
+                          const next = Math.min(bookCandidates.length - 1, coverIdx + 1);
+                          setCoverIdx(next);
+                          const b = bookCandidates[next];
+                          if (b) setForm(f => ({ ...f, author: b.author, totalPages: b.pages ? String(b.pages) : f.totalPages }));
+                        }} disabled={coverIdx === bookCandidates.length - 1}>
                           <ChevronRight size={16} />
                         </button>
                       </div>
@@ -168,12 +205,12 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
                 </div>
               ) : (
                 <div className="cover-empty">
-                  {form.title && form.author ? (
+                  {form.title ? (
                     <button type="button" className="btn-secondary" onClick={() => { searchedFor.current = ''; triggerSearch(form.title, form.author); }}>
                       <Search size={14} /> 표지 검색
                     </button>
                   ) : (
-                    <span className="cover-hint">제목과 저자를 입력하면 자동으로 표지를 찾아드려요</span>
+                    <span className="cover-hint">제목을 입력하면 자동으로 표지를 찾아드려요</span>
                   )}
                   <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualMode(true)}>
                     <Edit2 size={14} /> 직접 입력

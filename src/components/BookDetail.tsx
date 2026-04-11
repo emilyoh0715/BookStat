@@ -166,8 +166,23 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   };
 
   const saveCover = () => {
-    const url = manualCoverMode ? manualCoverUrl : (coverCandidates[coverIdx]?.cover ?? '');
-    onUpdate({ cover: url || undefined });
+    const selected = manualCoverMode ? null : coverCandidates[coverIdx];
+    const url = manualCoverMode ? manualCoverUrl : (selected?.cover ?? '');
+
+    const updates: Partial<Book> = { cover: url || undefined };
+
+    // 표지 선택 시 빈 메타데이터도 함께 채움
+    if (selected) {
+      if (!book.author?.trim() && selected.author) updates.author = selected.author;
+      if (!book.publisher?.trim() && selected.publisher) updates.publisher = selected.publisher;
+      if (!book.totalPages && selected.pages) updates.totalPages = selected.pages;
+      if (!book.genre && selected.categoryName) {
+        const mapped = mapCategory(selected.categoryName);
+        if (mapped) updates.genre = mapped;
+      }
+    }
+
+    onUpdate(updates);
     setEditingCover(false);
   };
 

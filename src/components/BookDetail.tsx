@@ -4,7 +4,7 @@ import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import { lookupVocab, getApiKey } from '../services/claudeVocab';
 import { GENRES } from '../lib/genres';
-import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, Camera, Search, Wand2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
 
 interface BookCandidate {
   cover: string;
@@ -171,15 +171,13 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
     const updates: Partial<Book> = { cover: url || undefined };
 
-    // 표지 선택 시 빈 메타데이터도 함께 채움
+    // 선택한 책의 정보로 모든 메타데이터 덮어씀
     if (selected) {
-      if (!book.author?.trim() && selected.author) updates.author = selected.author;
-      if (!book.publisher?.trim() && selected.publisher) updates.publisher = selected.publisher;
-      if (!book.totalPages && selected.pages) updates.totalPages = selected.pages;
-      if (!book.genre && selected.categoryName) {
-        const mapped = mapCategory(selected.categoryName);
-        if (mapped) updates.genre = mapped;
-      }
+      if (selected.author) updates.author = selected.author;
+      if (selected.publisher) updates.publisher = selected.publisher;
+      if (selected.pages) updates.totalPages = selected.pages;
+      const mapped = mapCategory(selected.categoryName);
+      if (mapped) updates.genre = mapped;
     }
 
     onUpdate(updates);
@@ -253,8 +251,8 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
               : <BookOpen size={48} color="rgba(255,255,255,0.5)" />
             }
           </div>
-          <button className="cover-edit-overlay" onClick={openCoverEdit} title="표지 변경">
-            <Camera size={14} />
+          <button className="cover-edit-overlay" onClick={openCoverEdit} title="책 재검색">
+            <RefreshCw size={14} />
           </button>
         </div>
         <div className="detail-hero-info">
@@ -277,7 +275,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       {editingCover && (
         <div className="cover-edit-panel">
           <div className="cover-panel-header">
-            <span className="cover-panel-title">표지 변경</span>
+            <span className="cover-panel-title">책 재검색 — 표지를 고르면 책 정보 전체가 업데이트됩니다</span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualCoverMode(m => !m)}>
                 {manualCoverMode ? <><Search size={13} /> 검색 결과로</> : <><Edit2 size={13} /> 직접 입력</>}

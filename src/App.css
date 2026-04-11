@@ -79,8 +79,8 @@
 
 /* ===== User Sidebar ===== */
 .user-sidebar {
-  width: 200px;
-  min-width: 200px;
+  width: 240px;
+  min-width: 240px;
   background: var(--bg-surface);
   border-right: 1px solid var(--border);
   padding: 24px 12px;

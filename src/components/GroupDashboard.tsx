@@ -1,4 +1,4 @@
-import { Award, BookOpen, CheckCircle, Clock } from 'lucide-react';
+import { Award, BookOpen, CheckCircle, Clock, BookPlus, Star, HelpCircle } from 'lucide-react';
 import type { Book } from '../types';
 
 export interface MemberStat {
@@ -111,6 +111,61 @@ export default function GroupDashboard({ members, books, loading }: Props) {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* ── 포인트 가이드 ── */}
+      <section className="gd-page-section">
+        <h3 className="gd-page-section-title">
+          <HelpCircle size={16} /> 포인트 획득 방법
+        </h3>
+        <div className="gd-guide">
+          <div className="gd-guide-row">
+            <div className="gd-guide-icon" style={{ background: 'rgba(59,127,212,0.12)', color: '#3b7fd4' }}>
+              <BookPlus size={18} />
+            </div>
+            <div className="gd-guide-body">
+              <span className="gd-guide-title">책 추가</span>
+              <span className="gd-guide-desc">서재에 책을 추가하면 <b>+1점</b> (읽고 싶음 제외)</span>
+            </div>
+            <span className="gd-guide-pts">+1pt</span>
+          </div>
+
+          <div className="gd-guide-divider" />
+
+          <div className="gd-guide-row">
+            <div className="gd-guide-icon" style={{ background: 'rgba(245,166,35,0.12)', color: '#f5a623' }}>
+              <Star size={18} />
+            </div>
+            <div className="gd-guide-body">
+              <span className="gd-guide-title">완독 후기 승인</span>
+              <span className="gd-guide-desc">다 읽은 책의 후기를 AI가 검증해 승인하면 페이지 수에 따라 포인트 지급</span>
+            </div>
+            <span className="gd-guide-pts" style={{ color: '#f5a623' }}>+3~18pt</span>
+          </div>
+
+          <div className="gd-guide-pts-table">
+            <div className="gd-guide-pts-row">
+              <span>~100p</span>
+              <span>한국어 <b>3pt</b> / 외국어 <b>5pt</b></span>
+            </div>
+            <div className="gd-guide-pts-row">
+              <span>~300p</span>
+              <span>한국어 <b>5pt</b> / 외국어 <b>8pt</b></span>
+            </div>
+            <div className="gd-guide-pts-row">
+              <span>~500p</span>
+              <span>한국어 <b>8pt</b> / 외국어 <b>12pt</b></span>
+            </div>
+            <div className="gd-guide-pts-row">
+              <span>501p~</span>
+              <span>한국어 <b>12pt</b> / 외국어 <b>18pt</b></span>
+            </div>
+          </div>
+
+          <div className="gd-guide-note">
+            후기는 30자 이상, 책과 관련된 완전한 문장이어야 승인됩니다.
+          </div>
         </div>
       </section>
 

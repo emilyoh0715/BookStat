@@ -599,6 +599,9 @@
 .modal-header h2 { margin: 0; font-size: 18px; color: var(--text-heading); }
 
 .modal-form { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 16px; }
+.settings-section { display: flex; flex-direction: column; gap: 12px; }
+.settings-section-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+.settings-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 
 .modal-footer {
   display: flex;

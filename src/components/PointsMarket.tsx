@@ -113,13 +113,25 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
     setApprovedCost(list.filter(r => r.status === 'approved').reduce((s, r) => s + r.points_cost, 0));
     setPendingCost(list.filter(r => r.status === 'pending').reduce((s, r) => s + r.points_cost, 0));
 
-    // 그룹 전체 신청 내역 (본인 제외 승인 가능)
+    // 그룹 전체 신청 내역
     const { data: all } = await supabase
       .from('point_redemptions')
-      .select('*, profiles(display_name, handle, avatar_url)')
+      .select('*')
       .eq('group_id', membership.group_id)
       .order('requested_at', { ascending: false });
-    setAdminRequests((all ?? []) as Redemption[]);
+
+    if (all && all.length > 0) {
+      // 신청자 프로필 별도 조회
+      const userIds = [...new Set(all.map(r => r.user_id))];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, display_name, handle, avatar_url')
+        .in('id', userIds);
+      const profileMap = Object.fromEntries((profilesData ?? []).map(p => [p.id, p]));
+      setAdminRequests(all.map(r => ({ ...r, profiles: profileMap[r.user_id] ?? null })) as Redemption[]);
+    } else {
+      setAdminRequests([]);
+    }
   };
 
   useEffect(() => { loadData(); }, [userId]);

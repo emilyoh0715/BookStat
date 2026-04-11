@@ -18,7 +18,13 @@ import { getUserPoints, awardPoints } from './services/points';
 import type { PointLog } from './services/points';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
-import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag } from 'lucide-react';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen } from 'lucide-react';
+
+const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
+function getMemberColor(idx: number) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
+function applyMemberColor(color: string) {
+  document.documentElement.style.setProperty('--member-accent', color);
+}
 
 import './App.css';
 
@@ -220,7 +226,17 @@ export default function App() {
     setYearFilter('all');
     setSearch('');
     setSortOrder('recent');
+    const idx = groupMembers.findIndex(m => m.id === userId);
+    applyMemberColor(getMemberColor(idx >= 0 ? idx : 0));
   };
+
+  // 초기 멤버 색상 적용
+  useEffect(() => {
+    if (selectedUserId && groupMembers.length > 0) {
+      const idx = groupMembers.findIndex(m => m.id === selectedUserId);
+      applyMemberColor(getMemberColor(idx >= 0 ? idx : 0));
+    }
+  }, [groupMembers]);
 
   const toggleYear = (year: number) => {
     setCollapsedYears(prev => {
@@ -299,23 +315,29 @@ export default function App() {
         <aside className="user-sidebar">
           <div className="sidebar-title">서재</div>
           <nav className="user-list">
-            {groupMembers.map(member => (
-              <button
-                key={member.id}
-                className={`user-item ${mainView === 'library' && selectedUserId === member.id ? 'active' : ''}`}
-                onClick={() => { handleSelectUser(member.id); setMainView('library'); }}
-              >
-                <span className="user-avatar">
-                  {member.avatar_url
-                    ? <img src={member.avatar_url} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-                    : member.display_name[0].toUpperCase()}
-                </span>
-                <span className="user-name">{member.display_name}</span>
-                <span className="user-count">
-                  {books.filter(b => b.userId === member.id).length}
-                </span>
-              </button>
-            ))}
+            {groupMembers.map((member, idx) => {
+              const memberColor = getMemberColor(idx);
+              const bookCount = books.filter(b => b.userId === member.id).length;
+              const isActive = mainView === 'library' && selectedUserId === member.id;
+              return (
+                <button
+                  key={member.id}
+                  className={`user-item ${isActive ? 'active' : ''}`}
+                  style={{ '--item-color': memberColor } as React.CSSProperties}
+                  onClick={() => { handleSelectUser(member.id); setMainView('library'); }}
+                >
+                  <span className="user-avatar-circle" style={{ background: memberColor }}>
+                    {member.avatar_url
+                      ? <img src={member.avatar_url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                      : member.display_name[0].toUpperCase()}
+                  </span>
+                  <span className="user-name">{member.display_name}</span>
+                  <span className="user-count-pill">
+                    <BookOpen size={10} />{bookCount}
+                  </span>
+                </button>
+              );
+            })}
           </nav>
           <div className="sidebar-divider" />
           <button
@@ -507,28 +529,38 @@ export default function App() {
         </main>
       </div>
 
+      {/* FAB — 데스크탑 책 추가 플로팅 버튼 */}
+      {isOwnLibrary && mainView === 'library' && !selectedBook && (
+        <button className="fab-add-btn" onClick={() => setShowAdd(true)} title="책 추가">
+          <Plus size={22} />
+        </button>
+      )}
+
       {/* 모바일 하단 탭 바 */}
       <nav className="mobile-tab-bar">
-        {groupMembers.slice(0, 3).map(member => (
+        {groupMembers.map((member, idx) => (
           <button
             key={member.id}
-            className={`mobile-tab ${selectedUserId === member.id ? 'active' : ''}`}
-            onClick={() => handleSelectUser(member.id)}
+            className={`mobile-tab ${mainView === 'library' && selectedUserId === member.id ? 'active' : ''}`}
+            style={{ '--item-color': getMemberColor(idx) } as React.CSSProperties}
+            onClick={() => { handleSelectUser(member.id); setMainView('library'); }}
           >
-            <span className="mobile-tab-emoji">
+            <span className="mobile-tab-avatar" style={{ background: getMemberColor(idx) }}>
               {member.avatar_url
-                ? <img src={member.avatar_url} style={{ width: 22, height: 22, borderRadius: '50%' }} />
+                ? <img src={member.avatar_url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                 : member.display_name[0].toUpperCase()}
             </span>
-            <span className="mobile-tab-name">{member.display_name}</span>
+            <span className="mobile-tab-name">{member.display_name.split(' ')[0]}</span>
           </button>
         ))}
-        {isOwnLibrary && (
-          <button className="mobile-tab" onClick={() => setShowAdd(true)}>
-            <Plus size={22} />
-            <span className="mobile-tab-name">추가</span>
-          </button>
-        )}
+        <button className={`mobile-tab ${mainView === 'group-dashboard' ? 'active' : ''}`} onClick={() => setMainView('group-dashboard')}>
+          <BarChart2 size={20} />
+          <span className="mobile-tab-name">통계</span>
+        </button>
+        <button className={`mobile-tab ${mainView === 'market' ? 'active' : ''}`} onClick={() => setMainView('market')}>
+          <ShoppingBag size={20} />
+          <span className="mobile-tab-name">마켓</span>
+        </button>
       </nav>
 
       {inviteToast && (

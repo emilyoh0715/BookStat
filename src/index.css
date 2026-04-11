@@ -11,6 +11,7 @@
   --accent-hover: #2d6bbf;
   --accent-yellow: #f5c518;
   --accent-green: #2ecc71;
+  --member-accent: #3b7fd4;
 
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 16px;
@@ -35,6 +36,7 @@
     --accent-hover: #2d6bbf;
     --accent-yellow: #e6b800;
     --accent-green: #27ae60;
+    --member-accent: #3b7fd4;
     color-scheme: light;
   }
 }

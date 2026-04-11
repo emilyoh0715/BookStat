@@ -132,9 +132,10 @@
 }
 
 .user-item.active {
-  background: var(--accent);
-  color: #fff;
+  background: color-mix(in srgb, var(--item-color, var(--accent)) 15%, var(--bg-surface));
+  color: var(--text-heading);
   font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--item-color, var(--accent)) 40%, transparent);
 }
 
 .user-avatar {
@@ -143,21 +144,40 @@
   flex-shrink: 0;
 }
 
-.user-name {
-  flex: 1;
+/* 멤버 컬러 원형 아바타 */
+.user-avatar-circle {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
-.user-count {
-  font-size: 12px;
-  background: rgba(255,255,255,0.2);
-  border-radius: 10px;
-  padding: 1px 7px;
-  font-weight: 600;
-}
+.user-name { flex: 1; }
 
-.user-item:not(.active) .user-count {
+/* 권 수 라벨 */
+.user-count-pill {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
   background: var(--bg-base);
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-weight: 600;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+.user-item.active .user-count-pill {
+  background: color-mix(in srgb, var(--item-color, var(--accent)) 20%, var(--bg-base));
+  color: var(--item-color, var(--accent));
 }
 
 /* ===== User Heading ===== */
@@ -211,9 +231,24 @@
   width: 100%;
 }
 .stat-card-btn.active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
+  border-color: var(--member-accent, var(--accent));
+  background: color-mix(in srgb, var(--member-accent, var(--accent)) 10%, var(--bg-surface));
 }
+
+/* 포인트 카드 — 강조 */
+.points-card {
+  flex: 2 !important;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--member-accent, var(--accent)) 18%, var(--bg-surface)),
+    var(--bg-surface)) !important;
+  border-color: color-mix(in srgb, var(--member-accent, var(--accent)) 40%, var(--border)) !important;
+}
+.points-card .stat-value {
+  font-size: 32px !important;
+  color: var(--member-accent, var(--accent)) !important;
+}
+.points-card .stat-icon { color: var(--member-accent, var(--accent)) !important; }
+.points-card .stat-label { font-weight: 700; font-size: 13px !important; }
 
 .stat-icon { margin-bottom: 8px; }
 
@@ -330,6 +365,8 @@
   gap: 16px;
   padding: 16px;
   transition: all 0.15s;
+  min-height: 132px;
+  align-items: stretch;
 }
 
 .book-card:hover {
@@ -351,7 +388,7 @@
 
 .book-cover img { width: 100%; height: 100%; object-fit: cover; }
 
-.book-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.book-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; justify-content: space-between; }
 
 .book-header {
   display: flex;
@@ -1176,6 +1213,30 @@ textarea { resize: vertical; }
   border-radius: 6px;
 }
 
+/* ===== FAB 책 추가 버튼 ===== */
+.fab-add-btn {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--member-accent, var(--accent));
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  z-index: 90;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.3s;
+}
+.fab-add-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 28px rgba(0,0,0,0.35);
+}
+
 /* ===== Mobile Bottom Tab Bar (hidden on desktop) ===== */
 .mobile-tab-bar { display: none; }
 
@@ -1264,11 +1325,33 @@ textarea { resize: vertical; }
   }
 
   .mobile-tab.active {
-    color: var(--accent);
+    color: var(--item-color, var(--accent));
   }
 
   .mobile-tab-emoji { font-size: 20px; line-height: 1; }
   .mobile-tab-name { font-size: 11px; font-weight: 600; }
+
+  .mobile-tab-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    opacity: 0.65;
+    transition: opacity 0.15s, box-shadow 0.15s;
+  }
+  .mobile-tab.active .mobile-tab-avatar {
+    opacity: 1;
+    box-shadow: 0 0 0 2px var(--item-color, var(--accent));
+  }
+
+  /* FAB 숨김 (모바일) */
+  .fab-add-btn { display: none; }
 
   /* 헤더의 책 추가 버튼 숨김 (하단 탭으로 이동) */
   .header-add-btn { display: none; }

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import { GENRES } from '../lib/genres';
 import StarRating from './StarRating';
-import { X, Search, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
+import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader } from 'lucide-react';
 
 interface Props {
   onAdd: (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>) => void;
@@ -150,15 +150,9 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     }
   };
 
-  const handleTitleBlur = () => {
+  const handleSearch = () => {
+    searchedFor.current = '';
     triggerSearch(form.title, form.author);
-  };
-
-  const handleAuthorBlur = () => {
-    if (form.title.trim() && form.author.trim()) {
-      searchedFor.current = '';
-      triggerSearch(form.title, form.author);
-    }
   };
 
   const handleSubmit = (e: { preventDefault(): void }) => {
@@ -194,20 +188,30 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
           <div className="form-row">
             <div className="form-group">
               <label>제목 *</label>
-              <input
-                value={form.title}
-                onChange={e => set('title', e.target.value)}
-                onBlur={handleTitleBlur}
-                placeholder="책 제목"
-                required
-              />
+              <div className="input-with-btn">
+                <input
+                  value={form.title}
+                  onChange={e => set('title', e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleSearch())}
+                  placeholder="책 제목"
+                  required
+                />
+                <button
+                  type="button"
+                  className="input-search-btn"
+                  onClick={handleSearch}
+                  disabled={coverSearching || !form.title.trim()}
+                  title="책 정보 검색"
+                >
+                  {coverSearching ? <Loader size={15} className="spin" /> : <Search size={15} />}
+                </button>
+              </div>
             </div>
             <div className="form-group">
               <label>저자</label>
               <input
                 value={form.author}
                 onChange={e => set('author', e.target.value)}
-                onBlur={handleAuthorBlur}
                 placeholder="저자명"
               />
             </div>
@@ -259,22 +263,11 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
                     <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { setManualMode(m => !m); setManualUrl(currentCover); }}>
                       <Edit2 size={14} /> {manualMode ? '검색 결과로' : '직접 수정'}
                     </button>
-                    {form.title && !manualMode && (
-                      <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { searchedFor.current = ''; triggerSearch(form.title, form.author); }}>
-                        <Search size={14} /> 다시 검색
-                      </button>
-                    )}
                   </div>
                 </div>
               ) : (
                 <div className="cover-empty">
-                  {form.title ? (
-                    <button type="button" className="btn-secondary" onClick={() => { searchedFor.current = ''; triggerSearch(form.title, form.author); }}>
-                      <Search size={14} /> 표지 검색
-                    </button>
-                  ) : (
-                    <span className="cover-hint">제목을 입력하면 자동으로 표지를 찾아드려요</span>
-                  )}
+                  <span className="cover-hint">제목 옆 검색 버튼으로 표지를 찾아드려요</span>
                   <button type="button" className="btn-secondary cover-edit-btn" onClick={() => setManualMode(true)}>
                     <Edit2 size={14} /> 직접 입력
                   </button>

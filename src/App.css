@@ -1071,6 +1071,11 @@ textarea { resize: vertical; }
 .cover-nav-label { font-size: 12px; color: var(--text-muted); min-width: 36px; text-align: center; }
 
 .cover-edit-btn { display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 5px 10px; }
+.input-with-btn { display: flex; gap: 6px; }
+.input-with-btn input { flex: 1; min-width: 0; }
+.input-search-btn { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius); background: var(--accent); color: #fff; border: none; cursor: pointer; transition: opacity 0.15s; }
+.input-search-btn:hover:not(:disabled) { opacity: 0.85; }
+.input-search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .cover-empty {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

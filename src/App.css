@@ -1811,6 +1811,17 @@ textarea { resize: vertical; }
   font-weight: 600;
   color: var(--accent);
 }
+.market-self-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .market-history-date {
   font-size: 11px;
   color: var(--text-muted);

@@ -97,7 +97,7 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
       .eq('user_id', userId)
       .eq('status', 'accepted')
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!membership) return;
     setGroupId(membership.group_id);
@@ -304,6 +304,7 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
             const item = MARKET_ITEMS.find(i => i.id === r.item_id);
             const meta = STATUS_META[r.status];
             const isPending = r.status === 'pending';
+            const isSelf = r.user_id === userId;
             return (
               <div key={r.id} className={`market-admin-row ${isPending ? 'pending' : ''}`}>
                 <div className="market-history-emoji">{item?.emoji ?? '🎁'}</div>
@@ -311,6 +312,7 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
                   <span className="market-history-name">{r.item_name}</span>
                   <span className="market-admin-who">
                     {(r.profiles as Redemption['profiles'])?.display_name ?? '—'}
+                    {isSelf && <span className="market-self-tag">나</span>}
                     <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
                       {' '}@{(r.profiles as Redemption['profiles'])?.handle}
                     </span>
@@ -321,7 +323,9 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, minWidth: 80 }}>
                   <span className="market-history-pts">-{r.points_cost}pt</span>
                   {isPending ? (
-                    rejectingId === r.id ? (
+                    isSelf ? (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>본인 신청</span>
+                    ) : rejectingId === r.id ? (
                       <div className="market-reject-form">
                         <input
                           className="market-reject-input"

@@ -87,8 +87,10 @@ export default function GroupDashboard({ members, books, loading }: Props) {
 
         <div className="gd-chart">
           {members.map((m, i) => {
-            const addedPct    = maxPoints > 0 ? (m.book_added_points    / maxPoints) * 100 : 0;
-            const reviewPct   = maxPoints > 0 ? (m.review_approved_points / maxPoints) * 100 : 0;
+            const hasBreakdown = (m.book_added_points + m.review_approved_points) > 0;
+            const addedPct  = maxPoints > 0 ? (m.book_added_points    / maxPoints) * 100 : 0;
+            const reviewPct = maxPoints > 0 ? (m.review_approved_points / maxPoints) * 100 : 0;
+            const totalPct  = maxPoints > 0 ? (m.total_points          / maxPoints) * 100 : 0;
 
             return (
               <div key={m.user_id} className="gd-chart-row">
@@ -106,20 +108,28 @@ export default function GroupDashboard({ members, books, loading }: Props) {
                   </div>
                 </div>
 
-                {/* 스택 바 */}
+                {/* 스택 바 — breakdown 없으면 단색으로 폴백 */}
                 <div className="gd-chart-bar-wrap">
-                  <div className="gd-chart-bar-fill" style={{ width: `${addedPct}%`, background: '#3b7fd4' }} />
-                  <div className="gd-chart-bar-fill" style={{ width: `${reviewPct}%`, background: '#f5a623' }} />
+                  {hasBreakdown ? (
+                    <>
+                      <div className="gd-chart-bar-fill" style={{ width: `${addedPct}%`,  background: '#3b7fd4' }} />
+                      <div className="gd-chart-bar-fill" style={{ width: `${reviewPct}%`, background: '#f5a623' }} />
+                    </>
+                  ) : (
+                    <div className="gd-chart-bar-fill" style={{ width: `${totalPct}%`, background: '#3b7fd4' }} />
+                  )}
                 </div>
 
                 {/* 포인트 상세 */}
                 <div className="gd-chart-pts-detail">
                   <span className="gd-chart-pts">{m.total_points}pt</span>
-                  <span className="gd-chart-pts-sub">
-                    <span style={{ color: '#3b7fd4' }}>{m.book_added_points}</span>
-                    {' + '}
-                    <span style={{ color: '#f5a623' }}>{m.review_approved_points}</span>
-                  </span>
+                  {hasBreakdown && (
+                    <span className="gd-chart-pts-sub">
+                      <span style={{ color: '#3b7fd4' }}>{m.book_added_points}</span>
+                      {' + '}
+                      <span style={{ color: '#f5a623' }}>{m.review_approved_points}</span>
+                    </span>
+                  )}
                 </div>
               </div>
             );

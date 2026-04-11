@@ -83,7 +83,7 @@ function applyCandidate(
     title: f.title.trim() || b.title,
     author: f.author.trim() || b.author,
     publisher: f.publisher.trim() || b.publisher,
-    totalPages: f.totalPages || (b.pages ? String(b.pages) : ''),
+    totalPages: b.pages ? String(b.pages) : f.totalPages,
     // 장르는 첫 검색 때만 자동 (사용자가 바꿨을 수 있으므로 표지 넘길 때는 유지)
     genre: isFirst ? (mapCategory(b.categoryName) || f.genre) : f.genre,
   };
@@ -145,7 +145,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
         title: b.title || f.title,
         author: b.author || f.author,
         publisher: b.publisher || f.publisher,
-        totalPages: b.pages ? String(b.pages) : f.totalPages,
+        totalPages: b.pages ? String(b.pages) : f.totalPages,  // 페이지 있으면 업데이트
       }));
     }
   };

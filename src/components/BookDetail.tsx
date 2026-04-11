@@ -126,10 +126,12 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       const best = candidates[0];
       setMetaForm(f => ({
         ...f,
+        // 비어 있는 필드만 채움
         author: f.author.trim() || best.author,
         publisher: f.publisher.trim() || best.publisher,
-        totalPages: f.totalPages || (best.pages ? String(best.pages) : ''),
         genre: f.genre || mapCategory(best.categoryName),
+        // 페이지수: 검색 결과가 있으면 항상 업데이트 (명시적으로 버튼을 누른 경우)
+        totalPages: best.pages ? String(best.pages) : f.totalPages,
       }));
     }
     setMetaAutoFilling(false);

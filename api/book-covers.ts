@@ -9,6 +9,20 @@ interface BookResult {
   categoryName?: string;
 }
 
+async function lookupPages(aladinKey: string, isbn: string): Promise<number | undefined> {
+  try {
+    const url = `https://www.aladin.co.kr/ttb/api/ItemLookUp.aspx?ttbkey=${aladinKey}&itemIdType=ISBN13&ItemId=${isbn}&output=js&Version=20131101&OptResult=subInfo`;
+    const r = await fetch(url);
+    if (!r.ok) return undefined;
+    const text = await r.text();
+    const data = JSON.parse(text) as { item?: Array<{ subInfo?: { itemPage?: number } }> };
+    const pages = data.item?.[0]?.subInfo?.itemPage;
+    return pages && pages > 0 ? pages : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=1800');
@@ -21,7 +35,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (aladinKey && title) {
     try {
-      // 1) ItemSearch — 표지·기본 정보 목록
       const titleQuery = encodeURIComponent(title);
       const searchUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${aladinKey}&Query=${titleQuery}&QueryType=Title&MaxResults=10&output=js&Version=20131101&Cover=Big`;
       const r = await fetch(searchUrl);
@@ -34,7 +47,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             author: string;
             publisher: string;
             cover: string;
-            isbn13?: string;
+            isbn?: string | number;
+            isbn13?: string | number;
             categoryName?: string;
           }>;
         };
@@ -44,37 +58,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ...items.filter(d => !d.author?.includes(author)),
         ] : items;
 
-        // 2) 첫 번째 결과의 ISBN13으로 ItemLookup → 페이지 수 취득
+        // 커버가 있는 첫 번째 결과의 ISBN으로 페이지 수 조회
+        const firstWithCover = sorted.find(d => d.cover);
         let firstPages: number | undefined;
-        const firstIsbn = sorted[0]?.isbn13;
-        if (firstIsbn) {
-          try {
-            const lookupUrl = `https://www.aladin.co.kr/ttb/api/ItemLookUp.aspx?ttbkey=${aladinKey}&itemIdType=ISBN13&ItemId=${firstIsbn}&output=js&Version=20131101&OptResult=subInfo`;
-            const lr = await fetch(lookupUrl);
-            if (lr.ok) {
-              const ltext = await lr.text();
-              const ldata = JSON.parse(ltext) as {
-                item?: Array<{
-                  publisher?: string;
-                  subInfo?: { itemPage?: number };
-                }>;
-              };
-              const litem = ldata.item?.[0];
-              firstPages = litem?.subInfo?.itemPage || undefined;
-            }
-          } catch { /* ignore */ }
+        if (firstWithCover) {
+          const isbn = String(firstWithCover.isbn13 || firstWithCover.isbn || '').replace(/-/g, '');
+          if (isbn.length >= 10) {
+            firstPages = await lookupPages(aladinKey, isbn);
+          }
         }
 
-        sorted.forEach((d, idx) => {
+        let isFirst = true;
+        sorted.forEach(d => {
           if (d.cover) {
             results.push({
               cover: d.cover,
               title: d.title ?? '',
               author: d.author ?? '',
               publisher: d.publisher ?? '',
-              pages: idx === 0 ? firstPages : undefined,
+              pages: isFirst ? firstPages : undefined,
               categoryName: d.categoryName,
             });
+            isFirst = false;
           }
         });
       }

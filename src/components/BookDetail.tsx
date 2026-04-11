@@ -105,6 +105,19 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   });
   const [metaAutoFilling, setMetaAutoFilling] = useState(false);
 
+  const openMeta = () => {
+    setMetaForm({
+      title: book.title,
+      author: book.author,
+      publisher: book.publisher ?? '',
+      genre: book.genre ?? '',
+      language: book.language,
+      totalPages: book.totalPages?.toString() ?? '',
+      startDate: book.startDate ?? '',
+    });
+    setEditingMeta(true);
+  };
+
   const saveMeta = () => {
     onUpdate({
       title: metaForm.title.trim() || book.title,
@@ -186,6 +199,17 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
   const progress = book.totalPages && book.currentPage
     ? Math.round((book.currentPage / book.totalPages) * 100) : null;
+
+  const openInfo = () => {
+    setInfoForm({
+      status: book.status,
+      currentPage: book.currentPage?.toString() ?? '',
+      rating: book.rating ?? 0,
+      review: book.review ?? '',
+      finishDate: book.finishDate ?? '',
+    });
+    setEditingInfo(true);
+  };
 
   const saveInfo = () => {
     onUpdate({
@@ -346,7 +370,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
               <div className="section-header">
                 <h3>기본 정보</h3>
                 {!editingMeta
-                  ? <button className="icon-btn" onClick={() => setEditingMeta(true)}><Edit2 size={16} /></button>
+                  ? <button className="icon-btn" onClick={openMeta}><Edit2 size={16} /></button>
                   : <div style={{ display: 'flex', gap: 8 }}>
                     <button className="icon-btn success" onClick={saveMeta}><Check size={16} /></button>
                     <button className="icon-btn" onClick={() => setEditingMeta(false)}><X size={16} /></button>
@@ -431,7 +455,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
               <div className="section-header">
                 <h3>독서 정보</h3>
                 {!editingInfo
-                  ? <button className="icon-btn" onClick={() => setEditingInfo(true)}><Edit2 size={16} /></button>
+                  ? <button className="icon-btn" onClick={openInfo}><Edit2 size={16} /></button>
                   : <div style={{ display: 'flex', gap: 8 }}>
                     <button className="icon-btn success" onClick={saveInfo}><Check size={16} /></button>
                     <button className="icon-btn" onClick={() => setEditingInfo(false)}><X size={16} /></button>

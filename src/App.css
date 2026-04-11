@@ -185,13 +185,14 @@
 
 /* ===== Dashboard ===== */
 .dashboard {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  display: flex;
   gap: 12px;
   margin-bottom: 32px;
 }
 
 .stat-card {
+  flex: 1;
+  min-width: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1204,8 +1205,8 @@ textarea { resize: vertical; }
   .user-heading-emoji { font-size: 22px; }
 
   /* 대시보드 */
-  .dashboard { grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .stat-card { padding: 12px 8px; }
+  .dashboard { flex-wrap: wrap; gap: 8px; }
+  .stat-card { flex: 1 1 calc(33.33% - 6px); padding: 12px 6px; }
   .stat-value { font-size: 20px; }
   .stat-label { font-size: 11px; }
 
@@ -1274,7 +1275,8 @@ textarea { resize: vertical; }
 }
 
 @media (max-width: 480px) {
-  .dashboard { grid-template-columns: repeat(4, 1fr); }
+  .dashboard { flex-wrap: wrap; }
+  .stat-card { flex: 1 1 calc(33.33% - 6px); }
   .page-input { width: 60px !important; flex: 0 0 60px !important; }
   .vocab-word-row { flex-wrap: wrap; }
   .book-card { gap: 12px; padding: 12px; }

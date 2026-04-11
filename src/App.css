@@ -1858,6 +1858,40 @@ textarea { resize: vertical; }
   color: var(--text-muted);
 }
 
+.points-validate-section {
+  background: var(--bg-base);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.points-validate-progress {
+  margin-top: 8px;
+}
+.points-validate-bar-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.points-validate-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.points-validate-results {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.points-validate-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
 .points-empty {
   text-align: center;
   color: var(--text-muted);

@@ -542,6 +542,7 @@ export default function App() {
           total={groupMemberPoints.find(m => m.user_id === user.id)?.total_points ?? 0}
           logs={myPointLogs}
           books={books}
+          userId={user.id}
           onClose={() => setShowPoints(false)}
         />
       )}

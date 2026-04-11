@@ -50,7 +50,8 @@ export async function syncBookPoints(
   status: string,
   review: string | undefined,
   _totalPages: number | undefined,
-  _language: string | undefined
+  _language: string | undefined,
+  rating?: number
 ): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
@@ -65,8 +66,8 @@ export async function syncBookPoints(
     await awardPoints(bookId, 'book_added', 1); // idempotent
   }
 
-  // review_approved 동기화 — 완독 + 후기 있을 때만 유지
-  const hasReview = status === 'finished' && !!review?.trim();
+  // review_approved 동기화 — 완독 + 후기 + 별점 모두 있을 때만 유지
+  const hasReview = status === 'finished' && !!review?.trim() && (rating ?? 0) > 0;
   if (!hasReview) {
     await supabase.from('point_logs')
       .delete()

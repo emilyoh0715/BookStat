@@ -45,7 +45,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
   );
 
   const reviewBooks = books.filter(
-    b => b.userId === userId && b.status === 'finished' && b.review && b.review.trim().length >= 30
+    b => b.userId === userId && b.status === 'finished' && b.review && b.review.trim().length >= 30 && (b.rating ?? 0) > 0
   );
 
   const handleBulkValidate = async () => {

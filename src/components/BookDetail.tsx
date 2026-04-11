@@ -220,8 +220,13 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
     const newReview = infoForm.review.trim();
     const oldReview = (book.review ?? '').trim();
-    // Validate only when a new/changed review is being submitted on a finished book
-    const isNewReview = newReview && newReview !== oldReview && infoForm.status === 'finished';
+    // 완독 상태 + 후기 변경 + 별점 있을 때만 AI 검증
+    const isNewReview = newReview && newReview !== oldReview && infoForm.status === 'finished' && infoForm.rating > 0;
+
+    if (infoForm.status === 'finished' && newReview && !infoForm.rating) {
+      setReviewValidationError('별점을 함께 입력해야 포인트가 인정돼요.');
+      return;
+    }
 
     if (isNewReview) {
       setReviewValidating(true);
@@ -240,7 +245,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     const newReviewValue = infoForm.review || undefined;
 
     // 현재 상태 기반으로 포인트 동기화 (후기 삭제·상태 변경 시 포인트 제거)
-    syncBookPoints(book.id, infoForm.status, newReviewValue, book.totalPages, book.language)
+    syncBookPoints(book.id, infoForm.status, newReviewValue, book.totalPages, book.language, infoForm.rating)
       .catch(console.error);
 
     onUpdate({
@@ -526,7 +531,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     <StarRating value={infoForm.rating} onChange={v => setInfoForm(f => ({ ...f, rating: v }))} size={22} />
                   </div>
                   <div className="form-group">
-                    <label>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>완독 후기 승인 시 +{calcReviewPoints(book.totalPages, book.language)}점</span>}</label>
+                    <label>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>별점 + 후기 승인 시 +{calcReviewPoints(book.totalPages, book.language)}점</span>}</label>
                     <textarea value={infoForm.review} onChange={e => { setInfoForm(f => ({ ...f, review: e.target.value })); setReviewValidationError(''); }}
                       placeholder="이 책에 대한 생각을 남겨보세요... (30자 이상, AI가 책 관련 후기인지 확인)" rows={4} />
                     {reviewValidationError && (

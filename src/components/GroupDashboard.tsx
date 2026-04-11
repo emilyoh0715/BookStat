@@ -162,7 +162,7 @@ export default function GroupDashboard({ members, books, loading }: Props) {
             </div>
             <div className="gd-guide-body">
               <span className="gd-guide-title">완독 후기 승인</span>
-              <span className="gd-guide-desc">다 읽은 책의 후기를 AI가 검증해 승인하면 페이지 수에 따라 포인트 지급</span>
+              <span className="gd-guide-desc">별점 + 완독 후기를 AI가 검증해 승인하면 페이지 수에 따라 포인트 지급</span>
             </div>
             <span className="gd-guide-pts" style={{ color: '#f5a623' }}>+3~18pt</span>
           </div>
@@ -187,7 +187,7 @@ export default function GroupDashboard({ members, books, loading }: Props) {
           </div>
 
           <div className="gd-guide-note">
-            후기는 30자 이상, 책과 관련된 완전한 문장이어야 승인됩니다.
+            별점과 후기를 모두 입력해야 해요. 후기는 30자 이상, 책과 관련된 완전한 문장이어야 승인됩니다.
           </div>
         </div>
       </section>

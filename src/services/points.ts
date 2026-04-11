@@ -23,6 +23,57 @@ export interface PointLog {
   created_at: string;
 }
 
+/** Remove points for a book+reason (e.g. when review is deleted). */
+export async function removePoints(
+  bookId: string,
+  reason: 'book_added' | 'review_approved'
+): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  await supabase
+    .from('point_logs')
+    .delete()
+    .eq('user_id', session.user.id)
+    .eq('book_id', bookId)
+    .eq('reason', reason);
+}
+
+/**
+ * 책의 현재 상태를 기반으로 포인트 로그를 동기화.
+ * - 후기 삭제 또는 완독 해제 → review_approved 포인트 제거
+ * - 읽고 싶음으로 변경 → book_added 포인트 제거
+ * - 그 외 상태로 복귀 → book_added 재부여 (idempotent)
+ * (review_approved는 AI 검증 통과 시에만 추가, 여기서는 제거만)
+ */
+export async function syncBookPoints(
+  bookId: string,
+  status: string,
+  review: string | undefined,
+  _totalPages: number | undefined,
+  _language: string | undefined
+): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  const userId = session.user.id;
+
+  // book_added 동기화
+  if (status === 'want-to-read') {
+    await supabase.from('point_logs')
+      .delete()
+      .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'book_added');
+  } else {
+    await awardPoints(bookId, 'book_added', 1); // idempotent
+  }
+
+  // review_approved 동기화 — 완독 + 후기 있을 때만 유지
+  const hasReview = status === 'finished' && !!review?.trim();
+  if (!hasReview) {
+    await supabase.from('point_logs')
+      .delete()
+      .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'review_approved');
+  }
+}
+
 /** Award points for a book action. Idempotent — won't double-award the same book+reason. */
 export async function awardPoints(
   bookId: string,

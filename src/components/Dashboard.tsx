@@ -1,5 +1,5 @@
 import type { ReadingStatus } from '../types';
-import { CheckCircle, BookOpen, PauseCircle, Clock, Star, Award } from 'lucide-react';
+import { CheckCircle, BookOpen, PauseCircle, Clock, Star, Award, MessageSquare } from 'lucide-react';
 
 interface Stats {
   finished: number;
@@ -7,6 +7,7 @@ interface Stats {
   paused: number;
   wantToRead: number;
   avgRating: number;
+  reviewCount: number;
 }
 
 interface Props {
@@ -39,6 +40,8 @@ export default function Dashboard({ stats, statusFilter, onStatusFilter, totalPo
     { icon: <BookOpen    size={22} />, label: '읽는 중',  value: stats.reading,   color: '#3b7fd4', filter: 'reading'      as ReadingStatus },
     { icon: <PauseCircle size={22} />, label: '잠시 멈춤', value: stats.paused,   color: '#a78bfa', filter: 'paused'       as ReadingStatus },
     { icon: <Clock       size={22} />, label: '읽고 싶음', value: stats.wantToRead, color: '#5ba8e5', filter: 'want-to-read' as ReadingStatus },
+    // 후기
+    { icon: <MessageSquare size={22} />, label: '후기', value: stats.reviewCount, color: '#e67e22' },
     // 정보
     { icon: <Star size={22} />, label: '평균 별점', value: stats.avgRating ? stats.avgRating.toFixed(1) : '—', color: '#f5c518' },
   ];

@@ -165,7 +165,8 @@ export function useBooks() {
     const wantToRead = userBooks.filter(b => b.status === 'want-to-read');
     const avgRating = finished.filter(b => b.rating).reduce((acc, b, _, arr) =>
       acc + (b.rating || 0) / arr.length, 0);
-    return { finished: finished.length, reading: reading.length, paused: paused.length, wantToRead: wantToRead.length, avgRating };
+    const reviewCount = userBooks.filter(b => b.review && b.review.trim().length > 0).length;
+    return { finished: finished.length, reading: reading.length, paused: paused.length, wantToRead: wantToRead.length, avgRating, reviewCount };
   };
 
   const getYears = (userId: string): number[] => {

@@ -3,7 +3,7 @@ import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import { lookupVocab, getApiKey, validateReview } from '../services/claudeVocab';
-import { awardPoints, calcReviewPoints } from '../services/points';
+import { awardPoints, calcReviewPoints, syncBookPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
 
@@ -237,11 +237,17 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language)).catch(console.error);
     }
 
+    const newReviewValue = infoForm.review || undefined;
+
+    // 현재 상태 기반으로 포인트 동기화 (후기 삭제·상태 변경 시 포인트 제거)
+    syncBookPoints(book.id, infoForm.status, newReviewValue, book.totalPages, book.language)
+      .catch(console.error);
+
     onUpdate({
       status: infoForm.status,
       currentPage: infoForm.currentPage ? Number(infoForm.currentPage) : undefined,
       rating: infoForm.rating || undefined,
-      review: infoForm.review || undefined,
+      review: newReviewValue,
       finishDate: infoForm.finishDate || undefined,
     });
     setEditingInfo(false);

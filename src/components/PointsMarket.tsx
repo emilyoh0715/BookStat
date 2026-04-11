@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, Clock, CheckCircle, XCircle, ChevronRight, Loader, Crown, Trash2 } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, XCircle, ChevronRight, Loader, Bell, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 /* ── 마켓 아이템 정의 ── */
@@ -73,8 +73,7 @@ const STATUS_META = {
 
 export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
   const [tab, setTab] = useState<'shop' | 'history' | 'admin'>('shop');
-  const [groupId, setGroupId]   = useState<string | null>(null);
-  const [isOwner, setIsOwner]   = useState(false);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [myRedemptions, setMyRedemptions]     = useState<Redemption[]>([]);
   const [adminRequests, setAdminRequests]     = useState<Redemption[]>([]);
   const [approvedCost, setApprovedCost]       = useState(0);
@@ -101,7 +100,6 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
 
     if (!membership) return;
     setGroupId(membership.group_id);
-    setIsOwner(membership.role === 'owner');
 
     // 내 신청 내역
     const { data: mine } = await supabase
@@ -115,15 +113,13 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
     setApprovedCost(list.filter(r => r.status === 'approved').reduce((s, r) => s + r.points_cost, 0));
     setPendingCost(list.filter(r => r.status === 'pending').reduce((s, r) => s + r.points_cost, 0));
 
-    // 그룹장: 모든 pending 신청
-    if (membership.role === 'owner') {
-      const { data: all } = await supabase
-        .from('point_redemptions')
-        .select('*, profiles(display_name, handle, avatar_url)')
-        .eq('group_id', membership.group_id)
-        .order('requested_at', { ascending: false });
-      setAdminRequests((all ?? []) as Redemption[]);
-    }
+    // 그룹 전체 신청 내역 (본인 제외 승인 가능)
+    const { data: all } = await supabase
+      .from('point_redemptions')
+      .select('*, profiles(display_name, handle, avatar_url)')
+      .eq('group_id', membership.group_id)
+      .order('requested_at', { ascending: false });
+    setAdminRequests((all ?? []) as Redemption[]);
   };
 
   useEffect(() => { loadData(); }, [userId]);
@@ -181,7 +177,7 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
     setResolving(null);
   };
 
-  const pendingAdminCount = adminRequests.filter(r => r.status === 'pending').length;
+  const pendingAdminCount = adminRequests.filter(r => r.status === 'pending' && r.user_id !== userId).length;
 
   return (
     <div className="market-page">
@@ -210,9 +206,9 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
             <span className="market-tab-badge">{myRedemptions.filter(r => r.status === 'pending').length}</span>
           )}
         </button>
-        {isOwner && (
+        {groupId && (
           <button className={`market-tab ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>
-            <Crown size={14} /> 신청 관리
+            <Bell size={14} /> 신청 관리
             {pendingAdminCount > 0 && <span className="market-tab-badge">{pendingAdminCount}</span>}
           </button>
         )}
@@ -292,8 +288,8 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
         </div>
       )}
 
-      {/* ── 신청 관리 (그룹장) ── */}
-      {tab === 'admin' && isOwner && (
+      {/* ── 신청 관리 (본인 제외 모든 멤버) ── */}
+      {tab === 'admin' && groupId && (
         <div className="market-list">
           {adminRequests.length === 0 ? (
             <div className="market-empty">

@@ -23,18 +23,14 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
 ];
 
 async function fetchCoverCandidates(title: string, author: string): Promise<string[]> {
-  const query = encodeURIComponent(`${title} ${author}`);
-  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=8`);
-  const data = await res.json();
-  if (!data.items) return [];
-  return data.items
-    .map((item: Record<string, unknown>) => {
-      const info = item.volumeInfo as Record<string, unknown>;
-      const links = info?.imageLinks as Record<string, string> | undefined;
-      const url = links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
-      return url ? url.replace('http://', 'https://').replace('zoom=1', 'zoom=2') : null;
-    })
-    .filter(Boolean) as string[];
+  try {
+    const params = new URLSearchParams({ title, author });
+    const res = await fetch(`/api/book-covers?${params}`);
+    const data = await res.json() as { covers?: string[] };
+    return data.covers ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export default function AddBookModal({ onAdd, onClose }: Props) {

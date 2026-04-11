@@ -148,6 +148,7 @@ export default function App() {
 
   const selectedUser = groupMembers.find(m => m.id === selectedUserId) ?? profile;
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
+  const isOwnLibrary = !selectedUserId || selectedUserId === user?.id;
 
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search).slice().sort((a, b) => {
     if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
@@ -207,7 +208,7 @@ export default function App() {
             <span>북스탯</span>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {!selectedBook && (
+            {!selectedBook && isOwnLibrary && (
               <button className="btn-primary header-add-btn" onClick={() => setShowAdd(true)}>
                 <Plus size={18} /> 책 추가
               </button>
@@ -281,6 +282,7 @@ export default function App() {
               onDeleteVocab={id => deleteVocab(selectedBook.id, id)}
               onAddNote={note => addNote(selectedBook.id, note)}
               onDeleteNote={id => deleteNote(selectedBook.id, id)}
+              readOnly={!isOwnLibrary}
             />
           ) : (
             <>
@@ -376,9 +378,11 @@ export default function App() {
                 <div className="empty-state">
                   <img src="/logo.png" alt="북스탯" style={{ width: 80, opacity: 0.4 }} />
                   <p>조건에 맞는 책이 없습니다.</p>
-                  <button className="btn-primary" onClick={() => setShowAdd(true)}>
-                    <Plus size={18} /> 책 추가하기
-                  </button>
+                  {isOwnLibrary && (
+                    <button className="btn-primary" onClick={() => setShowAdd(true)}>
+                      <Plus size={18} /> 책 추가하기
+                    </button>
+                  )}
                 </div>
               ) : grouped ? (
                 <div className="year-groups">
@@ -395,6 +399,7 @@ export default function App() {
                             <BookCard key={book.id} book={book} number={idx + 1}
                               onClick={() => setSelectedId(book.id)}
                               onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
+                              readOnly={!isOwnLibrary}
                             />
                           ))}
                         </div>
@@ -408,6 +413,7 @@ export default function App() {
                     <BookCard key={book.id} book={book} number={idx + 1}
                       onClick={() => setSelectedId(book.id)}
                       onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
+                      readOnly={!isOwnLibrary}
                     />
                   ))}
                 </div>
@@ -433,10 +439,12 @@ export default function App() {
             <span className="mobile-tab-name">{member.display_name}</span>
           </button>
         ))}
-        <button className="mobile-tab" onClick={() => setShowAdd(true)}>
-          <Plus size={22} />
-          <span className="mobile-tab-name">추가</span>
-        </button>
+        {isOwnLibrary && (
+          <button className="mobile-tab" onClick={() => setShowAdd(true)}>
+            <Plus size={22} />
+            <span className="mobile-tab-name">추가</span>
+          </button>
+        )}
       </nav>
 
       {inviteToast && (

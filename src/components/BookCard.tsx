@@ -8,9 +8,10 @@ interface Props {
   number?: number;
   onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
+  readOnly?: boolean;
 }
 
-export default function BookCard({ book, number, onClick, onDelete }: Props) {
+export default function BookCard({ book, number, onClick, onDelete, readOnly }: Props) {
   const progress = book.totalPages && book.currentPage
     ? Math.round((book.currentPage / book.totalPages) * 100)
     : null;
@@ -33,9 +34,11 @@ export default function BookCard({ book, number, onClick, onDelete }: Props) {
             <h3 className="book-title">{book.title}</h3>
             <p className="book-author">{book.author}</p>
           </div>
-          <button className="delete-btn" onClick={onDelete} title="삭제">
-            <Trash2 size={15} />
-          </button>
+          {!readOnly && (
+            <button className="delete-btn" onClick={onDelete} title="삭제">
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>

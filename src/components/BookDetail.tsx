@@ -64,6 +64,7 @@ interface Props {
   onDeleteVocab: (id: string) => void;
   onAddNote: (note: { content: string; page?: number }) => void;
   onDeleteNote: (id: string) => void;
+  readOnly?: boolean;
 }
 
 type Tab = 'info' | 'vocab' | 'notes';
@@ -81,7 +82,7 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
   { value: 'other', label: '기타', flag: '🌐' },
 ];
 
-export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote }: Props) {
+export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, readOnly }: Props) {
   const [tab, setTab] = useState<Tab>('info');
   const [editingInfo, setEditingInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
@@ -274,9 +275,11 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
               : <BookOpen size={48} color="rgba(255,255,255,0.5)" />
             }
           </div>
-          <button className="cover-edit-overlay" onClick={openCoverEdit} title="책 재검색">
-            <RefreshCw size={14} />
-          </button>
+          {!readOnly && (
+            <button className="cover-edit-overlay" onClick={openCoverEdit} title="책 재검색">
+              <RefreshCw size={14} />
+            </button>
+          )}
         </div>
         <div className="detail-hero-info">
           <h1>{book.title}</h1>
@@ -368,13 +371,13 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
             <div className="info-section">
               <div className="section-header">
                 <h3>기본 정보</h3>
-                {!editingMeta
+                {!readOnly && (!editingMeta
                   ? <button className="icon-btn" onClick={openMeta}><Edit2 size={16} /></button>
                   : <div style={{ display: 'flex', gap: 8 }}>
                     <button className="icon-btn success" onClick={saveMeta}><Check size={16} /></button>
                     <button className="icon-btn" onClick={() => setEditingMeta(false)}><X size={16} /></button>
                   </div>
-                }
+                )}
               </div>
               {editingMeta ? (
                 <div className="edit-form">
@@ -453,13 +456,13 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
             <div className="info-section">
               <div className="section-header">
                 <h3>독서 정보</h3>
-                {!editingInfo
+                {!readOnly && (!editingInfo
                   ? <button className="icon-btn" onClick={openInfo}><Edit2 size={16} /></button>
                   : <div style={{ display: 'flex', gap: 8 }}>
                     <button className="icon-btn success" onClick={saveInfo}><Check size={16} /></button>
                     <button className="icon-btn" onClick={() => setEditingInfo(false)}><X size={16} /></button>
                   </div>
-                }
+                )}
               </div>
 
               {editingInfo ? (
@@ -530,39 +533,41 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
         {tab === 'vocab' && (
           <div className="vocab-tab">
-            <form onSubmit={handleAddVocab} className="add-form">
-              <div className="vocab-input-row">
-                <div className="vocab-word-row">
-                  <input value={vocabForm.word} onChange={e => setVocabForm(f => ({ ...f, word: e.target.value }))}
-                    placeholder="단어 / 표현" className="flex-1" required />
-                  <button
-                    type="button"
-                    className={`btn-ai ${lookupLoading ? 'loading' : ''}`}
-                    onClick={handleAutoLookup}
-                    disabled={lookupLoading || !vocabForm.word.trim()}
-                    title="Claude AI로 뜻 자동 검색"
-                  >
-                    {lookupLoading ? <Loader size={15} className="spin" /> : <Sparkles size={15} />}
-                    {lookupLoading ? '검색 중...' : 'AI 검색'}
-                  </button>
-                </div>
-                <textarea value={vocabForm.sentence} onChange={e => setVocabForm(f => ({ ...f, sentence: e.target.value }))}
-                  placeholder="단어가 사용된 문장 (선택) — AI 검색 시 문맥으로 활용됩니다" className="flex-1" rows={2} />
-                <div className="vocab-meaning-row">
-                  <textarea value={vocabForm.meaning} onChange={e => setVocabForm(f => ({ ...f, meaning: e.target.value }))}
-                    placeholder="의미 (AI 검색 또는 직접 입력)" className="flex-1" rows={2} required />
-                  <div className="vocab-side">
-                    <input type="number" value={vocabForm.page} onChange={e => setVocabForm(f => ({ ...f, page: e.target.value }))}
-                      placeholder="p." className="page-input" min="1" />
-                    <button type="submit" className="btn-primary small"><Plus size={16} /></button>
+            {!readOnly && (
+              <form onSubmit={handleAddVocab} className="add-form">
+                <div className="vocab-input-row">
+                  <div className="vocab-word-row">
+                    <input value={vocabForm.word} onChange={e => setVocabForm(f => ({ ...f, word: e.target.value }))}
+                      placeholder="단어 / 표현" className="flex-1" required />
+                    <button
+                      type="button"
+                      className={`btn-ai ${lookupLoading ? 'loading' : ''}`}
+                      onClick={handleAutoLookup}
+                      disabled={lookupLoading || !vocabForm.word.trim()}
+                      title="Claude AI로 뜻 자동 검색"
+                    >
+                      {lookupLoading ? <Loader size={15} className="spin" /> : <Sparkles size={15} />}
+                      {lookupLoading ? '검색 중...' : 'AI 검색'}
+                    </button>
                   </div>
+                  <textarea value={vocabForm.sentence} onChange={e => setVocabForm(f => ({ ...f, sentence: e.target.value }))}
+                    placeholder="단어가 사용된 문장 (선택) — AI 검색 시 문맥으로 활용됩니다" className="flex-1" rows={2} />
+                  <div className="vocab-meaning-row">
+                    <textarea value={vocabForm.meaning} onChange={e => setVocabForm(f => ({ ...f, meaning: e.target.value }))}
+                      placeholder="의미 (AI 검색 또는 직접 입력)" className="flex-1" rows={2} required />
+                    <div className="vocab-side">
+                      <input type="number" value={vocabForm.page} onChange={e => setVocabForm(f => ({ ...f, page: e.target.value }))}
+                        placeholder="p." className="page-input" min="1" />
+                      <button type="submit" className="btn-primary small"><Plus size={16} /></button>
+                    </div>
+                  </div>
+                  {lookupError && <p className="lookup-error">{lookupError}</p>}
                 </div>
-                {lookupError && <p className="lookup-error">{lookupError}</p>}
-              </div>
-            </form>
+              </form>
+            )}
 
             {book.vocab.length === 0
-              ? <p className="empty-text">아직 단어가 없습니다. 위에서 추가해보세요!</p>
+              ? <p className="empty-text">아직 단어가 없습니다.{!readOnly && ' 위에서 추가해보세요!'}</p>
               : <div className="vocab-list">
                 {book.vocab.map(v => (
                   <div key={v.id} className="vocab-item">
@@ -570,7 +575,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                       <span className="vocab-word">{v.word}</span>
                       <div className="vocab-meta">
                         {v.page && <span className="page-tag">p.{v.page}</span>}
-                        <button className="icon-btn danger" onClick={() => onDeleteVocab(v.id)}><Trash2 size={14} /></button>
+                        {!readOnly && <button className="icon-btn danger" onClick={() => onDeleteVocab(v.id)}><Trash2 size={14} /></button>}
                       </div>
                     </div>
                     <p className="vocab-meaning">{v.meaning}</p>
@@ -584,20 +589,22 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
         {tab === 'notes' && (
           <div className="notes-tab">
-            <form onSubmit={handleAddNote} className="add-form">
-              <div className="note-input-row">
-                <textarea value={noteForm.content} onChange={e => setNoteForm(f => ({ ...f, content: e.target.value }))}
-                  placeholder="메모를 입력하세요..." rows={2} required />
-                <div className="note-actions">
-                  <input type="number" value={noteForm.page} onChange={e => setNoteForm(f => ({ ...f, page: e.target.value }))}
-                    placeholder="p." className="page-input" min="1" />
-                  <button type="submit" className="btn-primary small"><Plus size={16} /></button>
+            {!readOnly && (
+              <form onSubmit={handleAddNote} className="add-form">
+                <div className="note-input-row">
+                  <textarea value={noteForm.content} onChange={e => setNoteForm(f => ({ ...f, content: e.target.value }))}
+                    placeholder="메모를 입력하세요..." rows={2} required />
+                  <div className="note-actions">
+                    <input type="number" value={noteForm.page} onChange={e => setNoteForm(f => ({ ...f, page: e.target.value }))}
+                      placeholder="p." className="page-input" min="1" />
+                    <button type="submit" className="btn-primary small"><Plus size={16} /></button>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            )}
 
             {book.notes.length === 0
-              ? <p className="empty-text">아직 메모가 없습니다. 위에서 추가해보세요!</p>
+              ? <p className="empty-text">아직 메모가 없습니다.{!readOnly && ' 위에서 추가해보세요!'}</p>
               : <div className="notes-list">
                 {book.notes.map(n => (
                   <div key={n.id} className="note-item">
@@ -605,7 +612,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     <div className="note-footer">
                       <span className="note-date">{n.createdAt}</span>
                       {n.page && <span className="page-tag">p.{n.page}</span>}
-                      <button className="icon-btn danger" onClick={() => onDeleteNote(n.id)}><Trash2 size={14} /></button>
+                      {!readOnly && <button className="icon-btn danger" onClick={() => onDeleteNote(n.id)}><Trash2 size={14} /></button>}
                     </div>
                   </div>
                 ))}

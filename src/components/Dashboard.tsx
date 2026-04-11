@@ -1,5 +1,5 @@
 import type { ReadingStatus } from '../types';
-import { BookOpen, CheckCircle, Clock, BookMarked, Star, StickyNote } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, BookMarked, Star, StickyNote, Award } from 'lucide-react';
 
 interface Stats {
   finished: number;
@@ -14,9 +14,11 @@ interface Props {
   stats: Stats;
   statusFilter: ReadingStatus | 'all';
   onStatusFilter: (status: ReadingStatus | 'all') => void;
+  totalPoints?: number;
+  onPointsClick?: () => void;
 }
 
-export default function Dashboard({ stats, statusFilter, onStatusFilter }: Props) {
+export default function Dashboard({ stats, statusFilter, onStatusFilter, totalPoints, onPointsClick }: Props) {
   const clickable = [
     { icon: <CheckCircle size={22} />, label: '완독', value: stats.finished, color: '#2ecc71', filter: 'finished' as ReadingStatus },
     { icon: <BookOpen size={22} />, label: '읽는 중', value: stats.reading, color: '#3b7fd4', filter: 'reading' as ReadingStatus },
@@ -48,6 +50,13 @@ export default function Dashboard({ stats, statusFilter, onStatusFilter }: Props
           <div className="stat-label">{c.label}</div>
         </div>
       ))}
+      {totalPoints !== undefined && (
+        <button className="stat-card stat-card-btn points-card" onClick={onPointsClick}>
+          <div className="stat-icon" style={{ color: '#f5a623' }}><Award size={22} /></div>
+          <div className="stat-value">{totalPoints}</div>
+          <div className="stat-label">포인트</div>
+        </button>
+      )}
     </div>
   );
 }

@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
-import { lookupVocab, getApiKey } from '../services/claudeVocab';
+import { lookupVocab, getApiKey, validateReview } from '../services/claudeVocab';
+import { awardPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
 
@@ -150,6 +151,9 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setMetaAutoFilling(false);
   };
 
+  const [reviewValidating, setReviewValidating] = useState(false);
+  const [reviewValidationError, setReviewValidationError] = useState('');
+
   const [vocabForm, setVocabForm] = useState({ word: '', meaning: '', sentence: '', page: '' });
   const [noteForm, setNoteForm] = useState({ content: '', page: '' });
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -211,7 +215,28 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setEditingInfo(true);
   };
 
-  const saveInfo = () => {
+  const saveInfo = async () => {
+    setReviewValidationError('');
+
+    const newReview = infoForm.review.trim();
+    const oldReview = (book.review ?? '').trim();
+    // Validate only when a new/changed review is being submitted on a finished book
+    const isNewReview = newReview && newReview !== oldReview && infoForm.status === 'finished';
+
+    if (isNewReview) {
+      setReviewValidating(true);
+      const result = await validateReview(newReview, book.title);
+      setReviewValidating(false);
+
+      if (!result.valid) {
+        setReviewValidationError(result.reason ?? '후기가 기준을 충족하지 않아요. 책에 대한 감상을 완전한 문장으로 작성해주세요.');
+        return;
+      }
+
+      // Award 5 points for approved review (idempotent — won't double-award)
+      awardPoints(book.id, 'review_approved', 5).catch(console.error);
+    }
+
     onUpdate({
       status: infoForm.status,
       currentPage: infoForm.currentPage ? Number(infoForm.currentPage) : undefined,
@@ -459,8 +484,10 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                 {!readOnly && (!editingInfo
                   ? <button className="icon-btn" onClick={openInfo}><Edit2 size={16} /></button>
                   : <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="icon-btn success" onClick={saveInfo}><Check size={16} /></button>
-                    <button className="icon-btn" onClick={() => setEditingInfo(false)}><X size={16} /></button>
+                    <button className="icon-btn success" onClick={saveInfo} disabled={reviewValidating}>
+                      {reviewValidating ? <Loader size={16} className="spin" /> : <Check size={16} />}
+                    </button>
+                    <button className="icon-btn" onClick={() => { setEditingInfo(false); setReviewValidationError(''); }}><X size={16} /></button>
                   </div>
                 )}
               </div>
@@ -493,9 +520,12 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     <StarRating value={infoForm.rating} onChange={v => setInfoForm(f => ({ ...f, rating: v }))} size={22} />
                   </div>
                   <div className="form-group">
-                    <label>리뷰</label>
-                    <textarea value={infoForm.review} onChange={e => setInfoForm(f => ({ ...f, review: e.target.value }))}
-                      placeholder="이 책에 대한 생각을 남겨보세요..." rows={4} />
+                    <label>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>완독 후기 승인 시 +5점</span>}</label>
+                    <textarea value={infoForm.review} onChange={e => { setInfoForm(f => ({ ...f, review: e.target.value })); setReviewValidationError(''); }}
+                      placeholder="이 책에 대한 생각을 남겨보세요... (30자 이상, AI가 책 관련 후기인지 확인)" rows={4} />
+                    {reviewValidationError && (
+                      <p style={{ fontSize: 12, color: 'var(--danger)', margin: '4px 0 0' }}>{reviewValidationError}</p>
+                    )}
                   </div>
                 </div>
               ) : (

@@ -11,7 +11,7 @@ interface BookResult {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=3600');
+  res.setHeader('Cache-Control', 'no-store');
 
   const title = String(req.query.title ?? '');
   const author = String(req.query.author ?? '');
@@ -68,5 +68,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res.json({
     books: unique,
     covers: unique.map(b => b.cover),
+    _debug: { firstPages: unique[0]?.pages, firstSubInfo: results[0] ? { pages: results[0].pages } : null },
   });
 }

@@ -1826,6 +1826,22 @@ textarea { resize: vertical; }
   color: var(--text);
   white-space: nowrap;
 }
+.market-cancel-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+  background: rgba(231,76,60,0.08);
+  border: 1px solid rgba(231,76,60,0.2);
+  border-radius: 8px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.market-cancel-btn:hover { background: rgba(231,76,60,0.15); }
+
 .market-status-badge {
   display: flex;
   align-items: center;

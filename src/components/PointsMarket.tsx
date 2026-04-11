@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, Clock, CheckCircle, XCircle, ChevronRight, Loader, Crown } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, XCircle, ChevronRight, Loader, Crown, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 /* ── 마켓 아이템 정의 ── */
@@ -84,6 +84,7 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
   const [resolving, setResolving]             = useState<string | null>(null);
   const [rejectNote, setRejectNote]           = useState('');
   const [rejectingId, setRejectingId]         = useState<string | null>(null);
+  const [cancelling, setCancelling]           = useState<string | null>(null);
 
   const availablePoints = totalEarnedPoints - approvedCost;
   const spendablePoints = availablePoints - pendingCost;
@@ -143,6 +144,14 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
     await loadData();
     setTab('history');
     setSubmitting(false);
+  };
+
+  /* ── 취소 ── */
+  const cancelRequest = async (id: string) => {
+    setCancelling(id);
+    await supabase.from('point_redemptions').delete().eq('id', id);
+    await loadData();
+    setCancelling(null);
   };
 
   /* ── 승인 ── */
@@ -259,11 +268,23 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
                   <span className="market-history-date">{r.requested_at.split('T')[0]}</span>
                   {r.note && <span className="market-history-note">{r.note}</span>}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                   <span className="market-history-pts">-{r.points_cost}pt</span>
-                  <span className="market-status-badge" style={{ color: meta.color }}>
-                    {meta.icon} {meta.label}
-                  </span>
+                  {r.status === 'pending' ? (
+                    <button
+                      className="market-cancel-btn"
+                      onClick={() => cancelRequest(r.id)}
+                      disabled={cancelling === r.id}
+                    >
+                      {cancelling === r.id
+                        ? <Loader size={11} className="spin" />
+                        : <><Trash2 size={11} /> 취소</>}
+                    </button>
+                  ) : (
+                    <span className="market-status-badge" style={{ color: meta.color }}>
+                      {meta.icon} {meta.label}
+                    </span>
+                  )}
                 </div>
               </div>
             );

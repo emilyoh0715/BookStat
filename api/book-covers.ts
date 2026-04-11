@@ -28,8 +28,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch { /* ignore */ }
   }
 
-  // Google Books 폴백
-  if (title) {
+  // Google Books — 알라딘 결과 없을 때만 호출
+  if (title && results.length === 0) {
     try {
       const googleQuery = encodeURIComponent(`intitle:${title}`);
       const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${googleQuery}&maxResults=8`);

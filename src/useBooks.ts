@@ -161,12 +161,11 @@ export function useBooks() {
     const userBooks = books.filter(b => b.userId === userId);
     const finished = userBooks.filter(b => b.status === 'finished');
     const reading = userBooks.filter(b => b.status === 'reading');
+    const paused = userBooks.filter(b => b.status === 'paused');
     const wantToRead = userBooks.filter(b => b.status === 'want-to-read');
-    const totalVocab = userBooks.reduce((acc, b) => acc + b.vocab.length, 0);
-    const totalNotes = userBooks.reduce((acc, b) => acc + b.notes.length, 0);
     const avgRating = finished.filter(b => b.rating).reduce((acc, b, _, arr) =>
       acc + (b.rating || 0) / arr.length, 0);
-    return { finished: finished.length, reading: reading.length, wantToRead: wantToRead.length, totalVocab, totalNotes, avgRating };
+    return { finished: finished.length, reading: reading.length, paused: paused.length, wantToRead: wantToRead.length, avgRating };
   };
 
   const getYears = (userId: string): number[] => {

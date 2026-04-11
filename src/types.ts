@@ -23,6 +23,7 @@ export interface Book {
   userId: string;
   title: string;
   author: string;
+  publisher?: string;
   cover?: string;
   genre?: string;
   language: BookLanguage;

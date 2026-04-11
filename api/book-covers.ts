@@ -6,6 +6,7 @@ interface BookResult {
   author: string;
   publisher: string;
   pages?: number;
+  categoryName?: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -31,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             author: string;
             publisher: string;
             cover: string;
+            categoryName?: string;
             subInfo?: { itemPage?: number };
           }>;
         };
@@ -47,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               author: d.author ?? '',
               publisher: d.publisher ?? '',
               pages: d.subInfo?.itemPage,
+              categoryName: d.categoryName,
             });
           }
         });

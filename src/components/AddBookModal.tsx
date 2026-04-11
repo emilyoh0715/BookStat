@@ -28,6 +28,37 @@ interface BookCandidate {
   author: string;
   publisher: string;
   pages?: number;
+  categoryName?: string;
+}
+
+// 알라딘 categoryName → GENRES 매핑
+function mapCategory(categoryName?: string): string {
+  if (!categoryName) return '';
+  const cat = categoryName;
+  if (/소설|시\/희곡|희곡/.test(cat)) return cat.includes('시') && !cat.includes('소설') ? '시/에세이' : '소설';
+  if (/에세이/.test(cat)) return '시/에세이';
+  if (/경제|경영/.test(cat)) return '경제/경영';
+  if (/자기계발/.test(cat)) return '자기계발';
+  if (/인문/.test(cat)) return '인문';
+  if (/사회|정치/.test(cat)) return '정치/사회';
+  if (/역사|문화/.test(cat)) return '역사/문화';
+  if (/과학/.test(cat)) return '과학';
+  if (/컴퓨터|IT|프로그래밍/.test(cat)) return '컴퓨터/IT';
+  if (/외국어/.test(cat)) return '외국어';
+  if (/여행/.test(cat)) return '여행';
+  if (/요리/.test(cat)) return '요리';
+  if (/건강|의학/.test(cat)) return '건강';
+  if (/육아|가정/.test(cat)) return '가정/육아';
+  if (/예술|대중문화|음악|영화/.test(cat)) return '예술/대중문화';
+  if (/종교/.test(cat)) return '종교';
+  if (/만화/.test(cat)) return '만화';
+  if (/청소년/.test(cat)) return '청소년';
+  if (/어린이|초등/.test(cat)) return '어린이(초등)';
+  if (/취미|스포츠|실용/.test(cat)) return '취미/실용/스포츠';
+  if (/기술|공학/.test(cat)) return '기술/공학';
+  if (/취업|수험/.test(cat)) return '취업/수험서';
+  if (/잡지/.test(cat)) return '잡지';
+  return '';
 }
 
 async function fetchBookCandidates(title: string, author: string): Promise<BookCandidate[]> {
@@ -41,10 +72,28 @@ async function fetchBookCandidates(title: string, author: string): Promise<BookC
   }
 }
 
-export default function AddBookModal({ onAdd, onClose }: Props) {
-  const [form, setForm] = useState({
+function applyCandidate(
+  f: ReturnType<typeof initForm>,
+  b: BookCandidate,
+  isFirst: boolean,
+): ReturnType<typeof initForm> {
+  return {
+    ...f,
+    // 제목은 항상 선택된 책 기준 (사용자가 이미 입력한 건 유지)
+    title: f.title.trim() || b.title,
+    author: f.author.trim() || b.author,
+    publisher: f.publisher.trim() || b.publisher,
+    totalPages: f.totalPages || (b.pages ? String(b.pages) : ''),
+    // 장르는 첫 검색 때만 자동 (사용자가 바꿨을 수 있으므로 표지 넘길 때는 유지)
+    genre: isFirst ? (mapCategory(b.categoryName) || f.genre) : f.genre,
+  };
+}
+
+function initForm() {
+  return {
     title: '',
     author: '',
+    publisher: '',
     genre: '',
     language: 'korean' as BookLanguage,
     totalPages: '',
@@ -54,7 +103,11 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     review: '',
     startDate: '',
     finishDate: '',
-  });
+  };
+}
+
+export default function AddBookModal({ onAdd, onClose }: Props) {
+  const [form, setForm] = useState(initForm);
 
   const [bookCandidates, setBookCandidates] = useState<BookCandidate[]>([]);
   const [coverIdx, setCoverIdx] = useState(0);
@@ -77,16 +130,24 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     const candidates = await fetchBookCandidates(title.trim(), author.trim());
     setBookCandidates(candidates);
     setCoverIdx(0);
-    // 첫 번째 결과로 저자·출판사·페이지 자동완성 (비어 있는 필드만)
     if (candidates.length > 0) {
-      const best = candidates[0];
-      setForm(f => ({
-        ...f,
-        author: f.author.trim() || best.author,
-        totalPages: f.totalPages || (best.pages ? String(best.pages) : ''),
-      }));
+      setForm(f => applyCandidate(f, candidates[0], true));
     }
     setCoverSearching(false);
+  };
+
+  const selectCandidate = (idx: number) => {
+    setCoverIdx(idx);
+    const b = bookCandidates[idx];
+    if (b) {
+      setForm(f => ({
+        ...f,
+        title: b.title || f.title,
+        author: b.author || f.author,
+        publisher: b.publisher || f.publisher,
+        totalPages: b.pages ? String(b.pages) : f.totalPages,
+      }));
+    }
   };
 
   const handleTitleBlur = () => {
@@ -94,7 +155,6 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   };
 
   const handleAuthorBlur = () => {
-    // 저자가 입력되면 다시 검색해서 순서 재정렬
     if (form.title.trim() && form.author.trim()) {
       searchedFor.current = '';
       triggerSearch(form.title, form.author);
@@ -103,10 +163,11 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
 
   const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.author.trim()) return;
+    if (!form.title.trim()) return;
     onAdd({
       title: form.title.trim(),
       author: form.author.trim(),
+      publisher: form.publisher.trim() || undefined,
       genre: form.genre || undefined,
       language: form.language,
       totalPages: form.totalPages ? Number(form.totalPages) : undefined,
@@ -142,13 +203,28 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
               />
             </div>
             <div className="form-group">
-              <label>저자 *</label>
+              <label>저자</label>
               <input
                 value={form.author}
                 onChange={e => set('author', e.target.value)}
                 onBlur={handleAuthorBlur}
                 placeholder="저자명"
               />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>출판사</label>
+              <input
+                value={form.publisher}
+                onChange={e => set('publisher', e.target.value)}
+                placeholder="출판사"
+              />
+            </div>
+            <div className="form-group">
+              <label>전체 페이지</label>
+              <input type="number" value={form.totalPages} onChange={e => set('totalPages', e.target.value)} placeholder="0" min="1" />
             </div>
           </div>
 
@@ -165,30 +241,17 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
                 <div className="cover-preview-row">
                   <div className="cover-preview-img">
                     <img src={currentCover} alt="표지 미리보기" onError={() => {
-                      if (!manualMode) {
-                        const next = Math.min(bookCandidates.length - 1, coverIdx + 1);
-                        setCoverIdx(next);
-                      }
+                      if (!manualMode) selectCandidate(Math.min(bookCandidates.length - 1, coverIdx + 1));
                     }} />
                   </div>
                   <div className="cover-preview-controls">
                     {!manualMode && bookCandidates.length > 1 && (
                       <div className="cover-nav">
-                        <button type="button" className="icon-btn" onClick={() => {
-                          const next = Math.max(0, coverIdx - 1);
-                          setCoverIdx(next);
-                          const b = bookCandidates[next];
-                          if (b) setForm(f => ({ ...f, author: b.author, totalPages: b.pages ? String(b.pages) : f.totalPages }));
-                        }} disabled={coverIdx === 0}>
+                        <button type="button" className="icon-btn" onClick={() => selectCandidate(Math.max(0, coverIdx - 1))} disabled={coverIdx === 0}>
                           <ChevronLeft size={16} />
                         </button>
                         <span className="cover-nav-label">{coverIdx + 1} / {bookCandidates.length}</span>
-                        <button type="button" className="icon-btn" onClick={() => {
-                          const next = Math.min(bookCandidates.length - 1, coverIdx + 1);
-                          setCoverIdx(next);
-                          const b = bookCandidates[next];
-                          if (b) setForm(f => ({ ...f, author: b.author, totalPages: b.pages ? String(b.pages) : f.totalPages }));
-                        }} disabled={coverIdx === bookCandidates.length - 1}>
+                        <button type="button" className="icon-btn" onClick={() => selectCandidate(Math.min(bookCandidates.length - 1, coverIdx + 1))} disabled={coverIdx === bookCandidates.length - 1}>
                           <ChevronRight size={16} />
                         </button>
                       </div>
@@ -196,7 +259,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
                     <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { setManualMode(m => !m); setManualUrl(currentCover); }}>
                       <Edit2 size={14} /> {manualMode ? '검색 결과로' : '직접 수정'}
                     </button>
-                    {form.title && form.author && !manualMode && (
+                    {form.title && !manualMode && (
                       <button type="button" className="btn-secondary cover-edit-btn" onClick={() => { searchedFor.current = ''; triggerSearch(form.title, form.author); }}>
                         <Search size={14} /> 다시 검색
                       </button>
@@ -265,29 +328,24 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
 
           <div className="form-row">
             <div className="form-group">
-              <label>전체 페이지</label>
-              <input type="number" value={form.totalPages} onChange={e => set('totalPages', e.target.value)} placeholder="0" min="1" />
-            </div>
-            <div className="form-group">
               <label>현재 페이지</label>
               <input type="number" value={form.currentPage} onChange={e => set('currentPage', e.target.value)} placeholder="0" min="0" />
+            </div>
+            <div className="form-group">
+              <label>시작일</label>
+              <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} />
             </div>
           </div>
 
           <div className="form-row">
             <div className="form-group">
-              <label>시작일</label>
-              <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} />
-            </div>
-            <div className="form-group">
               <label>완독일</label>
               <input type="date" value={form.finishDate} onChange={e => set('finishDate', e.target.value)} />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label>별점</label>
-            <StarRating value={form.rating} onChange={v => set('rating', v)} size={22} />
+            <div className="form-group">
+              <label>별점</label>
+              <StarRating value={form.rating} onChange={v => set('rating', v)} size={22} />
+            </div>
           </div>
 
           <div className="form-group">

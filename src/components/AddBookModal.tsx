@@ -61,9 +61,9 @@ function mapCategory(categoryName?: string): string {
   return '';
 }
 
-async function fetchBookCandidates(title: string, author: string): Promise<BookCandidate[]> {
+async function fetchBookCandidates(title: string, author: string, language: string): Promise<BookCandidate[]> {
   try {
-    const params = new URLSearchParams({ title, ...(author ? { author } : {}) });
+    const params = new URLSearchParams({ title, language, ...(author ? { author } : {}) });
     const res = await fetch(`/api/book-covers?${params}`);
     const data = await res.json() as { books?: BookCandidate[] };
     return data.books ?? [];
@@ -120,14 +120,14 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
 
   const currentCover = manualMode ? manualUrl : (bookCandidates[coverIdx]?.cover ?? '');
 
-  const triggerSearch = async (title: string, author: string) => {
-    const key = `${title.trim()}|${author.trim()}`;
+  const triggerSearch = async (title: string, author: string, language: string) => {
+    const key = `${title.trim()}|${author.trim()}|${language}`;
     if (!title.trim()) return;
     if (searchedFor.current === key) return;
     searchedFor.current = key;
     setCoverSearching(true);
     setManualMode(false);
-    const candidates = await fetchBookCandidates(title.trim(), author.trim());
+    const candidates = await fetchBookCandidates(title.trim(), author.trim(), language);
     setBookCandidates(candidates);
     setCoverIdx(0);
     if (candidates.length > 0) {
@@ -152,7 +152,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
 
   const handleSearch = () => {
     searchedFor.current = '';
-    triggerSearch(form.title, form.author);
+    triggerSearch(form.title, form.author, form.language);
   };
 
   const handleSubmit = (e: { preventDefault(): void }) => {

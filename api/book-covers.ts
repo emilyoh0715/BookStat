@@ -9,6 +9,16 @@ interface BookResult {
   categoryName?: string;
 }
 
+type AladinItem = {
+  title: string;
+  author: string;
+  publisher: string;
+  cover: string;
+  isbn?: string | number;
+  isbn13?: string | number;
+  categoryName?: string;
+};
+
 async function lookupPages(aladinKey: string, isbn: string): Promise<number | undefined> {
   try {
     const url = `https://www.aladin.co.kr/ttb/api/ItemLookUp.aspx?ttbkey=${aladinKey}&itemIdType=ISBN13&ItemId=${isbn}&output=js&Version=20131101&OptResult=subInfo`;
@@ -23,67 +33,75 @@ async function lookupPages(aladinKey: string, isbn: string): Promise<number | un
   }
 }
 
+async function searchAladin(
+  aladinKey: string,
+  titleQuery: string,
+  searchTarget: 'Book' | 'Foreign',
+): Promise<AladinItem[]> {
+  try {
+    const url = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${aladinKey}&Query=${titleQuery}&QueryType=Title&MaxResults=10&output=js&Version=20131101&Cover=Big&SearchTarget=${searchTarget}`;
+    const r = await fetch(url);
+    if (!r.ok) return [];
+    const text = await r.text();
+    const data = JSON.parse(text) as { item?: AladinItem[] };
+    return data.item ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=1800');
 
   const title = String(req.query.title ?? '');
   const author = String(req.query.author ?? '');
+  const language = String(req.query.language ?? 'korean');
   const results: BookResult[] = [];
 
   const aladinKey = process.env.ALADIN_API_KEY || process.env.VITE_ALADIN_API_KEY;
 
   if (aladinKey && title) {
-    try {
-      const titleQuery = encodeURIComponent(title);
-      const searchUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${aladinKey}&Query=${titleQuery}&QueryType=Title&MaxResults=10&output=js&Version=20131101&Cover=Big`;
-      const r = await fetch(searchUrl);
+    const titleQuery = encodeURIComponent(title);
+    const isForeign = language === 'english' || language === 'other';
 
-      if (r.ok) {
-        const text = await r.text();
-        const data = JSON.parse(text) as {
-          item?: Array<{
-            title: string;
-            author: string;
-            publisher: string;
-            cover: string;
-            isbn?: string | number;
-            isbn13?: string | number;
-            categoryName?: string;
-          }>;
-        };
-        const items = data.item ?? [];
-        const sorted = author ? [
-          ...items.filter(d => d.author?.includes(author)),
-          ...items.filter(d => !d.author?.includes(author)),
-        ] : items;
+    // 영어/기타: 외국도서 우선, 결과 없으면 국내도서도 시도
+    // 한국어: 국내도서만
+    let items: AladinItem[] = await searchAladin(aladinKey, titleQuery, isForeign ? 'Foreign' : 'Book');
 
-        // 커버가 있는 첫 번째 결과의 ISBN으로 페이지 수 조회
-        const firstWithCover = sorted.find(d => d.cover);
-        let firstPages: number | undefined;
-        if (firstWithCover) {
-          const isbn = String(firstWithCover.isbn13 || firstWithCover.isbn || '').replace(/-/g, '');
-          if (isbn.length >= 10) {
-            firstPages = await lookupPages(aladinKey, isbn);
-          }
-        }
+    if (isForeign && items.length === 0) {
+      items = await searchAladin(aladinKey, titleQuery, 'Book');
+    }
 
-        let isFirst = true;
-        sorted.forEach(d => {
-          if (d.cover) {
-            results.push({
-              cover: d.cover,
-              title: d.title ?? '',
-              author: d.author ?? '',
-              publisher: d.publisher ?? '',
-              pages: isFirst ? firstPages : undefined,
-              categoryName: d.categoryName,
-            });
-            isFirst = false;
-          }
-        });
+    const sorted = author ? [
+      ...items.filter(d => d.author?.includes(author)),
+      ...items.filter(d => !d.author?.includes(author)),
+    ] : items;
+
+    // 커버 있는 첫 번째 결과 ISBN으로 페이지 수 조회
+    const firstWithCover = sorted.find(d => d.cover);
+    let firstPages: number | undefined;
+    if (firstWithCover) {
+      const isbn = String(firstWithCover.isbn13 || firstWithCover.isbn || '').replace(/-/g, '');
+      if (isbn.length >= 10) {
+        firstPages = await lookupPages(aladinKey, isbn);
       }
-    } catch { /* ignore */ }
+    }
+
+    let isFirst = true;
+    sorted.forEach(d => {
+      if (d.cover) {
+        results.push({
+          cover: d.cover,
+          title: d.title ?? '',
+          author: d.author ?? '',
+          publisher: d.publisher ?? '',
+          pages: isFirst ? firstPages : undefined,
+          categoryName: d.categoryName,
+        });
+        isFirst = false;
+      }
+    });
   }
 
   // 중복 cover 제거

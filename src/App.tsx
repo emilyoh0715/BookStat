@@ -12,12 +12,13 @@ import GroupManager from './components/GroupManager';
 import PointsModal from './components/PointsModal';
 import GroupDashboard from './components/GroupDashboard';
 import type { MemberStat } from './components/GroupDashboard';
+import PointsMarket from './components/PointsMarket';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints } from './services/points';
 import type { PointLog } from './services/points';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
-import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2 } from 'lucide-react';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag } from 'lucide-react';
 
 import './App.css';
 
@@ -54,7 +55,7 @@ export default function App() {
   const [groupPointsLoading, setGroupPointsLoading] = useState(false);
   const [myPointLogs, setMyPointLogs] = useState<PointLog[]>([]);
   const [showPoints, setShowPoints] = useState(false);
-  const [mainView, setMainView] = useState<'library' | 'group-dashboard'>('library');
+  const [mainView, setMainView] = useState<'library' | 'group-dashboard' | 'market'>('library');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -324,6 +325,13 @@ export default function App() {
             <span className="user-avatar"><BarChart2 size={16} /></span>
             <span className="user-name">그룹 대시보드</span>
           </button>
+          <button
+            className={`user-item ${mainView === 'market' ? 'active' : ''}`}
+            onClick={() => setMainView('market')}
+          >
+            <span className="user-avatar"><ShoppingBag size={16} /></span>
+            <span className="user-name">포인트 마켓</span>
+          </button>
           <button className="user-item add-group-btn" onClick={() => setShowGroupManager(true)}>
             <span className="user-avatar"><Users size={16} /></span>
             <span className="user-name">그룹 관리</span>
@@ -337,6 +345,11 @@ export default function App() {
               members={groupMemberPoints}
               books={books}
               loading={groupPointsLoading}
+            />
+          ) : mainView === 'market' ? (
+            <PointsMarket
+              userId={user.id}
+              totalEarnedPoints={groupMemberPoints.find(m => m.user_id === user.id)?.total_points ?? 0}
             />
           ) : selectedBook ? (
             <BookDetail

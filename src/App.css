@@ -1601,6 +1601,133 @@ textarea { resize: vertical; }
   color: var(--text-muted);
 }
 
+/* ===== Sidebar Divider ===== */
+.sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 4px;
+}
+
+/* ===== Group Dashboard Page ===== */
+.gd-page {
+  padding: 0 0 40px;
+}
+.gd-page-heading {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-heading);
+  margin: 0 0 24px;
+}
+.gd-page-section {
+  margin-bottom: 32px;
+}
+.gd-page-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Bar chart */
+.gd-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gd-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gd-chart-rank {
+  font-size: 18px;
+  min-width: 28px;
+  text-align: center;
+  line-height: 1;
+}
+.gd-chart-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 130px;
+  max-width: 130px;
+}
+.gd-chart-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gd-chart-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gd-chart-handle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.gd-chart-bar-wrap {
+  flex: 1;
+  height: 22px;
+  background: var(--bg-base);
+  border-radius: 11px;
+  overflow: hidden;
+}
+.gd-chart-bar-fill {
+  height: 100%;
+  border-radius: 11px;
+  min-width: 4px;
+  transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.gd-chart-pts {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-heading);
+  min-width: 48px;
+  text-align: right;
+}
+
+/* Member cards grid */
+.gd-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.gd-member-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gd-member-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gd-member-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gd-stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* ===== Group Dashboard Modal ===== */
 .gd-section-title {
   font-size: 13px;

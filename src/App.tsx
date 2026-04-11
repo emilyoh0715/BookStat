@@ -10,13 +10,15 @@ import AuthScreen from './components/AuthScreen';
 import ProfileSetup from './components/ProfileSetup';
 import GroupManager from './components/GroupManager';
 import PointsModal from './components/PointsModal';
-import GroupDashboardModal from './components/GroupDashboardModal';
+import GroupDashboard from './components/GroupDashboard';
+import type { MemberStat } from './components/GroupDashboard';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints } from './services/points';
 import type { PointLog } from './services/points';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
 import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2 } from 'lucide-react';
+
 import './App.css';
 
 const STATUS_FILTERS: { value: ReadingStatus | 'all'; label: string }[] = [
@@ -48,10 +50,11 @@ export default function App() {
   const [pendingInviteCount, setPendingInviteCount] = useState(0);
   const [inviteToast, setInviteToast] = useState<string | null>(null);
 
-  const [myPoints, setMyPoints] = useState(0);
+  const [groupMemberPoints, setGroupMemberPoints] = useState<MemberStat[]>([]);
+  const [groupPointsLoading, setGroupPointsLoading] = useState(false);
   const [myPointLogs, setMyPointLogs] = useState<PointLog[]>([]);
   const [showPoints, setShowPoints] = useState(false);
-  const [showGroupDashboard, setShowGroupDashboard] = useState(false);
+  const [mainView, setMainView] = useState<'library' | 'group-dashboard'>('library');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -119,17 +122,31 @@ export default function App() {
   // ─── 포인트 로드 & 실시간 동기화 ───
   useEffect(() => {
     if (!user) return;
-    const loadPoints = async () => {
-      const { total, logs } = await getUserPoints();
-      setMyPoints(total);
+
+    const loadGroupPoints = async () => {
+      setGroupPointsLoading(true);
+      const { data } = await supabase.rpc('get_group_member_points');
+      if (data) {
+        setGroupMemberPoints(
+          (data as MemberStat[]).map(m => ({ ...m, total_points: Number(m.total_points) }))
+        );
+      }
+      setGroupPointsLoading(false);
+    };
+
+    const loadMyLogs = async () => {
+      const { logs } = await getUserPoints();
       setMyPointLogs(logs);
     };
-    loadPoints();
+
+    loadGroupPoints();
+    loadMyLogs();
 
     const channel = supabase
       .channel('point-logs-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'point_logs' }, () => {
-        loadPoints();
+        loadGroupPoints();
+        loadMyLogs();
       })
       .subscribe();
 
@@ -242,9 +259,6 @@ export default function App() {
                 <Plus size={18} /> 책 추가
               </button>
             )}
-            <button className="icon-btn" onClick={() => setShowGroupDashboard(true)} title="그룹 통계">
-              <BarChart2 size={20} />
-            </button>
             <button className="icon-btn" onClick={() => { setShowGroupManager(true); setPendingInviteCount(0); }} title="그룹 관리" style={{ position: 'relative' }}>
               <Users size={20} />
               {pendingInviteCount > 0 && (
@@ -282,8 +296,8 @@ export default function App() {
             {groupMembers.map(member => (
               <button
                 key={member.id}
-                className={`user-item ${selectedUserId === member.id ? 'active' : ''}`}
-                onClick={() => handleSelectUser(member.id)}
+                className={`user-item ${mainView === 'library' && selectedUserId === member.id ? 'active' : ''}`}
+                onClick={() => { handleSelectUser(member.id); setMainView('library'); }}
               >
                 <span className="user-avatar">
                   {member.avatar_url
@@ -296,16 +310,30 @@ export default function App() {
                 </span>
               </button>
             ))}
-            <button className="user-item add-group-btn" onClick={() => setShowGroupManager(true)}>
-              <span className="user-avatar"><Users size={16} /></span>
-              <span className="user-name">그룹 관리</span>
-            </button>
           </nav>
+          <div className="sidebar-divider" />
+          <button
+            className={`user-item ${mainView === 'group-dashboard' ? 'active' : ''}`}
+            onClick={() => setMainView('group-dashboard')}
+          >
+            <span className="user-avatar"><BarChart2 size={16} /></span>
+            <span className="user-name">그룹 대시보드</span>
+          </button>
+          <button className="user-item add-group-btn" onClick={() => setShowGroupManager(true)}>
+            <span className="user-avatar"><Users size={16} /></span>
+            <span className="user-name">그룹 관리</span>
+          </button>
         </aside>
 
         {/* 메인 컨텐츠 */}
         <main className="main-content">
-          {selectedBook ? (
+          {mainView === 'group-dashboard' ? (
+            <GroupDashboard
+              members={groupMemberPoints}
+              books={books}
+              loading={groupPointsLoading}
+            />
+          ) : selectedBook ? (
             <BookDetail
               book={selectedBook}
               onBack={() => setSelectedId(null)}
@@ -331,7 +359,7 @@ export default function App() {
                 stats={stats}
                 statusFilter={statusFilter}
                 onStatusFilter={setStatusFilter}
-                totalPoints={isOwnLibrary ? myPoints : undefined}
+                totalPoints={groupMemberPoints.find(m => m.user_id === selectedUserId)?.total_points}
                 onPointsClick={isOwnLibrary ? () => setShowPoints(true) : undefined}
               />
 
@@ -509,15 +537,9 @@ export default function App() {
         />
       )}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      {showGroupDashboard && (
-        <GroupDashboardModal
-          books={books}
-          onClose={() => setShowGroupDashboard(false)}
-        />
-      )}
       {showPoints && (
         <PointsModal
-          total={myPoints}
+          total={groupMemberPoints.find(m => m.user_id === user.id)?.total_points ?? 0}
           logs={myPointLogs}
           books={books}
           onClose={() => setShowPoints(false)}

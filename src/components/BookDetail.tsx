@@ -3,7 +3,7 @@ import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import { lookupVocab, getApiKey, validateReview } from '../services/claudeVocab';
-import { awardPoints } from '../services/points';
+import { awardPoints, calcReviewPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
 
@@ -233,8 +233,8 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
         return;
       }
 
-      // Award 5 points for approved review (idempotent — won't double-award)
-      awardPoints(book.id, 'review_approved', 5).catch(console.error);
+      // Award points for approved review (idempotent — won't double-award)
+      awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language)).catch(console.error);
     }
 
     onUpdate({
@@ -520,7 +520,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     <StarRating value={infoForm.rating} onChange={v => setInfoForm(f => ({ ...f, rating: v }))} size={22} />
                   </div>
                   <div className="form-group">
-                    <label>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>완독 후기 승인 시 +5점</span>}</label>
+                    <label>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>완독 후기 승인 시 +{calcReviewPoints(book.totalPages, book.language)}점</span>}</label>
                     <textarea value={infoForm.review} onChange={e => { setInfoForm(f => ({ ...f, review: e.target.value })); setReviewValidationError(''); }}
                       placeholder="이 책에 대한 생각을 남겨보세요... (30자 이상, AI가 책 관련 후기인지 확인)" rows={4} />
                     {reviewValidationError && (

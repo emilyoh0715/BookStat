@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Award, BookPlus, Star, Sparkles, CheckCircle, XCircle, Loader } from 'lucide-react';
 import type { Book } from '../types';
 import type { PointLog } from '../services/points';
-import { awardPoints } from '../services/points';
+import { awardPoints, calcReviewPoints } from '../services/points';
 import { validateReview, getApiKey } from '../services/claudeVocab';
 
 interface Props {
@@ -19,6 +19,7 @@ interface ValidationResult {
   valid: boolean;
   reason?: string;
   alreadyHadPoints: boolean;
+  pts: number;
 }
 
 const REASON_META: Record<string, { label: string; icon: React.ReactNode; pts: string }> = {
@@ -59,10 +60,11 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
       setCurrentBook(book.title);
       const result = await validateReview(book.review!, book.title);
       const alreadyHad = approvedBookIds.has(book.id);
+      const pts = calcReviewPoints(book.totalPages, book.language);
       if (result.valid && !alreadyHad) {
-        await awardPoints(book.id, 'review_approved', 5).catch(console.error);
+        await awardPoints(book.id, 'review_approved', pts).catch(console.error);
       }
-      out.push({ bookId: book.id, title: book.title, valid: result.valid, reason: result.reason, alreadyHadPoints: alreadyHad });
+      out.push({ bookId: book.id, title: book.title, valid: result.valid, reason: result.reason, alreadyHadPoints: alreadyHad, pts });
       setProgress(p => ({ ...p, done: p.done + 1 }));
     }
 
@@ -73,7 +75,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
 
   const passed  = results?.filter(r => r.valid)  ?? [];
   const failed  = results?.filter(r => !r.valid) ?? [];
-  const newPts  = passed.filter(r => !r.alreadyHadPoints).length * 5;
+  const newPts  = passed.filter(r => !r.alreadyHadPoints).reduce((acc, r) => acc + r.pts, 0);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -166,7 +168,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
                         )}
                       </div>
                       <span style={{ fontSize: 12, fontWeight: 700, color: r.valid ? '#f5a623' : 'var(--text-muted)', flexShrink: 0 }}>
-                        {r.valid ? (r.alreadyHadPoints ? '✓' : '+5') : '—'}
+                        {r.valid ? (r.alreadyHadPoints ? '✓' : `+${r.pts}`) : '—'}
                       </span>
                     </div>
                   ))}

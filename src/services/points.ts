@@ -1,5 +1,19 @@
 import { supabase } from '../lib/supabase';
 
+/**
+ * 완독 후기 포인트 계산
+ * 페이지 수 기준 × 언어 배율 (외국어 ×1.5), 소수점 올림
+ */
+export function calcReviewPoints(totalPages?: number, language?: string): number {
+  const pages = totalPages ?? 0;
+  const base =
+    pages <= 100 ? 3 :
+    pages <= 300 ? 5 :
+    pages <= 500 ? 8 : 12;
+  const multiplier = language === 'korean' ? 1.0 : 1.5;
+  return Math.ceil(base * multiplier);
+}
+
 export interface PointLog {
   id: string;
   user_id: string;

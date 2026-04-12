@@ -158,19 +158,25 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   const [reviewValidationError, setReviewValidationError] = useState('');
   const [rejectionReason, setRejectionReason] = useState<string | null>(() => getRejectionReason(book.id));
   const [fetchingReason, setFetchingReason] = useState(false);
+  // 'pass': AI가 통과 판정 (포인트 로그만 없는 상태), 'fail': 거절, null: 미확인
+  const [reviewCheckResult, setReviewCheckResult] = useState<'pass' | 'fail' | null>(
+    () => getRejectionReason(book.id) ? 'fail' : null
+  );
 
-  // pending 상태인데 저장된 거절 이유가 없으면 AI로 자동 조회
+  // pending 상태인데 저장된 이유가 없으면 AI로 자동 조회
   useEffect(() => {
-    if (reviewStatus !== 'pending' || !book.review?.trim() || rejectionReason || fetchingReason || !getApiKey()) return;
+    if (reviewStatus !== 'pending' || !book.review?.trim() || reviewCheckResult || fetchingReason || !getApiKey()) return;
     setFetchingReason(true);
     validateReview(book.review, book.title).then(result => {
-      if (!result.valid && result.reason) {
-        saveRejectionReason(book.id, result.reason);
-        setRejectionReason(result.reason);
-      } else if (!result.valid) {
-        const fallback = '책의 구체적인 내용이 포함된 후기를 작성해주세요.';
-        saveRejectionReason(book.id, fallback);
-        setRejectionReason(fallback);
+      if (!result.valid) {
+        const reason = result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.';
+        saveRejectionReason(book.id, reason);
+        setRejectionReason(reason);
+        setReviewCheckResult('fail');
+      } else {
+        // AI는 통과 판정 → 포인트 로그만 없는 상태 (재저장하면 포인트 지급 가능)
+        clearRejectionReason(book.id);
+        setReviewCheckResult('pass');
       }
     }).finally(() => setFetchingReason(false));
   }, [reviewStatus, book.id]);
@@ -259,12 +265,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
         setReviewValidationError(reason);
         saveRejectionReason(book.id, reason);
         setRejectionReason(reason);
+        setReviewCheckResult('fail');
         return;
       }
 
       // 통과 시 거절 이유 삭제
       clearRejectionReason(book.id);
       setRejectionReason(null);
+      setReviewCheckResult('pass');
       // Award points for approved review (idempotent — won't double-award)
       awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language)).catch(console.error);
     }
@@ -601,12 +609,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                       </div>
                       <p>{book.review}</p>
                       {reviewStatus === 'pending' && (
-                        <div className="review-rejection-reason">
+                        <div className={`review-rejection-reason ${reviewCheckResult === 'pass' ? 'pass' : ''}`}>
                           {fetchingReason
-                            ? <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>거절 이유 확인 중...</span>
-                            : rejectionReason
+                            ? <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>후기 상태 확인 중...</span>
+                            : reviewCheckResult === 'fail'
                               ? <><strong>거절 이유:</strong> {rejectionReason}</>
-                              : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>API 키를 설정하면 거절 이유를 확인할 수 있어요.</span>
+                              : reviewCheckResult === 'pass'
+                                ? <>후기 내용은 기준을 충족해요. 편집 모드에서 저장하면 포인트가 지급됩니다.</>
+                                : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>API 키를 설정하면 거절 이유를 확인할 수 있어요.</span>
                           }
                         </div>
                       )}

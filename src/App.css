@@ -988,6 +988,11 @@ textarea { resize: vertical; }
   line-height: 1.5;
 }
 
+.review-rejection-reason.pass {
+  background: rgba(46, 204, 113, 0.07);
+  border-left-color: #2ecc71;
+}
+
 .edit-form { display: flex; flex-direction: column; gap: 14px; }
 
 /* ===== Vocab Tab ===== */

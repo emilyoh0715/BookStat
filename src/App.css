@@ -1071,6 +1071,21 @@ textarea { resize: vertical; }
   margin: 0;
 }
 
+/* ===== Review Pending Badge ===== */
+.review-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 8px;
+  background: rgba(230, 81, 0, 0.12);
+  color: #e65100;
+  border: 1px solid rgba(230, 81, 0, 0.25);
+  margin-bottom: 4px;
+}
+
 /* ===== Language Badge ===== */
 .lang-badge {
   display: inline-block;

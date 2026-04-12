@@ -1,17 +1,18 @@
 import type { Book } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
-import { BookOpen, Trash2 } from 'lucide-react';
+import { BookOpen, Trash2, AlertCircle } from 'lucide-react';
 
 interface Props {
   book: Book;
   number?: number;
   onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
+  reviewPending?: boolean;
   readOnly?: boolean;
 }
 
-export default function BookCard({ book, number, onClick, onDelete, readOnly }: Props) {
+export default function BookCard({ book, number, onClick, onDelete, reviewPending, readOnly }: Props) {
   const progress = book.totalPages && book.currentPage
     ? Math.round((book.currentPage / book.totalPages) * 100)
     : null;
@@ -40,6 +41,12 @@ export default function BookCard({ book, number, onClick, onDelete, readOnly }: 
             </button>
           )}
         </div>
+
+        {reviewPending && (
+          <div className="review-pending-badge">
+            <AlertCircle size={11} /> 후기 미승인
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <StatusBadge status={book.status} />

@@ -73,6 +73,7 @@ export default function App() {
   const [sortOrder, setSortOrder] = useState<'recent' | 'title'>('recent');
   const [groupByYearEnabled, setGroupByYearEnabled] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState<Set<number>>(new Set());
+  const [reviewFilter, setReviewFilter] = useState(false);
 
   useEffect(() => {
     const t1 = setTimeout(() => setIntroFading(true), 600);
@@ -214,12 +215,26 @@ export default function App() {
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
   const isOwnLibrary = !selectedUserId || selectedUserId === user?.id;
 
-  const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search).slice().sort((a, b) => {
-    if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
-    const dateA = a.finishDate ?? a.startDate ?? a.createdAt;
-    const dateB = b.finishDate ?? b.startDate ?? b.createdAt;
-    return dateB.localeCompare(dateA);
-  });
+  // 승인된 후기 book_id Set (내 포인트 로그 기준)
+  const approvedReviewBookIds = new Set(
+    myPointLogs.filter(l => l.reason === 'review_approved').map(l => l.book_id)
+  );
+
+  // 후기 미승인: 완독 + 후기 + 별점 있는데 포인트 로그 없는 경우
+  const isReviewPending = (bookId: string) => {
+    const b = books.find(bk => bk.id === bookId);
+    if (!b) return false;
+    return b.status === 'finished' && !!b.review?.trim() && (b.rating ?? 0) > 0 && !approvedReviewBookIds.has(bookId);
+  };
+
+  const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search)
+    .filter(b => !reviewFilter || !!b.review?.trim())
+    .slice().sort((a, b) => {
+      if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
+      const dateA = a.finishDate ?? a.startDate ?? a.createdAt;
+      const dateB = b.finishDate ?? b.startDate ?? b.createdAt;
+      return dateB.localeCompare(dateA);
+    });
 
   const stats = getStats(selectedUserId);
   const years = getYears(selectedUserId);
@@ -232,6 +247,7 @@ export default function App() {
     setYearFilter('all');
     setSearch('');
     setSortOrder('recent');
+    setReviewFilter(false);
     const idx = groupMembers.findIndex(m => m.id === userId);
     applyMemberColor(getMemberColor(idx >= 0 ? idx : 0));
   };
@@ -405,9 +421,11 @@ export default function App() {
               <Dashboard
                 stats={stats}
                 statusFilter={statusFilter}
-                onStatusFilter={setStatusFilter}
+                onStatusFilter={v => { setStatusFilter(v); setReviewFilter(false); }}
                 totalPoints={groupMemberPoints.find(m => m.user_id === selectedUserId)?.total_points}
                 onPointsClick={isOwnLibrary ? () => setShowPoints(true) : undefined}
+                reviewFilterActive={reviewFilter}
+                onReviewFilter={() => setReviewFilter(f => !f)}
               />
 
               <div className="list-controls">
@@ -512,6 +530,7 @@ export default function App() {
                             <BookCard key={book.id} book={book} number={idx + 1}
                               onClick={() => setSelectedId(book.id)}
                               onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
+                              reviewPending={isOwnLibrary && isReviewPending(book.id)}
                               readOnly={!isOwnLibrary}
                             />
                           ))}
@@ -526,6 +545,7 @@ export default function App() {
                     <BookCard key={book.id} book={book} number={idx + 1}
                       onClick={() => setSelectedId(book.id)}
                       onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
+                      reviewPending={isOwnLibrary && isReviewPending(book.id)}
                       readOnly={!isOwnLibrary}
                     />
                   ))}

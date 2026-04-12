@@ -16,9 +16,11 @@ interface Props {
   onStatusFilter: (status: ReadingStatus | 'all') => void;
   totalPoints?: number;
   onPointsClick?: () => void;
+  reviewFilterActive?: boolean;
+  onReviewFilter?: () => void;
 }
 
-export default function Dashboard({ stats, statusFilter, onStatusFilter, totalPoints, onPointsClick }: Props) {
+export default function Dashboard({ stats, statusFilter, onStatusFilter, totalPoints, onPointsClick, reviewFilterActive, onReviewFilter }: Props) {
   const cards: {
     icon: React.ReactNode;
     label: string;
@@ -26,6 +28,7 @@ export default function Dashboard({ stats, statusFilter, onStatusFilter, totalPo
     color: string;
     filter?: ReadingStatus;
     onClick?: () => void;
+    isReviewFilter?: boolean;
   }[] = [
     // 포인트 — 첫 번째
     ...(totalPoints !== undefined ? [{
@@ -41,7 +44,7 @@ export default function Dashboard({ stats, statusFilter, onStatusFilter, totalPo
     { icon: <PauseCircle size={22} />, label: '잠시 멈춤', value: stats.paused,   color: '#a78bfa', filter: 'paused'       as ReadingStatus },
     { icon: <Clock       size={22} />, label: '읽고 싶음', value: stats.wantToRead, color: '#5ba8e5', filter: 'want-to-read' as ReadingStatus },
     // 후기
-    { icon: <MessageSquare size={22} />, label: '후기', value: stats.reviewCount, color: '#e67e22' },
+    { icon: <MessageSquare size={22} />, label: '후기', value: stats.reviewCount, color: '#e67e22', onClick: onReviewFilter, isReviewFilter: true },
     // 정보
     { icon: <Star size={22} />, label: '평균 별점', value: stats.avgRating ? stats.avgRating.toFixed(1) : '—', color: '#f5c518' },
   ];
@@ -49,7 +52,11 @@ export default function Dashboard({ stats, statusFilter, onStatusFilter, totalPo
   return (
     <div className="dashboard">
       {cards.map(c => {
-        const isActive = c.filter && statusFilter === c.filter;
+        const isActive = c.filter
+          ? statusFilter === c.filter
+          : c.isReviewFilter
+          ? reviewFilterActive
+          : false;
         const handleClick = c.filter
           ? () => onStatusFilter(statusFilter === c.filter ? 'all' : c.filter!)
           : c.onClick;

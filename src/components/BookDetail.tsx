@@ -5,7 +5,8 @@ import StarRating from './StarRating';
 import { lookupVocab, getApiKey, validateReview, saveRejectionReason, clearRejectionReason, getRejectionReason } from '../services/claudeVocab';
 import { awardPoints, calcReviewPoints, syncBookPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
-import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2, Mic, Square } from 'lucide-react';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface BookCandidate {
   cover: string;
@@ -153,6 +154,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     }
     setMetaAutoFilling(false);
   };
+
+  const reviewMic = useSpeechRecognition({
+    continuous: true,
+    onResult: (text) => {
+      setInfoForm(f => ({ ...f, review: f.review ? f.review + ' ' + text : text }));
+      setReviewValidationError('');
+    },
+  });
 
   const [reviewValidating, setReviewValidating] = useState(false);
   const [reviewValidationError, setReviewValidationError] = useState('');
@@ -568,7 +577,19 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     <StarRating value={infoForm.rating} onChange={v => setInfoForm(f => ({ ...f, rating: v }))} size={22} />
                   </div>
                   <div className="form-group">
-                    <label>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>별점 + 후기 승인 시 +{calcReviewPoints(book.totalPages, book.language)}점</span>}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <label style={{ margin: 0 }}>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>별점 + 후기 승인 시 +{calcReviewPoints(book.totalPages, book.language)}점</span>}</label>
+                      {reviewMic.supported && (
+                        <button
+                          type="button"
+                          className={`icon-btn${reviewMic.listening ? ' mic-recording' : ''}`}
+                          onClick={reviewMic.listening ? reviewMic.stop : reviewMic.start}
+                          title={reviewMic.listening ? '음성 입력 중지' : '음성으로 후기 입력'}
+                        >
+                          {reviewMic.listening ? <Square size={15} /> : <Mic size={15} />}
+                        </button>
+                      )}
+                    </div>
                     <textarea value={infoForm.review} onChange={e => { setInfoForm(f => ({ ...f, review: e.target.value })); setReviewValidationError(''); }}
                       placeholder="이 책에 대한 생각을 남겨보세요... (30자 이상, AI가 책 관련 후기인지 확인)" rows={4} />
                     {reviewValidationError && (

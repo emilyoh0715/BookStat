@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import { GENRES } from '../lib/genres';
 import StarRating from './StarRating';
-import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader, Camera } from 'lucide-react';
+import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader, Camera, Mic, Square } from 'lucide-react';
 import { recognizeBookFromImage, getApiKey } from '../services/claudeVocab';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface Props {
   onAdd: (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>) => void;
@@ -117,6 +118,29 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   const [manualMode, setManualMode] = useState(false);
   const [manualUrl, setManualUrl] = useState('');
   const searchedFor = useRef('');
+
+  const latestFormRef = useRef(form);
+  useEffect(() => { latestFormRef.current = form; });
+  const titleMicWasListening = useRef(false);
+
+  const titleMic = useSpeechRecognition({
+    onResult: (text) => {
+      setForm(f => ({ ...f, title: f.title ? f.title + ' ' + text : text }));
+      searchedFor.current = '';
+    },
+  });
+
+  // 음성 인식 종료 시 자동 검색
+  useEffect(() => {
+    if (titleMicWasListening.current && !titleMic.listening) {
+      const { title, author, language } = latestFormRef.current;
+      if (title.trim()) {
+        searchedFor.current = '';
+        triggerSearch(title.trim(), author.trim(), language);
+      }
+    }
+    titleMicWasListening.current = titleMic.listening;
+  }, [titleMic.listening]);
 
   const [cameraRecognizing, setCameraRecognizing] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -334,11 +358,22 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
                   type="button"
                   className="input-search-btn"
                   onClick={() => cameraInputRef.current?.click()}
-                  disabled={cameraRecognizing || coverSearching}
+                  disabled={cameraRecognizing || coverSearching || titleMic.listening}
                   title="카메라로 책 표지 인식"
                 >
                   {cameraRecognizing ? <Loader size={15} className="spin" /> : <Camera size={15} />}
                 </button>
+                {titleMic.supported && (
+                  <button
+                    type="button"
+                    className={`input-search-btn${titleMic.listening ? ' mic-recording' : ''}`}
+                    onClick={titleMic.listening ? titleMic.stop : titleMic.start}
+                    disabled={cameraRecognizing || coverSearching}
+                    title={titleMic.listening ? '음성 인식 중지' : '음성으로 제목 입력'}
+                  >
+                    {titleMic.listening ? <Square size={15} /> : <Mic size={15} />}
+                  </button>
+                )}
               </div>
               {cameraError && (
                 <p style={{ color: '#e65100', fontSize: 12, marginTop: 4 }}>{cameraError}</p>

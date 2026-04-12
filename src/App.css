@@ -1203,6 +1203,16 @@ textarea { resize: vertical; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* 음성 인식 녹음 중 버튼 */
+.mic-recording {
+  color: #e53935 !important;
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .cover-preview-row { display: flex; gap: 14px; align-items: flex-start; }
 
 .cover-preview-img {

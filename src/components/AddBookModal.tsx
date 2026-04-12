@@ -122,6 +122,30 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   const [cameraError, setCameraError] = useState('');
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // 이미지를 5MB 이하로 리사이즈 후 base64 반환
+  const resizeImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1600;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve(dataUrl.split(',')[1]);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+
   const handleCameraInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!cameraInputRef.current) return;
@@ -137,21 +161,9 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     setCameraRecognizing(true);
     setCameraError('');
     try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          resolve(dataUrl.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const base64 = await resizeImage(file);
 
-      const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-      const mime = (supported.includes(file.type) ? file.type : 'image/jpeg') as
-        'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-
-      const { title, author } = await recognizeBookFromImage(base64, mime);
+      const { title, author } = await recognizeBookFromImage(base64, 'image/jpeg');
 
       if (!title) {
         setCameraError('책 제목을 인식하지 못했어요. 다시 시도하거나 직접 입력해주세요.');

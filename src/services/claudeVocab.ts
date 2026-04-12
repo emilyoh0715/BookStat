@@ -103,6 +103,60 @@ export async function validateReview(review: string, bookTitle?: string): Promis
   }
 }
 
+export interface BookRecognitionResult {
+  title: string;
+  author: string;
+}
+
+/**
+ * 책 표지 이미지를 Claude Vision으로 분석해 제목과 저자를 추출
+ */
+export async function recognizeBookFromImage(
+  imageBase64: string,
+  mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+): Promise<BookRecognitionResult> {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('API 키가 설정되지 않았습니다.');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 256,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mimeType, data: imageBase64 },
+          },
+          {
+            type: 'text',
+            text: '이 이미지는 책의 표지입니다. 책 제목과 저자 이름을 정확히 읽어주세요.\n다음 JSON 형식으로만 응답하세요 (다른 텍스트 없이):\n{"title": "책 제목", "author": "저자명"}\n확인할 수 없는 항목은 빈 문자열("")로 두세요.',
+          },
+        ],
+      }],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error((err as { error?: { message?: string } }).error?.message ?? `API 오류 (${response.status})`);
+  }
+
+  const data = await response.json() as { content: Array<{ type: string; text: string }> };
+  const text = data.content.find(b => b.type === 'text')?.text ?? '';
+  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  const parsed = JSON.parse(cleaned) as { title?: string; author?: string };
+  return { title: parsed.title ?? '', author: parsed.author ?? '' };
+}
+
 export interface VocabLookupResult {
   meaning: string;
   example?: string;

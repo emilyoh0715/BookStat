@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import { GENRES } from '../lib/genres';
 import StarRating from './StarRating';
-import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader } from 'lucide-react';
+import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader, Camera } from 'lucide-react';
+import { recognizeBookFromImage, getApiKey } from '../services/claudeVocab';
 
 interface Props {
   onAdd: (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>) => void;
@@ -117,6 +118,64 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   const [manualUrl, setManualUrl] = useState('');
   const searchedFor = useRef('');
 
+  const [cameraRecognizing, setCameraRecognizing] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!cameraInputRef.current) return;
+    cameraInputRef.current.value = '';
+    if (!file) return;
+
+    if (!getApiKey()) {
+      setCameraError('설정에서 Claude API 키를 먼저 입력해주세요.');
+      setTimeout(() => setCameraError(''), 4000);
+      return;
+    }
+
+    setCameraRecognizing(true);
+    setCameraError('');
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          resolve(dataUrl.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const mime = (supported.includes(file.type) ? file.type : 'image/jpeg') as
+        'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
+      const { title, author } = await recognizeBookFromImage(base64, mime);
+
+      if (!title) {
+        setCameraError('책 제목을 인식하지 못했어요. 다시 시도하거나 직접 입력해주세요.');
+        setTimeout(() => setCameraError(''), 5000);
+        return;
+      }
+
+      setForm(f => ({ ...f, title: title || f.title, author: author || f.author }));
+      searchedFor.current = '';
+      setCoverSearching(true);
+      setManualMode(false);
+      const candidates = await fetchBookCandidates(title.trim(), author.trim(), form.language);
+      setBookCandidates(candidates);
+      setCoverIdx(0);
+      if (candidates.length > 0) setForm(f => applyCandidate(f, candidates[0], true));
+      setCoverSearching(false);
+    } catch (err) {
+      setCameraError(err instanceof Error ? err.message : '인식 중 오류가 발생했어요.');
+      setTimeout(() => setCameraError(''), 5000);
+    } finally {
+      setCameraRecognizing(false);
+    }
+  };
+
   const set = (key: string, value: unknown) => setForm(f => ({ ...f, [key]: value }));
 
   const isDirty = form.title.trim() !== '' || form.author.trim() !== '' || form.review.trim() !== '' || bookCandidates.length > 0;
@@ -208,6 +267,17 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
+
+          {/* 숨겨진 카메라/파일 입력 */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={handleCameraInput}
+          />
+
           <div className="form-row">
             <div className="form-group">
               <label>제목 *</label>
@@ -223,12 +293,24 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
                   type="button"
                   className="input-search-btn"
                   onClick={handleSearch}
-                  disabled={coverSearching || !form.title.trim()}
+                  disabled={coverSearching || cameraRecognizing || !form.title.trim()}
                   title="책 정보 검색"
                 >
                   {coverSearching ? <Loader size={15} className="spin" /> : <Search size={15} />}
                 </button>
+                <button
+                  type="button"
+                  className="input-search-btn"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={cameraRecognizing || coverSearching}
+                  title="카메라로 책 표지 인식"
+                >
+                  {cameraRecognizing ? <Loader size={15} className="spin" /> : <Camera size={15} />}
+                </button>
               </div>
+              {cameraError && (
+                <p style={{ color: '#e65100', fontSize: 12, marginTop: 4 }}>{cameraError}</p>
+              )}
             </div>
             <div className="form-group">
               <label>저자</label>

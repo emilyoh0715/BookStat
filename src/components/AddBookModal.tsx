@@ -122,29 +122,34 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   const [cameraError, setCameraError] = useState('');
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 이미지를 5MB 이하로 리사이즈 후 base64 반환
-  const resizeImage = (file: File): Promise<string> =>
+  // 이미지를 지정된 최대 크기로 리사이즈 후 data URL 반환
+  const resizeImageToDataUrl = (file: File, maxSize: number, quality = 0.85): Promise<string> =>
     new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const MAX = 1600;
         let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
-          else { width = Math.round(width * MAX / height); height = MAX; }
+        if (width > maxSize || height > maxSize) {
+          if (width > height) { height = Math.round(height * maxSize / width); width = maxSize; }
+          else { width = Math.round(width * maxSize / height); height = maxSize; }
         }
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        resolve(dataUrl.split(',')[1]);
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = reject;
       img.src = url;
     });
+
+  // 인식 실패 시 촬영 사진을 표지로 설정하는 헬퍼
+  const useCapturedAsCover = (dataUrl: string) => {
+    setManualUrl(dataUrl);
+    setManualMode(true);
+    setBookCandidates([]);
+  };
 
   const handleCameraInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -152,22 +157,31 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     cameraInputRef.current.value = '';
     if (!file) return;
 
+    setCameraRecognizing(true);
+    setCameraError('');
+
+    // 표지 저장용 (600px), Claude API용 (1400px) 두 가지 크기로 준비
+    const [coverDataUrl, apiDataUrl] = await Promise.all([
+      resizeImageToDataUrl(file, 600, 0.82),
+      resizeImageToDataUrl(file, 1400, 0.85),
+    ]).catch(() => ['', '']);
+
     if (!getApiKey()) {
-      setCameraError('설정에서 Claude API 키를 먼저 입력해주세요.');
-      setTimeout(() => setCameraError(''), 4000);
+      // API 키 없으면 촬영 사진을 표지로만 저장
+      if (coverDataUrl) useCapturedAsCover(coverDataUrl);
+      setCameraError('Claude API 키가 없어 텍스트 인식은 건너뜁니다. 사진은 표지로 저장했으니 제목을 직접 입력해주세요.');
+      setTimeout(() => setCameraError(''), 6000);
+      setCameraRecognizing(false);
       return;
     }
 
-    setCameraRecognizing(true);
-    setCameraError('');
     try {
-      const base64 = await resizeImage(file);
-
-      const { title, author } = await recognizeBookFromImage(base64, 'image/jpeg');
+      const { title, author } = await recognizeBookFromImage(apiDataUrl.split(',')[1], 'image/jpeg');
 
       if (!title) {
-        setCameraError('책 제목을 인식하지 못했어요. 다시 시도하거나 직접 입력해주세요.');
-        setTimeout(() => setCameraError(''), 5000);
+        useCapturedAsCover(coverDataUrl);
+        setCameraError('책 제목을 인식하지 못했어요. 사진은 표지로 저장했으니 제목을 직접 입력해주세요.');
+        setTimeout(() => setCameraError(''), 6000);
         return;
       }
 
@@ -178,11 +192,17 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
       const candidates = await fetchBookCandidates(title.trim(), author.trim(), form.language);
       setBookCandidates(candidates);
       setCoverIdx(0);
-      if (candidates.length > 0) setForm(f => applyCandidate(f, candidates[0], true));
+      if (candidates.length > 0) {
+        setForm(f => applyCandidate(f, candidates[0], true));
+      } else {
+        // 검색 결과 없으면 촬영 사진을 표지로
+        useCapturedAsCover(coverDataUrl);
+      }
       setCoverSearching(false);
     } catch (err) {
-      setCameraError(err instanceof Error ? err.message : '인식 중 오류가 발생했어요.');
-      setTimeout(() => setCameraError(''), 5000);
+      useCapturedAsCover(coverDataUrl);
+      setCameraError(err instanceof Error ? err.message : '인식 중 오류가 발생했어요. 사진은 표지로 저장했어요.');
+      setTimeout(() => setCameraError(''), 6000);
     } finally {
       setCameraRecognizing(false);
     }

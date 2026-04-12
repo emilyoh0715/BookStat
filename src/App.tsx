@@ -61,6 +61,8 @@ export default function App() {
   const [groupMemberPoints, setGroupMemberPoints] = useState<MemberStat[]>([]);
   const [groupPointsLoading, setGroupPointsLoading] = useState(false);
   const [myPointLogs, setMyPointLogs] = useState<PointLog[]>([]);
+  // userId → Set<bookId> : 그룹 전체 승인된 후기
+  const [groupApprovedBookIds, setGroupApprovedBookIds] = useState<Map<string, Set<string>>>(new Map());
   const [showPoints, setShowPoints] = useState(false);
   const [mainView, setMainView] = useState<'library' | 'group-dashboard' | 'market'>('library');
 
@@ -152,9 +154,22 @@ export default function App() {
     setMyPointLogs(logs);
   };
 
+  const loadGroupApprovals = async () => {
+    const { data } = await supabase.rpc('get_group_review_approvals');
+    if (data) {
+      const map = new Map<string, Set<string>>();
+      (data as { user_id: string; book_id: string }[]).forEach(({ user_id, book_id }) => {
+        if (!map.has(user_id)) map.set(user_id, new Set());
+        map.get(user_id)!.add(book_id);
+      });
+      setGroupApprovedBookIds(map);
+    }
+  };
+
   const reloadPoints = () => {
     loadGroupPoints();
     loadMyLogs();
+    loadGroupApprovals();
   };
 
   useEffect(() => {
@@ -162,6 +177,7 @@ export default function App() {
 
     loadGroupPoints();
     loadMyLogs();
+    loadGroupApprovals();
 
     // INSERT, UPDATE, DELETE 모두 감지해서 포인트 즉시 갱신
     const channel = supabase
@@ -169,6 +185,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'point_logs' }, () => {
         loadGroupPoints();
         loadMyLogs();
+        loadGroupApprovals();
       })
       .subscribe();
 
@@ -218,17 +235,13 @@ export default function App() {
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
   const isOwnLibrary = !selectedUserId || selectedUserId === user?.id;
 
-  // 승인된 후기 book_id Set (내 포인트 로그 기준)
-  const approvedReviewBookIds = new Set(
-    myPointLogs.filter(l => l.reason === 'review_approved').map(l => l.book_id)
-  );
-
-  // 후기 상태: 후기 텍스트 기준으로 승인/미승인 판단
-  const getReviewStatus = (bookId: string): 'approved' | 'pending' | undefined => {
+  // 후기 상태: 그룹 전체 승인 맵 기준으로 승인/미승인 판단
+  const getReviewStatus = (bookId: string, userId: string): 'approved' | 'pending' | undefined => {
     const b = books.find(bk => bk.id === bookId);
-    if (!b || !b.review?.trim()) return undefined;           // 후기 없음
-    if (approvedReviewBookIds.has(bookId)) return 'approved'; // 후기 있음 + 승인
-    return 'pending';                                          // 후기 있음 + 미승인
+    if (!b || !b.review?.trim()) return undefined;                        // 후기 없음
+    const approvedSet = groupApprovedBookIds.get(userId) ?? new Set<string>();
+    if (approvedSet.has(bookId)) return 'approved';                       // 후기 있음 + 승인
+    return 'pending';                                                      // 후기 있음 + 미승인
   };
 
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search)
@@ -448,7 +461,7 @@ export default function App() {
               onAddNote={note => addNote(selectedBook.id, note)}
               onDeleteNote={id => deleteNote(selectedBook.id, id)}
               onPointsSync={reloadPoints}
-              reviewStatus={isOwnLibrary ? getReviewStatus(selectedBook.id) : undefined}
+              reviewStatus={getReviewStatus(selectedBook.id, selectedBook.userId ?? user.id)}
               readOnly={!isOwnLibrary}
             />
           ) : (
@@ -574,7 +587,7 @@ export default function App() {
                             <BookCard key={book.id} book={book} number={idx + 1}
                               onClick={() => setSelectedId(book.id)}
                               onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
-                              reviewStatus={isOwnLibrary ? getReviewStatus(book.id) : undefined}
+                              reviewStatus={getReviewStatus(book.id, book.userId ?? selectedUserId)}
                               readOnly={!isOwnLibrary}
                             />
                           ))}
@@ -589,7 +602,7 @@ export default function App() {
                     <BookCard key={book.id} book={book} number={idx + 1}
                       onClick={() => setSelectedId(book.id)}
                       onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
-                      reviewStatus={isOwnLibrary ? getReviewStatus(book.id) : undefined}
+                      reviewStatus={getReviewStatus(book.id, book.userId ?? selectedUserId)}
                       readOnly={!isOwnLibrary}
                     />
                   ))}

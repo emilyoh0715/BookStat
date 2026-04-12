@@ -165,7 +165,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
   // pending 상태인데 저장된 이유가 없으면 AI로 자동 조회
   useEffect(() => {
-    if (reviewStatus !== 'pending' || !book.review?.trim() || reviewCheckResult || fetchingReason || !getApiKey()) return;
+    if (readOnly || reviewStatus !== 'pending' || !book.review?.trim() || reviewCheckResult || fetchingReason || !getApiKey()) return;
     setFetchingReason(true);
     validateReview(book.review, book.title).then(result => {
       if (!result.valid) {

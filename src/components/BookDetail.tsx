@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
@@ -156,6 +156,24 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
   const [reviewValidating, setReviewValidating] = useState(false);
   const [reviewValidationError, setReviewValidationError] = useState('');
+  const [rejectionReason, setRejectionReason] = useState<string | null>(() => getRejectionReason(book.id));
+  const [fetchingReason, setFetchingReason] = useState(false);
+
+  // pending 상태인데 저장된 거절 이유가 없으면 AI로 자동 조회
+  useEffect(() => {
+    if (reviewStatus !== 'pending' || !book.review?.trim() || rejectionReason || fetchingReason || !getApiKey()) return;
+    setFetchingReason(true);
+    validateReview(book.review, book.title).then(result => {
+      if (!result.valid && result.reason) {
+        saveRejectionReason(book.id, result.reason);
+        setRejectionReason(result.reason);
+      } else if (!result.valid) {
+        const fallback = '책의 구체적인 내용이 포함된 후기를 작성해주세요.';
+        saveRejectionReason(book.id, fallback);
+        setRejectionReason(fallback);
+      }
+    }).finally(() => setFetchingReason(false));
+  }, [reviewStatus, book.id]);
 
   const [vocabForm, setVocabForm] = useState({ word: '', meaning: '', sentence: '', page: '' });
   const [noteForm, setNoteForm] = useState({ content: '', page: '' });
@@ -240,11 +258,13 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
         const reason = result.reason ?? '후기가 기준을 충족하지 않아요. 책에 대한 감상을 완전한 문장으로 작성해주세요.';
         setReviewValidationError(reason);
         saveRejectionReason(book.id, reason);
+        setRejectionReason(reason);
         return;
       }
 
       // 통과 시 거절 이유 삭제
       clearRejectionReason(book.id);
+      setRejectionReason(null);
       // Award points for approved review (idempotent — won't double-award)
       awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language)).catch(console.error);
     }
@@ -580,9 +600,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                         )}
                       </div>
                       <p>{book.review}</p>
-                      {reviewStatus === 'pending' && getRejectionReason(book.id) && (
+                      {reviewStatus === 'pending' && (
                         <div className="review-rejection-reason">
-                          <strong>거절 이유:</strong> {getRejectionReason(book.id)}
+                          {fetchingReason
+                            ? <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>거절 이유 확인 중...</span>
+                            : rejectionReason
+                              ? <><strong>거절 이유:</strong> {rejectionReason}</>
+                              : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>API 키를 설정하면 거절 이유를 확인할 수 있어요.</span>
+                          }
                         </div>
                       )}
                     </div>

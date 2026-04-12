@@ -108,6 +108,7 @@ function initForm() {
 
 export default function AddBookModal({ onAdd, onClose }: Props) {
   const [form, setForm] = useState(initForm);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const [bookCandidates, setBookCandidates] = useState<BookCandidate[]>([]);
   const [coverIdx, setCoverIdx] = useState(0);
@@ -117,6 +118,16 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   const searchedFor = useRef('');
 
   const set = (key: string, value: unknown) => setForm(f => ({ ...f, [key]: value }));
+
+  const isDirty = form.title.trim() !== '' || form.author.trim() !== '' || form.review.trim() !== '' || bookCandidates.length > 0;
+
+  const handleOverlayClick = () => {
+    if (isDirty) {
+      setConfirmClose(true);
+    } else {
+      onClose();
+    }
+  };
 
   const currentCover = manualMode ? manualUrl : (bookCandidates[coverIdx]?.cover ?? '');
 
@@ -177,8 +188,20 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal" onClick={e => e.stopPropagation()}>
+
+        {confirmClose && (
+          <div className="confirm-overlay" onClick={e => e.stopPropagation()}>
+            <div className="confirm-dialog">
+              <p className="confirm-msg">입력 중인 내용이 있어요.<br />추가를 중단하고 나갈까요?</p>
+              <div className="confirm-actions">
+                <button className="btn-secondary" onClick={() => setConfirmClose(false)}>계속 입력</button>
+                <button className="btn-danger" onClick={onClose}>나가기</button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="modal-header">
           <h2>책 추가</h2>
           <button className="icon-btn" onClick={onClose}><X size={20} /></button>

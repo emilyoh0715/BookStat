@@ -603,6 +603,60 @@
 .empty-state svg { opacity: 0.3; }
 .empty-state p { font-size: 16px; margin: 0; }
 
+/* ===== Confirm Dialog (inside modal) ===== */
+.confirm-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.confirm-dialog {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 24px 20px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.confirm-msg {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-heading);
+  text-align: center;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm-actions .btn-secondary,
+.confirm-actions .btn-danger {
+  flex: 1;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-danger {
+  background: #e53935;
+  color: #fff;
+}
+
+.btn-danger:hover { background: #c62828; }
+
 /* ===== Modal ===== */
 .modal-overlay {
   position: fixed;
@@ -617,6 +671,7 @@
 }
 
 .modal {
+  position: relative;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 16px;

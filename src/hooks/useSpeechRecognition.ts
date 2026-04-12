@@ -15,22 +15,26 @@ interface Result {
 
 export function useSpeechRecognition({ lang = 'ko-KR', continuous = false, onResult }: Options): Result {
   const [listening, setListening] = useState(false);
-  const recRef = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = useRef<any>(null);
   const onResultRef = useRef(onResult);
 
   useEffect(() => { onResultRef.current = onResult; });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || (window as any).webkitSpeechRecognition) as typeof SpeechRecognition | undefined : undefined;
-  const supported = !!SR;
+  const getSR = (): any => typeof window !== 'undefined' ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) : undefined;
+  const supported = !!getSR();
 
   const start = () => {
+    const SR = getSR();
     if (!SR || listening) return;
-    const rec = new SR();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new (SR as any)();
     rec.lang = lang;
     rec.continuous = continuous;
     rec.interimResults = false;
-    rec.onresult = (e: SpeechRecognitionEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
       let text = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) text += e.results[i][0].transcript;

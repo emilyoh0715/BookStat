@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
-import { lookupVocab, getApiKey, validateReview } from '../services/claudeVocab';
+import { lookupVocab, getApiKey, validateReview, saveRejectionReason, clearRejectionReason, getRejectionReason } from '../services/claudeVocab';
 import { awardPoints, calcReviewPoints, syncBookPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
@@ -57,6 +57,7 @@ async function fetchBookCandidates(title: string, author: string, language = 'ko
   }
 }
 
+
 interface Props {
   book: Book;
   onBack: () => void;
@@ -66,6 +67,7 @@ interface Props {
   onAddNote: (note: { content: string; page?: number }) => void;
   onDeleteNote: (id: string) => void;
   onPointsSync?: () => void;
+  reviewStatus?: 'approved' | 'pending';
   readOnly?: boolean;
 }
 
@@ -84,7 +86,7 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
   { value: 'other', label: '기타', flag: '🌐' },
 ];
 
-export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, onPointsSync, readOnly }: Props) {
+export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, onPointsSync, reviewStatus, readOnly }: Props) {
   const [tab, setTab] = useState<Tab>('info');
   const [editingInfo, setEditingInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
@@ -235,10 +237,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       setReviewValidating(false);
 
       if (!result.valid) {
-        setReviewValidationError(result.reason ?? '후기가 기준을 충족하지 않아요. 책에 대한 감상을 완전한 문장으로 작성해주세요.');
+        const reason = result.reason ?? '후기가 기준을 충족하지 않아요. 책에 대한 감상을 완전한 문장으로 작성해주세요.';
+        setReviewValidationError(reason);
+        saveRejectionReason(book.id, reason);
         return;
       }
 
+      // 통과 시 거절 이유 삭제
+      clearRejectionReason(book.id);
       // Award points for approved review (idempotent — won't double-award)
       awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language)).catch(console.error);
     }
@@ -564,8 +570,21 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                   </div>
                   {book.review && (
                     <div className="review-box">
-                      <span className="info-label">리뷰</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <span className="info-label" style={{ margin: 0 }}>리뷰</span>
+                        {reviewStatus === 'approved' && (
+                          <span className="review-status-badge approved">✓ 승인됨</span>
+                        )}
+                        {reviewStatus === 'pending' && (
+                          <span className="review-status-badge pending">! 미승인</span>
+                        )}
+                      </div>
                       <p>{book.review}</p>
+                      {reviewStatus === 'pending' && getRejectionReason(book.id) && (
+                        <div className="review-rejection-reason">
+                          <strong>거절 이유:</strong> {getRejectionReason(book.id)}
+                        </div>
+                      )}
                     </div>
                   )}
                   {!book.review && <p className="empty-text">아직 리뷰가 없습니다.</p>}

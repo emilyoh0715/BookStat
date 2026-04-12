@@ -22,6 +22,18 @@ export interface ReviewValidationResult {
   reason?: string;
 }
 
+// localStorage helpers for persisting rejection reasons across page loads
+const rejectionKey = (bookId: string) => `review-rejection-${bookId}`;
+export function saveRejectionReason(bookId: string, reason: string) {
+  localStorage.setItem(rejectionKey(bookId), reason);
+}
+export function clearRejectionReason(bookId: string) {
+  localStorage.removeItem(rejectionKey(bookId));
+}
+export function getRejectionReason(bookId: string): string | null {
+  return localStorage.getItem(rejectionKey(bookId));
+}
+
 /**
  * Validate a book review:
  *  - Must be ≥ 30 characters

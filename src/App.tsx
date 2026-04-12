@@ -16,7 +16,7 @@ import PointsMarket from './components/PointsMarket';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints, removePoints } from './services/points';
 import type { PointLog } from './services/points';
-import { validateReview, getApiKey } from './services/claudeVocab';
+import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/claudeVocab';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
 import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen, RefreshCw } from 'lucide-react';
@@ -271,8 +271,10 @@ export default function App() {
       const result = await validateReview(book.review!, book.title);
       if (!result.valid) {
         await removePoints(book.id, 'review_approved');
+        saveRejectionReason(book.id, result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.');
         removed++;
       } else {
+        clearRejectionReason(book.id);
         kept++;
       }
     }
@@ -446,6 +448,7 @@ export default function App() {
               onAddNote={note => addNote(selectedBook.id, note)}
               onDeleteNote={id => deleteNote(selectedBook.id, id)}
               onPointsSync={reloadPoints}
+              reviewStatus={isOwnLibrary ? getReviewStatus(selectedBook.id) : undefined}
               readOnly={!isOwnLibrary}
             />
           ) : (

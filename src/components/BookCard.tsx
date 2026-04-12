@@ -22,17 +22,17 @@ export default function BookCard({ book, number, onClick, onDelete, reviewPendin
 
   return (
     <div className="book-card" onClick={onClick}>
+      {reviewPending && (
+        <div className="review-pending-cover-icon" title="후기 미승인 — 후기를 다시 저장하면 AI 검증을 재시도합니다">
+          <AlertCircle size={13} />
+        </div>
+      )}
       {number !== undefined && <span className="book-number">{number}</span>}
       <div className="book-cover" style={{ backgroundColor: book.cover ? undefined : coverColors[colorIdx] }}>
         {book.cover
           ? <img src={book.cover} alt={book.title} />
           : <BookOpen size={32} color="rgba(255,255,255,0.6)" />
         }
-        {reviewPending && (
-          <div className="review-pending-cover-icon" title="후기 미승인 — 후기를 다시 저장하면 AI 검증을 재시도합니다">
-            <AlertCircle size={14} />
-          </div>
-        )}
       </div>
       <div className="book-info">
         <div className="book-header">

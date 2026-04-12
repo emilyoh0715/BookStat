@@ -1465,10 +1465,10 @@ textarea { resize: vertical; }
     box-shadow: 0 0 0 2px var(--item-color, var(--accent));
   }
 
-  /* FAB 숨김 (모바일) */
-  .fab-add-btn { display: none; }
+  /* FAB — 하단 탭 바 위로 올림 */
+  .fab-add-btn { bottom: 76px; right: 20px; width: 46px; height: 46px; }
 
-  /* 헤더의 책 추가 버튼 숨김 (하단 탭으로 이동) */
+  /* 헤더의 책 추가 버튼 숨김 */
   .header-add-btn { display: none; }
 }
 

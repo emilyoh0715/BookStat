@@ -220,12 +220,12 @@ export default function App() {
     myPointLogs.filter(l => l.reason === 'review_approved').map(l => l.book_id)
   );
 
-  // 후기 미승인: 완독했는데 review_approved 포인트 로그가 없는 경우
-  // (검증 실패 시 리뷰 텍스트가 저장되지 않으므로 텍스트 유무로는 판단 불가)
-  const isReviewPending = (bookId: string) => {
+  // 후기 상태: 후기 텍스트 기준으로 승인/미승인 판단
+  const getReviewStatus = (bookId: string): 'approved' | 'pending' | undefined => {
     const b = books.find(bk => bk.id === bookId);
-    if (!b) return false;
-    return b.status === 'finished' && !approvedReviewBookIds.has(bookId);
+    if (!b || !b.review?.trim()) return undefined;           // 후기 없음
+    if (approvedReviewBookIds.has(bookId)) return 'approved'; // 후기 있음 + 승인
+    return 'pending';                                          // 후기 있음 + 미승인
   };
 
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search)
@@ -531,7 +531,7 @@ export default function App() {
                             <BookCard key={book.id} book={book} number={idx + 1}
                               onClick={() => setSelectedId(book.id)}
                               onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
-                              reviewPending={isOwnLibrary && isReviewPending(book.id)}
+                              reviewStatus={isOwnLibrary ? getReviewStatus(book.id) : undefined}
                               readOnly={!isOwnLibrary}
                             />
                           ))}
@@ -546,7 +546,7 @@ export default function App() {
                     <BookCard key={book.id} book={book} number={idx + 1}
                       onClick={() => setSelectedId(book.id)}
                       onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
-                      reviewPending={isOwnLibrary && isReviewPending(book.id)}
+                      reviewStatus={isOwnLibrary ? getReviewStatus(book.id) : undefined}
                       readOnly={!isOwnLibrary}
                     />
                   ))}

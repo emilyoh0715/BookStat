@@ -1,18 +1,18 @@
 import type { Book } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
-import { BookOpen, Trash2, AlertCircle } from 'lucide-react';
+import { BookOpen, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface Props {
   book: Book;
   number?: number;
   onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
-  reviewPending?: boolean;
+  reviewStatus?: 'approved' | 'pending';
   readOnly?: boolean;
 }
 
-export default function BookCard({ book, number, onClick, onDelete, reviewPending, readOnly }: Props) {
+export default function BookCard({ book, number, onClick, onDelete, reviewStatus, readOnly }: Props) {
   const progress = book.totalPages && book.currentPage
     ? Math.round((book.currentPage / book.totalPages) * 100)
     : null;
@@ -22,11 +22,6 @@ export default function BookCard({ book, number, onClick, onDelete, reviewPendin
 
   return (
     <div className="book-card" onClick={onClick}>
-      {reviewPending && (
-        <div className="review-pending-cover-icon" title="후기 미승인 — 후기를 다시 저장하면 AI 검증을 재시도합니다">
-          <AlertCircle size={13} />
-        </div>
-      )}
       {number !== undefined && <span className="book-number">{number}</span>}
       <div className="book-cover" style={{ backgroundColor: book.cover ? undefined : coverColors[colorIdx] }}>
         {book.cover
@@ -56,9 +51,19 @@ export default function BookCard({ book, number, onClick, onDelete, reviewPendin
 
         {book.genre && <span className="book-genre">{book.genre}</span>}
 
-        {book.rating ? (
-          <div className="book-rating">
-            <StarRating value={book.rating} size={14} />
+        {(book.rating || reviewStatus) ? (
+          <div className="book-rating-row">
+            {book.rating ? <StarRating value={book.rating} size={14} /> : <span />}
+            {reviewStatus === 'approved' && (
+              <span className="review-status-icon approved" title="후기 승인됨">
+                <CheckCircle size={14} />
+              </span>
+            )}
+            {reviewStatus === 'pending' && (
+              <span className="review-status-icon pending" title="후기 미승인 — 후기를 다시 저장하면 AI 검증을 재시도합니다">
+                <AlertCircle size={14} />
+              </span>
+            )}
           </div>
         ) : null}
 

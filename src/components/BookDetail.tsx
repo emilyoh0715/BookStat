@@ -65,6 +65,7 @@ interface Props {
   onDeleteVocab: (id: string) => void;
   onAddNote: (note: { content: string; page?: number }) => void;
   onDeleteNote: (id: string) => void;
+  onPointsSync?: () => void;
   readOnly?: boolean;
 }
 
@@ -83,7 +84,7 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
   { value: 'other', label: '기타', flag: '🌐' },
 ];
 
-export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, readOnly }: Props) {
+export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, onPointsSync, readOnly }: Props) {
   const [tab, setTab] = useState<Tab>('info');
   const [editingInfo, setEditingInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
@@ -245,7 +246,9 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     const newReviewValue = infoForm.review || undefined;
 
     // 현재 상태 기반으로 포인트 동기화 (후기 삭제·상태 변경 시 포인트 제거)
+    // await로 완료를 기다린 뒤 포인트 화면 즉시 갱신
     syncBookPoints(book.id, infoForm.status, newReviewValue, book.totalPages, book.language, infoForm.rating)
+      .then(() => onPointsSync?.())
       .catch(console.error);
 
     onUpdate({

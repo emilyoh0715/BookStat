@@ -127,36 +127,42 @@ export default function App() {
   };
 
   // ─── 포인트 로드 & 실시간 동기화 ───
+  const loadGroupPoints = async () => {
+    setGroupPointsLoading(true);
+    const { data } = await supabase.rpc('get_group_member_points');
+    if (data) {
+      setGroupMemberPoints(
+        (data as MemberStat[]).map(m => ({
+          ...m,
+          total_points:            Number(m.total_points),
+          book_added_points:       Number(m.book_added_points ?? 0),
+          review_approved_points:  Number(m.review_approved_points ?? 0),
+        }))
+      );
+    }
+    setGroupPointsLoading(false);
+  };
+
+  const loadMyLogs = async () => {
+    const { logs } = await getUserPoints();
+    setMyPointLogs(logs);
+  };
+
+  const reloadPoints = () => {
+    loadGroupPoints();
+    loadMyLogs();
+  };
+
   useEffect(() => {
     if (!user) return;
-
-    const loadGroupPoints = async () => {
-      setGroupPointsLoading(true);
-      const { data } = await supabase.rpc('get_group_member_points');
-      if (data) {
-        setGroupMemberPoints(
-          (data as MemberStat[]).map(m => ({
-            ...m,
-            total_points:            Number(m.total_points),
-            book_added_points:       Number(m.book_added_points ?? 0),
-            review_approved_points:  Number(m.review_approved_points ?? 0),
-          }))
-        );
-      }
-      setGroupPointsLoading(false);
-    };
-
-    const loadMyLogs = async () => {
-      const { logs } = await getUserPoints();
-      setMyPointLogs(logs);
-    };
 
     loadGroupPoints();
     loadMyLogs();
 
+    // INSERT, UPDATE, DELETE 모두 감지해서 포인트 즉시 갱신
     const channel = supabase
       .channel('point-logs-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'point_logs' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'point_logs' }, () => {
         loadGroupPoints();
         loadMyLogs();
       })
@@ -382,6 +388,7 @@ export default function App() {
               onDeleteVocab={id => deleteVocab(selectedBook.id, id)}
               onAddNote={note => addNote(selectedBook.id, note)}
               onDeleteNote={id => deleteNote(selectedBook.id, id)}
+              onPointsSync={reloadPoints}
               readOnly={!isOwnLibrary}
             />
           ) : (
@@ -580,7 +587,9 @@ export default function App() {
           onAdd={async book => {
             const bookId = await addBook(book, user.id);
             if (book.status !== 'want-to-read') {
-              awardPoints(bookId, 'book_added', 1).catch(console.error);
+              awardPoints(bookId, 'book_added', 1)
+                .then(() => reloadPoints())
+                .catch(console.error);
             }
           }}
           onClose={() => setShowAdd(false)}

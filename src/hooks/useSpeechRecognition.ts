@@ -32,16 +32,36 @@ export function useSpeechRecognition({ lang = 'ko-KR', continuous = false, onRes
     const rec = new (SR as any)();
     rec.lang = lang;
     rec.continuous = continuous;
-    rec.interimResults = false;
+    rec.interimResults = true; // interim 결과도 받아야 모바일에서 fallback 가능
+
+    let lastInterim = '';
+    let committed = false;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
-      let text = '';
+      let finalText = '';
+      let interimText = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) text += e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        else interimText += e.results[i][0].transcript;
       }
-      if (text) onResultRef.current(text);
+      if (finalText) {
+        onResultRef.current(finalText);
+        committed = true;
+        lastInterim = '';
+      } else if (interimText) {
+        lastInterim = interimText;
+      }
     };
-    rec.onend = () => setListening(false);
+
+    // onend 시점에 final이 없으면 interim으로 fallback
+    rec.onend = () => {
+      if (!committed && lastInterim) {
+        onResultRef.current(lastInterim);
+      }
+      setListening(false);
+    };
+
     rec.onerror = () => setListening(false);
     rec.start();
     recRef.current = rec;

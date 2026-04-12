@@ -28,6 +28,11 @@ export default function BookCard({ book, number, onClick, onDelete, reviewPendin
           ? <img src={book.cover} alt={book.title} />
           : <BookOpen size={32} color="rgba(255,255,255,0.6)" />
         }
+        {reviewPending && (
+          <div className="review-pending-cover-icon" title="후기 미승인 — 후기를 다시 저장하면 AI 검증을 재시도합니다">
+            <AlertCircle size={14} />
+          </div>
+        )}
       </div>
       <div className="book-info">
         <div className="book-header">
@@ -41,12 +46,6 @@ export default function BookCard({ book, number, onClick, onDelete, reviewPendin
             </button>
           )}
         </div>
-
-        {reviewPending && (
-          <div className="review-pending-badge">
-            <AlertCircle size={11} /> 후기 미승인
-          </div>
-        )}
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <StatusBadge status={book.status} />

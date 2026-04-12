@@ -155,7 +155,10 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setMetaAutoFilling(false);
   };
 
+  const [reviewMicLang, setReviewMicLang] = useState<'ko-KR' | 'en-US'>('ko-KR');
+
   const reviewMic = useSpeechRecognition({
+    lang: reviewMicLang,
     continuous: true,
     onResult: (text) => {
       setInfoForm(f => ({ ...f, review: f.review ? f.review + ' ' + text : text }));
@@ -580,14 +583,30 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                       <label style={{ margin: 0 }}>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>별점 + 후기 승인 시 +{calcReviewPoints(book.totalPages, book.language)}점</span>}</label>
                       {reviewMic.supported && (
-                        <button
-                          type="button"
-                          className={`icon-btn${reviewMic.listening ? ' mic-recording' : ''}`}
-                          onClick={reviewMic.listening ? reviewMic.stop : reviewMic.start}
-                          title={reviewMic.listening ? '음성 입력 중지' : '음성으로 후기 입력'}
-                        >
-                          {reviewMic.listening ? <Square size={15} /> : <Mic size={15} />}
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => { if (!reviewMic.listening) setReviewMicLang(l => l === 'ko-KR' ? 'en-US' : 'ko-KR'); }}
+                            style={{
+                              fontSize: 11, fontWeight: 700, padding: '2px 6px',
+                              borderRadius: 6, border: '1px solid var(--border)',
+                              background: 'var(--bg-surface)', color: 'var(--text-muted)',
+                              cursor: reviewMic.listening ? 'not-allowed' : 'pointer',
+                              opacity: reviewMic.listening ? 0.4 : 1,
+                            }}
+                            title="인식 언어 전환"
+                          >
+                            {reviewMicLang === 'ko-KR' ? '한' : 'EN'}
+                          </button>
+                          <button
+                            type="button"
+                            className={`icon-btn${reviewMic.listening ? ' mic-recording' : ''}`}
+                            onClick={reviewMic.listening ? reviewMic.stop : reviewMic.start}
+                            title={reviewMic.listening ? '음성 입력 중지' : '음성으로 후기 입력'}
+                          >
+                            {reviewMic.listening ? <Square size={15} /> : <Mic size={15} />}
+                          </button>
+                        </div>
                       )}
                     </div>
                     <textarea value={infoForm.review} onChange={e => { setInfoForm(f => ({ ...f, review: e.target.value })); setReviewValidationError(''); }}

@@ -124,6 +124,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   const titleMicWasListening = useRef(false);
 
   const titleMic = useSpeechRecognition({
+    lang: form.language === 'english' ? 'en-US' : 'ko-KR',
     onResult: (text) => {
       setForm(f => ({ ...f, title: f.title ? f.title + ' ' + text : text }));
       searchedFor.current = '';

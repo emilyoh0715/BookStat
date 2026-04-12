@@ -220,11 +220,12 @@ export default function App() {
     myPointLogs.filter(l => l.reason === 'review_approved').map(l => l.book_id)
   );
 
-  // 후기 미승인: 완독 + 후기 + 별점 있는데 포인트 로그 없는 경우
+  // 후기 미승인: 완독했는데 review_approved 포인트 로그가 없는 경우
+  // (검증 실패 시 리뷰 텍스트가 저장되지 않으므로 텍스트 유무로는 판단 불가)
   const isReviewPending = (bookId: string) => {
     const b = books.find(bk => bk.id === bookId);
     if (!b) return false;
-    return b.status === 'finished' && !!b.review?.trim() && (b.rating ?? 0) > 0 && !approvedReviewBookIds.has(bookId);
+    return b.status === 'finished' && !approvedReviewBookIds.has(bookId);
   };
 
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search)

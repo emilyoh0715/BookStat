@@ -14,11 +14,12 @@ import GroupDashboard from './components/GroupDashboard';
 import type { MemberStat } from './components/GroupDashboard';
 import PointsMarket from './components/PointsMarket';
 import { useAuth } from './contexts/AuthContext';
-import { getUserPoints, awardPoints } from './services/points';
+import { getUserPoints, awardPoints, removePoints } from './services/points';
 import type { PointLog } from './services/points';
+import { validateReview, getApiKey } from './services/claudeVocab';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
-import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen } from 'lucide-react';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen, RefreshCw } from 'lucide-react';
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 function getMemberColor(idx: number) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
@@ -74,6 +75,8 @@ export default function App() {
   const [groupByYearEnabled, setGroupByYearEnabled] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState<Set<number>>(new Set());
   const [reviewFilter, setReviewFilter] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
+  const [revalidateToast, setRevalidateToast] = useState<string | null>(null);
 
   useEffect(() => {
     const t1 = setTimeout(() => setIntroFading(true), 600);
@@ -253,6 +256,33 @@ export default function App() {
     applyMemberColor(getMemberColor(idx >= 0 ? idx : 0));
   };
 
+  // 내 모든 후기를 AI로 재검증 — 탈락 시 review_approved 포인트 삭제
+  const revalidateAllReviews = async () => {
+    if (!getApiKey()) {
+      setRevalidateToast('설정에서 Claude API 키를 먼저 입력해주세요.');
+      setTimeout(() => setRevalidateToast(null), 4000);
+      return;
+    }
+    setRevalidating(true);
+    const reviewBooks = books.filter(b => b.userId === user!.id && b.review?.trim());
+    let removed = 0;
+    let kept = 0;
+    for (const book of reviewBooks) {
+      const result = await validateReview(book.review!, book.title);
+      if (!result.valid) {
+        await removePoints(book.id, 'review_approved');
+        removed++;
+      } else {
+        kept++;
+      }
+    }
+    await reloadPoints();
+    setRevalidating(false);
+    const msg = `재검증 완료 — 승인 유지 ${kept}건 / 취소 ${removed}건`;
+    setRevalidateToast(msg);
+    setTimeout(() => setRevalidateToast(null), 6000);
+  };
+
   // 초기 멤버 색상 적용
   useEffect(() => {
     if (selectedUserId && groupMembers.length > 0) {
@@ -302,6 +332,16 @@ export default function App() {
             {!selectedBook && isOwnLibrary && (
               <button className="btn-primary header-add-btn" onClick={() => setShowAdd(true)}>
                 <Plus size={18} /> 책 추가
+              </button>
+            )}
+            {isOwnLibrary && !selectedBook && (
+              <button
+                className="icon-btn"
+                onClick={revalidateAllReviews}
+                disabled={revalidating}
+                title="내 후기 전체 재검증"
+              >
+                <RefreshCw size={18} className={revalidating ? 'spin' : ''} />
               </button>
             )}
             <button className="icon-btn" onClick={() => { setShowGroupManager(true); setPendingInviteCount(0); }} title="그룹 관리" style={{ position: 'relative' }}>
@@ -590,6 +630,19 @@ export default function App() {
           <span className="mobile-tab-name">마켓</span>
         </button>
       </nav>
+
+      {revalidateToast && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--bg-surface)', color: 'var(--text-heading)',
+          border: '1px solid var(--border)',
+          padding: '12px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+          zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          whiteSpace: 'nowrap',
+        }}>
+          {revalidateToast}
+        </div>
+      )}
 
       {inviteToast && (
         <div onClick={() => { setShowGroupManager(true); setInviteToast(null); }} style={{

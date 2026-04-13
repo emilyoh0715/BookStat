@@ -14,7 +14,7 @@ import GroupDashboard from './components/GroupDashboard';
 import type { MemberStat } from './components/GroupDashboard';
 import PointsMarket from './components/PointsMarket';
 import { useAuth } from './contexts/AuthContext';
-import { getUserPoints, awardPoints, removePoints } from './services/points';
+import { getUserPoints, awardPoints, removePoints, calcReviewPoints } from './services/points';
 import type { PointLog } from './services/points';
 import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/claudeVocab';
 import { supabase } from './lib/supabase';
@@ -269,7 +269,7 @@ export default function App() {
     applyMemberColor(getMemberColor(idx >= 0 ? idx : 0));
   };
 
-  // 내 모든 후기를 AI로 재검증 — 탈락 시 review_approved 포인트 삭제
+  // 내 모든 후기를 AI로 재검증 — 탈락 시 포인트 삭제, 통과 시 포인트 재지급
   const revalidateAllReviews = async () => {
     if (!getApiKey()) {
       setRevalidateToast('설정에서 Claude API 키를 먼저 입력해주세요.');
@@ -279,6 +279,7 @@ export default function App() {
     setRevalidating(true);
     const reviewBooks = books.filter(b => b.userId === user!.id && b.review?.trim());
     let removed = 0;
+    let awarded = 0;
     let kept = 0;
     for (const book of reviewBooks) {
       const result = await validateReview(book.review!, book.title);
@@ -288,12 +289,18 @@ export default function App() {
         removed++;
       } else {
         clearRejectionReason(book.id);
-        kept++;
+        // 완독 + 별점 있는 경우 포인트 재지급 (awardPoints는 idempotent)
+        if (book.status === 'finished' && (book.rating ?? 0) > 0) {
+          await awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language));
+          awarded++;
+        } else {
+          kept++;
+        }
       }
     }
     await reloadPoints();
     setRevalidating(false);
-    const msg = `재검증 완료 — 승인 유지 ${kept}건 / 취소 ${removed}건`;
+    const msg = `재검증 완료 — 승인 ${kept + awarded}건 (신규 ${awarded}건) / 취소 ${removed}건`;
     setRevalidateToast(msg);
     setTimeout(() => setRevalidateToast(null), 6000);
   };

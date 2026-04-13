@@ -229,6 +229,11 @@
 .stat-card-btn {
   cursor: pointer;
   width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 .stat-card-btn.active {
   border-color: var(--member-accent, var(--accent));
@@ -1378,7 +1383,7 @@ textarea { resize: vertical; }
 
   /* 대시보드 */
   .dashboard { flex-wrap: wrap; gap: 8px; }
-  .stat-card { flex: 1 1 calc(33.33% - 6px); padding: 12px 6px; }
+  .stat-card { flex: 1 1 calc(33.33% - 6px); padding: 12px 6px; min-height: 88px; box-sizing: border-box; }
   .stat-value { font-size: 20px; }
   .stat-label { font-size: 11px; }
 
@@ -1471,7 +1476,7 @@ textarea { resize: vertical; }
 
 @media (max-width: 480px) {
   .dashboard { flex-wrap: wrap; }
-  .stat-card { flex: 1 1 calc(33.33% - 6px); }
+  .stat-card { flex: 1 1 calc(33.33% - 6px); min-height: 88px; }
   .page-input { width: 60px !important; flex: 0 0 60px !important; }
   .vocab-word-row { flex-wrap: wrap; }
   .book-card { gap: 12px; padding: 12px; }

@@ -73,7 +73,8 @@ export async function validateReview(review: string, bookTitle?: string): Promis
 - 30자를 채우려고 같은 말을 반복한 경우
 
 다음 JSON 형식으로만 응답 (다른 텍스트 없이):
-{"valid": false, "reason": "판단 이유 (한 문장, 한국어)"}`;
+통과: {"valid": true}
+거절: {"valid": false, "reason": "거절 이유 (한 문장, 한국어)"}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -87,6 +88,7 @@ export async function validateReview(review: string, bookTitle?: string): Promis
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         max_tokens: 128,
+        temperature: 0,
         messages: [{ role: 'user', content: prompt }],
       }),
     });

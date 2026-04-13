@@ -186,9 +186,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
         setRejectionReason(reason);
         setReviewCheckResult('fail');
       } else {
-        // AI는 통과 판정 → 포인트 로그만 없는 상태 (재저장하면 포인트 지급 가능)
+        // AI 통과 → 포인트 로그가 없는 경우 즉시 지급
         clearRejectionReason(book.id);
         setReviewCheckResult('pass');
+        if (book.status === 'finished' && book.rating && book.rating > 0) {
+          awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language))
+            .then(() => onPointsSync?.())
+            .catch(console.error);
+        }
       }
     }).finally(() => setFetchingReason(false));
   }, [reviewStatus, book.id]);

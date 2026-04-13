@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { User, AtSign, Link } from 'lucide-react';
+import { User, AtSign, Link, Calendar } from 'lucide-react';
 
 const LEGACY_USERS = [
   { id: 'mom', label: '엄마 👩' },
@@ -10,9 +10,10 @@ const LEGACY_USERS = [
 ];
 
 export default function ProfileSetup() {
-  const { user, refreshProfile } = useAuth();
-  const [displayName, setDisplayName] = useState('');
+  const { user, profile, refreshProfile } = useAuth();
+  const [displayName, setDisplayName] = useState(profile?.full_name ?? '');
   const [handle, setHandle] = useState('');
+  const [birthDate, setBirthDate] = useState(profile?.birth_date ?? '');
   const [legacyClaim, setLegacyClaim] = useState<string>('');
   const [handleError, setHandleError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,15 +34,15 @@ export default function ProfileSetup() {
     setError('');
     setLoading(true);
 
-    // 프로필 생성
     const { error: profileError } = await supabase.from('profiles').insert({
       id: user.id,
       display_name: displayName.trim(),
       handle: handle.trim().toLowerCase(),
+      full_name: displayName.trim(),
+      birth_date: birthDate || null,
     });
     if (profileError) { setError(profileError.message); setLoading(false); return; }
 
-    // 레거시 데이터 연결
     if (legacyClaim) {
       await supabase.from('books').update({ user_id: user.id }).eq('user_id', legacyClaim);
     }
@@ -86,12 +87,22 @@ export default function ProfileSetup() {
           </div>
           {handleError && <p className="auth-error">{handleError}</p>}
 
+          <div className="auth-field">
+            <Calendar size={16} className="auth-field-icon" />
+            <input
+              type="date"
+              placeholder="생년월일 (선택)"
+              value={birthDate}
+              onChange={e => setBirthDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+
           <div className="form-group" style={{ marginTop: 8 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)' }}>
               <Link size={14} /> 기존 서재 데이터 연결 (선택)
             </label>
-            <select value={legacyClaim} onChange={e => setLegacyClaim(e.target.value)}
-              style={{ marginTop: 6 }}>
+            <select value={legacyClaim} onChange={e => setLegacyClaim(e.target.value)} style={{ marginTop: 6 }}>
               <option value="">연결 안 함</option>
               {LEGACY_USERS.map(u => (
                 <option key={u.id} value={u.id}>{u.label} 서재 데이터 가져오기</option>

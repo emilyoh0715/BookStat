@@ -235,20 +235,16 @@
   background: color-mix(in srgb, var(--member-accent, var(--accent)) 10%, var(--bg-surface));
 }
 
-/* 포인트 카드 — 강조 */
+/* 포인트 카드 — 색상만 강조, 크기는 동일 */
 .points-card {
-  flex: 2 !important;
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--member-accent, var(--accent)) 18%, var(--bg-surface)),
     var(--bg-surface)) !important;
   border-color: color-mix(in srgb, var(--member-accent, var(--accent)) 40%, var(--border)) !important;
 }
-.points-card .stat-value {
-  font-size: 32px !important;
-  color: var(--member-accent, var(--accent)) !important;
-}
+.points-card .stat-value { color: var(--member-accent, var(--accent)) !important; }
 .points-card .stat-icon { color: var(--member-accent, var(--accent)) !important; }
-.points-card .stat-label { font-weight: 700; font-size: 13px !important; }
+.points-card .stat-label { font-weight: 700; }
 
 .stat-icon { margin-bottom: 8px; }
 
@@ -1685,13 +1681,6 @@ textarea { resize: vertical; }
   font-weight: 600;
 }
 
-/* ===== Points Card (Dashboard) ===== */
-.points-card {
-  border: 1px solid rgba(245, 166, 35, 0.3);
-}
-.points-card:hover {
-  border-color: rgba(245, 166, 35, 0.6);
-}
 
 /* ===== Points Modal ===== */
 .points-hero {

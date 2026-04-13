@@ -36,7 +36,7 @@
 .app-header {
   background: var(--bg-surface);
   border-bottom: 2px solid var(--accent);
-  padding: 0 24px;
+  padding: env(safe-area-inset-top) 24px 0;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -1357,8 +1357,8 @@ textarea { resize: vertical; }
 
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
-  /* 헤더 축소 */
-  .app-header { padding: 0 16px; }
+  /* 헤더 축소 — safe area top 유지 */
+  .app-header { padding: env(safe-area-inset-top) 16px 0; }
   .header-inner { height: 60px; }
   .logo-img { width: 40px; height: 40px; }
   .logo { font-size: 18px; gap: 8px; }
@@ -1372,7 +1372,7 @@ textarea { resize: vertical; }
 
   /* 메인 콘텐츠 */
   .main-content {
-    padding: 16px 16px 90px;
+    padding: 16px 16px calc(90px + env(safe-area-inset-bottom));
   }
 
   /* 유저 헤딩 */
@@ -1417,7 +1417,8 @@ textarea { resize: vertical; }
     bottom: 0;
     left: 0;
     right: 0;
-    height: 64px;
+    height: calc(64px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
     background: var(--bg-surface);
     border-top: 1px solid var(--border);
     z-index: 200;
@@ -1465,8 +1466,8 @@ textarea { resize: vertical; }
     box-shadow: 0 0 0 2px var(--item-color, var(--accent));
   }
 
-  /* FAB — 하단 탭 바 위로 올림 */
-  .fab-add-btn { bottom: 76px; right: 20px; width: 46px; height: 46px; }
+  /* FAB — 하단 탭 바 위로 올림 (safe area 포함) */
+  .fab-add-btn { bottom: calc(76px + env(safe-area-inset-bottom)); right: 20px; width: 46px; height: 46px; }
 
   /* 헤더의 책 추가 버튼 숨김 */
   .header-add-btn { display: none; }

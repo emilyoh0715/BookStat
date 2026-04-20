@@ -370,7 +370,7 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
 
       {/* ── 신청 확인 모달 ── */}
       {confirming && (
-        <div className="modal-overlay" onClick={() => !submitting && setConfirming(null)}>
+        <div className="modal-overlay modal-overlay--center" onClick={() => !submitting && setConfirming(null)}>
           <div className="modal modal-dialog" onClick={e => e.stopPropagation()}>
             <div className="market-confirm-body">
               <div className="market-confirm-emoji">{confirming.emoji}</div>

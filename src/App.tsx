@@ -20,7 +20,7 @@ import type { PointLog } from './services/points';
 import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/claudeVocab';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
-import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen, RefreshCw } from 'lucide-react';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen, RefreshCw, HelpCircle } from 'lucide-react';
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 function getMemberColor(idx: number) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
@@ -381,6 +381,9 @@ export default function App() {
                 }}>{pendingInviteCount}</span>
               )}
             </button>
+            <button className="icon-btn" onClick={() => setShowHelp(true)} title="사용법">
+              <HelpCircle size={20} />
+            </button>
             <button className="icon-btn" onClick={() => setShowSettings(true)} title="설정">
               <Settings size={20} />
             </button>
@@ -728,7 +731,7 @@ export default function App() {
           onClose={() => setShowAdd(false)}
         />
       )}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onShowHelp={() => { setShowSettings(false); setShowHelp(true); }} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showPoints && (
         <PointsModal

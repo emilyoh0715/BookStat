@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { getAladinKey, setAladinKey } from '../services/claudeVocab';
 import { useAuth, type ChildAccount } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
+import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff, HelpCircle } from 'lucide-react';
 
 const AVATAR_OPTIONS = ['🧒', '👦', '👧', '🧑', '👩', '👨', '🐣', '🦊', '🐬', '🦄', '🐱', '🐶'];
 
-export default function SettingsModal({ onClose }: { onClose: () => void }) {
+export default function SettingsModal({ onClose, onShowHelp }: { onClose: () => void; onShowHelp?: () => void }) {
   const { profile, updateProfile, createChildAccount, getStoredChildren, removeStoredChild } = useAuth();
 
   const [aladinKey, setAladinKeyState] = useState(getAladinKey());
@@ -255,7 +255,12 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="modal-footer" style={{ marginTop: 8 }}>
+          <div className="modal-footer" style={{ marginTop: 8, justifyContent: 'space-between' }}>
+            {onShowHelp && (
+              <button type="button" className="btn-secondary" onClick={onShowHelp} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <HelpCircle size={15} /> 사용법 보기
+              </button>
+            )}
             <button type="button" className="btn-secondary" onClick={onClose}>닫기</button>
           </div>
         </div>

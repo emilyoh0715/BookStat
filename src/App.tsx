@@ -13,6 +13,7 @@ import PointsModal from './components/PointsModal';
 import GroupDashboard from './components/GroupDashboard';
 import type { MemberStat } from './components/GroupDashboard';
 import PointsMarket from './components/PointsMarket';
+import HelpModal from './components/HelpModal';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints, removePoints, calcReviewPoints } from './services/points';
 import type { PointLog } from './services/points';
@@ -69,6 +70,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
@@ -244,6 +246,7 @@ export default function App() {
     return 'pending';                                                      // 후기 있음 + 미승인
   };
 
+  const totalBooksForUser = filterBooks(selectedUserId, 'all', 'all', 'all', '').length;
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search)
     .filter(b => !reviewFilter || !!b.review?.trim())
     .slice().sort((a, b) => {
@@ -570,6 +573,38 @@ export default function App() {
               </div>
 
               {filtered.length === 0 ? (
+                isOwnLibrary && totalBooksForUser === 0 ? (
+                  <div className="empty-guide-card">
+                    <div className="empty-guide-header">
+                      <img src="/logo.png" alt="북스탯" style={{ width: 56, opacity: 0.85 }} />
+                      <div>
+                        <p className="empty-guide-welcome">북스탯에 오신 걸 환영해요! 👋</p>
+                        <p className="empty-guide-sub">책을 추가하고 독서 포인트를 모아보세요.</p>
+                      </div>
+                    </div>
+                    <div className="empty-guide-steps">
+                      {[
+                        { emoji: '📸', text: '카메라로 표지 촬영 → 책 자동 인식' },
+                        { emoji: '⭐', text: '다 읽은 책에 별점·후기 → 포인트 획득' },
+                        { emoji: '👨‍👩‍👧', text: '설정에서 가족을 초대해 함께 기록' },
+                        { emoji: '🛍️', text: '포인트로 마켓에서 선물 신청' },
+                      ].map((s, i) => (
+                        <div key={i} className="empty-guide-step">
+                          <span>{s.emoji}</span>
+                          <span>{s.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="empty-guide-actions">
+                      <button className="btn-primary" onClick={() => setShowAdd(true)}>
+                        <Plus size={16} /> 첫 번째 책 추가하기
+                      </button>
+                      <button className="btn-secondary" onClick={() => setShowHelp(true)}>
+                        자세한 사용법 보기
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <div className="empty-state">
                   <img src="/logo.png" alt="북스탯" style={{ width: 80, opacity: 0.4 }} />
                   <p>조건에 맞는 책이 없습니다.</p>
@@ -579,6 +614,7 @@ export default function App() {
                     </button>
                   )}
                 </div>
+                )
               ) : grouped ? (
                 <div className="year-groups">
                   {Array.from(grouped.entries()).map(([year, yearBooks]) => (
@@ -692,7 +728,8 @@ export default function App() {
           onClose={() => setShowAdd(false)}
         />
       )}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onShowHelp={() => { setShowSettings(false); setShowHelp(true); }} />}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showPoints && (
         <PointsModal
           total={groupMemberPoints.find(m => m.user_id === user.id)?.total_points ?? 0}

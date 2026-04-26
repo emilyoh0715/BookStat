@@ -616,9 +616,86 @@
   padding: 80px 20px;
   color: var(--text-muted);
 }
-
 .empty-state svg { opacity: 0.3; }
 .empty-state p { font-size: 16px; margin: 0; }
+
+/* ===== Empty Guide Card (첫 방문) ===== */
+.empty-guide-card {
+  margin: 32px auto;
+  max-width: 480px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.empty-guide-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.empty-guide-welcome {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin: 0 0 4px;
+}
+.empty-guide-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.empty-guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-base);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.empty-guide-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+.empty-guide-step span:first-child { font-size: 18px; flex-shrink: 0; }
+.empty-guide-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.empty-guide-actions .btn-primary,
+.empty-guide-actions .btn-secondary {
+  width: 100%;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== Help Modal ===== */
+.help-modal-body {
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.help-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px;
+  background: var(--bg-base);
+  border-radius: 12px;
+}
+.help-step-emoji { font-size: 28px; line-height: 1; flex-shrink: 0; }
+.help-step-content { display: flex; flex-direction: column; gap: 4px; }
+.help-step-title { font-size: 14px; font-weight: 700; color: var(--text-heading); }
+.help-step-desc { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
 
 /* ===== Confirm Dialog (inside modal) ===== */
 .confirm-overlay {

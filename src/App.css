@@ -530,6 +530,16 @@
 .btn-primary:active { transform: scale(0.98); }
 .btn-primary.small { padding: 7px 12px; }
 
+.header-help-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -1441,6 +1451,7 @@ textarea { resize: vertical; }
   .logo-img { width: 40px; height: 40px; }
   .logo { font-size: 18px; gap: 8px; }
   .header-inner .btn-primary span { display: none; }
+  .header-help-btn svg { display: none; }
 
   /* 사이드바 숨김 */
   .user-sidebar { display: none; }
@@ -1554,6 +1565,8 @@ textarea { resize: vertical; }
 
   /* 헤더의 책 추가 버튼 숨김 */
   .header-add-btn { display: none; }
+  /* 헤더의 사용법 버튼 — 모바일에서 아이콘 숨기고 텍스트만 */
+  .header-help-btn { padding: 6px 10px; font-size: 12px; gap: 4px; }
 }
 
 @media (max-width: 480px) {

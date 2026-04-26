@@ -381,8 +381,8 @@ export default function App() {
                 }}>{pendingInviteCount}</span>
               )}
             </button>
-            <button className="icon-btn" onClick={() => setShowHelp(true)} title="사용법">
-              <HelpCircle size={20} />
+            <button className="btn-secondary header-help-btn" onClick={() => setShowHelp(true)}>
+              <HelpCircle size={15} /> 사용법
             </button>
             <button className="icon-btn" onClick={() => setShowSettings(true)} title="설정">
               <Settings size={20} />

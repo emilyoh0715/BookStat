@@ -71,15 +71,15 @@ Deno.serve(async (req) => {
       .from('group_members')
       .select('group_id')
       .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
+      .eq('status', 'accepted')
+      .maybeSingle();
 
     if (parentMembership) {
       await supabaseAdmin.from('group_members').insert({
         group_id: parentMembership.group_id,
         user_id: childUserId,
         role: 'member',
-        status: 'active',
+        status: 'accepted',
       });
     }
 

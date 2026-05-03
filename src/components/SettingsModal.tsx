@@ -71,20 +71,25 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     if (childPin.length < 4) { setChildError('PIN은 4자리 이상이어야 해요.'); return; }
     if (childPin !== childPinConfirm) { setChildError('PIN이 일치하지 않아요.'); return; }
     setChildSaving(true);
-    const { error, child, migratedBooks } = await createChildAccount(
-      childName, childPin, childBirthDate, childAvatar, childLegacyId || undefined
-    );
-    if (error) {
-      setChildError(error);
-    } else if (child) {
-      const migrateMsg = migratedBooks ? ` (기존 책 ${migratedBooks}권 통합 완료)` : '';
-      setChildSuccess(`${child.name} 서재가 만들어졌어요!${migrateMsg}`);
-      setStoredChildren(getStoredChildren());
-      setChildName(''); setChildBirthDate(''); setChildPin(''); setChildPinConfirm('');
-      setChildAvatar('🧒'); setChildLegacyId('');
-      setTimeout(() => { setChildSuccess(''); setShowAddChild(false); }, 3000);
+    try {
+      const { error, child, migratedBooks } = await createChildAccount(
+        childName, childPin, childBirthDate, childAvatar, childLegacyId || undefined
+      );
+      if (error) {
+        setChildError(error);
+      } else if (child) {
+        const migrateMsg = migratedBooks ? ` (기존 책 ${migratedBooks}권 통합 완료)` : '';
+        setChildSuccess(`${child.name} 서재가 만들어졌어요!${migrateMsg}`);
+        setStoredChildren(getStoredChildren());
+        setChildName(''); setChildBirthDate(''); setChildPin(''); setChildPinConfirm('');
+        setChildAvatar('🧒'); setChildLegacyId('');
+        setTimeout(() => { setChildSuccess(''); setShowAddChild(false); }, 3000);
+      }
+    } catch (err) {
+      setChildError((err as Error).message ?? '오류가 발생했어요. 다시 시도해주세요.');
+    } finally {
+      setChildSaving(false);
     }
-    setChildSaving(false);
   };
 
   const handleRemoveChild = (childId: string) => {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { getAladinKey, setAladinKey } from '../services/claudeVocab';
 import { useAuth, type ChildAccount } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
+import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
 
 const AVATAR_OPTIONS = ['🧒', '👦', '👧', '🧑', '👩', '👨', '🐣', '🦊', '🐬', '🦄', '🐱', '🐶'];
 
@@ -32,6 +32,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [childError, setChildError] = useState('');
   const [childSuccess, setChildSuccess] = useState('');
   const [storedChildren, setStoredChildren] = useState<ChildAccount[]>(getStoredChildren());
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [editingChildName, setEditingChildName] = useState('');
 
   const checkHandle = async (h: string) => {
     const cleaned = h.replace(/[^a-z0-9_]/gi, '').toLowerCase();
@@ -98,6 +100,20 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     setStoredChildren(getStoredChildren());
   };
 
+  const handleRenameChild = async (childId: string) => {
+    const name = editingChildName.trim();
+    if (!name) return;
+    // 로컬 저장소 업데이트
+    const updated = getStoredChildren().map(c =>
+      c.childId === childId ? { ...c, name } : c
+    );
+    localStorage.setItem('bookstat-children', JSON.stringify(updated));
+    // Supabase profiles 업데이트
+    await supabase.from('profiles').update({ display_name: name, full_name: name }).eq('id', childId);
+    setStoredChildren(updated);
+    setEditingChildId(null);
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
@@ -144,7 +160,26 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                     {storedChildren.map(child => (
                       <div key={child.childId} className="child-account-item">
                         <span className="child-avatar">{child.avatarEmoji}</span>
-                        <span className="child-account-name">{child.name}</span>
+                        {editingChildId === child.childId ? (
+                          <div style={{ flex: 1, display: 'flex', gap: 6 }}>
+                            <input
+                              value={editingChildName}
+                              onChange={e => setEditingChildName(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleRenameChild(child.childId); if (e.key === 'Escape') setEditingChildId(null); }}
+                              style={{ flex: 1, fontSize: 14, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--bg-base)', color: 'var(--text)' }}
+                              autoFocus
+                            />
+                            <button className="btn-primary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => handleRenameChild(child.childId)}>저장</button>
+                            <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setEditingChildId(null)}>취소</button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="child-account-name">{child.name}</span>
+                            <button className="icon-btn" title="닉네임 수정" onClick={() => { setEditingChildId(child.childId); setEditingChildName(child.name); }}>
+                              <Pencil size={14} />
+                            </button>
+                          </>
+                        )}
                         <button
                           className="icon-btn danger-icon"
                           onClick={() => handleRemoveChild(child.childId)}

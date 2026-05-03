@@ -26,6 +26,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [childPin, setChildPin] = useState('');
   const [childPinConfirm, setChildPinConfirm] = useState('');
   const [childAvatar, setChildAvatar] = useState('🧒');
+  const [childLegacyId, setChildLegacyId] = useState('');
   const [showChildPin, setShowChildPin] = useState(false);
   const [childSaving, setChildSaving] = useState(false);
   const [childError, setChildError] = useState('');
@@ -66,17 +67,22 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setChildError('');
     if (!childName.trim()) { setChildError('이름을 입력해주세요.'); return; }
+    if (!childBirthDate) { setChildError('생년월일을 입력해주세요.'); return; }
     if (childPin.length < 4) { setChildError('PIN은 4자리 이상이어야 해요.'); return; }
     if (childPin !== childPinConfirm) { setChildError('PIN이 일치하지 않아요.'); return; }
     setChildSaving(true);
-    const { error, child } = await createChildAccount(childName, childPin, childBirthDate, childAvatar);
+    const { error, child, migratedBooks } = await createChildAccount(
+      childName, childPin, childBirthDate, childAvatar, childLegacyId || undefined
+    );
     if (error) {
       setChildError(error);
     } else if (child) {
-      setChildSuccess(`${child.name} 계정이 만들어졌어요!`);
+      const migrateMsg = migratedBooks ? ` (기존 책 ${migratedBooks}권 통합 완료)` : '';
+      setChildSuccess(`${child.name} 서재가 만들어졌어요!${migrateMsg}`);
       setStoredChildren(getStoredChildren());
-      setChildName(''); setChildBirthDate(''); setChildPin(''); setChildPinConfirm(''); setChildAvatar('🧒');
-      setTimeout(() => { setChildSuccess(''); setShowAddChild(false); }, 2000);
+      setChildName(''); setChildBirthDate(''); setChildPin(''); setChildPinConfirm('');
+      setChildAvatar('🧒'); setChildLegacyId('');
+      setTimeout(() => { setChildSuccess(''); setShowAddChild(false); }, 3000);
     }
     setChildSaving(false);
   };
@@ -170,11 +176,11 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                       <input placeholder="자녀 이름" value={childName} onChange={e => setChildName(e.target.value)} maxLength={20} required />
                     </div>
                     <div className="form-group">
-                      <label>생년월일 (선택)</label>
-                      <input type="date" value={childBirthDate} onChange={e => setChildBirthDate(e.target.value)} max={new Date().toISOString().split('T')[0]} />
+                      <label>생년월일 <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <input type="date" value={childBirthDate} onChange={e => setChildBirthDate(e.target.value)} max={new Date().toISOString().split('T')[0]} required />
                     </div>
                     <div className="form-group">
-                      <label>PIN (4~6자리 숫자)</label>
+                      <label>PIN (4~6자리 숫자) <span style={{ color: 'var(--danger)' }}>*</span></label>
                       <div style={{ position: 'relative' }}>
                         <input
                           type={showChildPin ? 'text' : 'password'}
@@ -201,15 +207,32 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                       />
                     </div>
 
+                    <div className="form-group">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>
+                        기존 서재 데이터 연결 (선택)
+                      </label>
+                      <select value={childLegacyId} onChange={e => setChildLegacyId(e.target.value)} style={{ marginTop: 4 }}>
+                        <option value="">연결 안 함</option>
+                        <option value="suyeon">수연 서재 가져오기</option>
+                        <option value="mom">엄마 서재 가져오기</option>
+                        <option value="dad">아빠 서재 가져오기</option>
+                      </select>
+                      {childLegacyId && (
+                        <p style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4 }}>
+                          ✓ 기존 서재의 책 데이터가 새 계정으로 통합돼요.
+                        </p>
+                      )}
+                    </div>
+
                     {childError && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '4px 0' }}>{childError}</p>}
                     {childSuccess && <p style={{ fontSize: 12, color: 'var(--success)', margin: '4px 0' }}>{childSuccess}</p>}
 
                     <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                      <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => { setShowAddChild(false); setChildError(''); }}>
+                      <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => { setShowAddChild(false); setChildError(''); setChildLegacyId(''); }}>
                         취소
                       </button>
                       <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={childSaving}>
-                        {childSaving ? '생성 중...' : '계정 만들기'}
+                        {childSaving ? '생성 중...' : '서재 만들기'}
                       </button>
                     </div>
                   </form>

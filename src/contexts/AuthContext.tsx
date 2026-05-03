@@ -51,7 +51,7 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<void>;
   signInWithKakao: () => Promise<void>;
   // 자녀 계정
-  createChildAccount: (name: string, pin: string, birthDate: string, avatarEmoji?: string) => Promise<{ error: string | null; child?: ChildAccount }>;
+  createChildAccount: (name: string, pin: string, birthDate: string, avatarEmoji?: string, legacyUserId?: string) => Promise<{ error: string | null; child?: ChildAccount; migratedBooks?: number }>;
   signInAsChild: (child: ChildAccount, pin: string) => Promise<{ error: string | null }>;
   getStoredChildren: () => ChildAccount[];
   removeStoredChild: (childId: string) => void;
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ── 자녀 계정 ────────────────────────────────────────
-  const createChildAccount = async (name: string, pin: string, birthDate: string, avatarEmoji = '🧒') => {
+  const createChildAccount = async (name: string, pin: string, birthDate: string, avatarEmoji = '🧒', legacyUserId?: string) => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession) return { error: '로그인이 필요합니다.' };
 
@@ -179,10 +179,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${currentSession.access_token}`,
       },
-      body: JSON.stringify({ name, pin, birthDate, avatarEmoji }),
+      body: JSON.stringify({ name, pin, birthDate, avatarEmoji, legacyUserId }),
     });
 
-    const json = await res.json() as { error?: string; childId?: string; childEmail?: string; name?: string; avatarEmoji?: string };
+    const json = await res.json() as { error?: string; childId?: string; childEmail?: string; name?: string; avatarEmoji?: string; migratedBooks?: number };
     if (!res.ok || json.error) return { error: json.error ?? '자녀 계정 생성에 실패했어요.' };
 
     const child: ChildAccount = {
@@ -197,19 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const existing = loadStoredChildren();
     saveStoredChildren([...existing.filter(c => c.childId !== child.childId), child]);
 
-    // DB에도 저장 (다른 기기에서도 복원 가능)
-    if (user) {
-      await supabase.from('child_accounts').insert({
-        parent_id: user.id,
-        child_user_id: child.childId,
-        name: child.name,
-        avatar_emoji: child.avatarEmoji,
-        birth_date: birthDate || null,
-        child_email: child.childEmail,
-      });
-    }
-
-    return { error: null, child };
+    return { error: null, child, migratedBooks: json.migratedBooks ?? 0 };
   };
 
   const signInAsChild = async (child: ChildAccount, pin: string) => {

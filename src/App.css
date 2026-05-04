@@ -1,16 +1,6 @@
 /* ===== Reset & Base ===== */
 *, *::before, *::after { box-sizing: border-box; }
 
-/* ===== BookstatLogo SVG ===== */
-.logo-page   { fill: #ffffff; stroke: #1E2A3A; stroke-width: 3.5px; stroke-linejoin: round; }
-.logo-spine  { stroke: #1E2A3A; stroke-width: 3.5px; stroke-linecap: round; fill: none; }
-.logo-center { stroke: #1E2A3A; stroke-width: 2px; stroke-linecap: round; opacity: 0.4; }
-.logo-lines  { stroke: #1E2A3A; stroke-width: 1.5px; stroke-linecap: round; opacity: 0.28; }
-
-[data-theme="dark"] .logo-page   { fill: #1A2535; stroke: #7AA7FF; }
-[data-theme="dark"] .logo-spine  { stroke: #7AA7FF; }
-[data-theme="dark"] .logo-center { stroke: #7AA7FF; }
-[data-theme="dark"] .logo-lines  { stroke: #7AA7FF; }
 
 /* ===== Intro Screen ===== */
 .intro-screen {

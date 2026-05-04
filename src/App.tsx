@@ -14,13 +14,17 @@ import GroupDashboard from './components/GroupDashboard';
 import type { MemberStat } from './components/GroupDashboard';
 import PointsMarket from './components/PointsMarket';
 import HelpModal from './components/HelpModal';
+import ChildReadingComplete from './components/ChildReadingComplete';
+import ProfileSelector from './components/ProfileSelector';
+import BookstatLogo from './components/BookstatLogo';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints, removePoints, calcReviewPoints } from './services/points';
 import type { PointLog } from './services/points';
 import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/claudeVocab';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
-import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen, RefreshCw, HelpCircle } from 'lucide-react';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen, RefreshCw, HelpCircle, Sun, Moon } from 'lucide-react';
+import { useTheme } from './useTheme';
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 function getMemberColor(idx: number) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
@@ -46,11 +50,23 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 ];
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear, refetchBooks } = useBooks();
 
   const [introVisible, setIntroVisible] = useState(true);
   const [introFading, setIntroFading] = useState(false);
+
+  const [profileSelected, setProfileSelected] = useState(() =>
+    !!sessionStorage.getItem('bookstat-profile-chosen')
+  );
+
+  useEffect(() => {
+    if (!user) {
+      sessionStorage.removeItem('bookstat-profile-chosen');
+      setProfileSelected(false);
+    }
+  }, [user]);
 
   // 그룹 멤버 (사이드바용)
   const [groupMembers, setGroupMembers] = useState<Profile[]>([]);
@@ -71,6 +87,7 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showChildComplete, setShowChildComplete] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
@@ -331,7 +348,7 @@ export default function App() {
   if (introVisible) {
     return (
       <div className={`intro-screen ${introFading ? 'fading' : ''}`}>
-        <img src="/logo.png" alt="북스탯" className="intro-logo" />
+        <img src="/logo-vertical.png" alt="북스탯" className="intro-logo" />
       </div>
     );
   }
@@ -345,13 +362,29 @@ export default function App() {
   // ─── 프로필 미설정 ───
   if (!profile) return <ProfileSetup />;
 
+  // ─── 부모 계정 → 프로필 선택 ───
+  if (!profile.is_child && !profileSelected) {
+    return (
+      <ProfileSelector
+        onContinueAsParent={() => {
+          sessionStorage.setItem('bookstat-profile-chosen', 'true');
+          setProfileSelected(true);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <header className="app-header">
         <div className="header-inner">
           <div className="logo">
-            <img src="/logo.png" alt="북스탯" className="logo-img" />
-            <span>북스탯</span>
+            <BookstatLogo size={52} className="logo-img" />
+            <div className="logo-brand">
+              <span className="logo-korean">북스탯</span>
+              <span className="logo-english">Bookstat</span>
+            </div>
+            <span className="logo-tagline">읽는 시간을, 보이는 성장으로</span>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {!selectedBook && isOwnLibrary && (
@@ -384,6 +417,9 @@ export default function App() {
             <button className="btn-secondary header-help-btn" onClick={() => setShowHelp(true)}>
               <HelpCircle size={15} /> 사용법
             </button>
+            <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? '라이트 모드' : '다크 모드'}>
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             <button className="icon-btn" onClick={() => setShowSettings(true)} title="설정">
               <Settings size={20} />
             </button>
@@ -396,7 +432,7 @@ export default function App() {
 
       {booksLoading && (
         <div className="loading-overlay">
-          <img src="/logo.png" alt="북스탯" className="loading-logo" />
+          <BookstatLogo size={96} className="loading-logo" />
           <p>불러오는 중...</p>
         </div>
       )}
@@ -579,7 +615,7 @@ export default function App() {
                 isOwnLibrary && totalBooksForUser === 0 ? (
                   <div className="empty-guide-card">
                     <div className="empty-guide-header">
-                      <img src="/logo.png" alt="북스탯" style={{ width: 56, opacity: 0.85 }} />
+                      <BookstatLogo size={56} />
                       <div>
                         <p className="empty-guide-welcome">북스탯에 오신 걸 환영해요! 👋</p>
                         <p className="empty-guide-sub">책을 추가하고 독서 포인트를 모아보세요.</p>
@@ -609,7 +645,7 @@ export default function App() {
                   </div>
                 ) : (
                 <div className="empty-state">
-                  <img src="/logo.png" alt="북스탯" style={{ width: 80, opacity: 0.4 }} />
+                  <BookstatLogo size={80} style={{ opacity: 0.4 }} />
                   <p>조건에 맞는 책이 없습니다.</p>
                   {isOwnLibrary && (
                     <button className="btn-primary" onClick={() => setShowAdd(true)}>
@@ -731,7 +767,7 @@ export default function App() {
           onClose={() => setShowAdd(false)}
         />
       )}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onGroupChange={loadGroupMembers} />}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showPoints && (
         <PointsModal
@@ -748,6 +784,47 @@ export default function App() {
           onGroupChange={async () => { await loadGroupMembers(); await refetchBooks(); }}
         />
       )}
+      {showChildComplete && (() => {
+        const readingBooks = filterBooks(user.id, 'reading', 'all', 'all', '');
+        const noReviewBooks = filterBooks(user.id, 'finished', 'all', 'all', '').filter(b => !b.review?.trim());
+        const completableBooks = [...readingBooks, ...noReviewBooks];
+        return (
+          <ChildReadingComplete
+            books={completableBooks}
+            onComplete={async (bookId, updates) => {
+              const book = books.find(b => b.id === bookId);
+              const wasReading = book?.status === 'reading';
+              await updateBook(bookId, {
+                ...(wasReading ? {
+                  status: 'finished' as const,
+                  finishDate: new Date().toISOString().split('T')[0],
+                } : {}),
+                rating: updates.rating,
+                childEmotion: updates.childEmotion,
+                childAnswers: updates.childAnswers,
+                review: updates.review || undefined,
+              });
+              if (book && updates.review) {
+                clearRejectionReason(bookId);
+                await awardPoints(bookId, 'review_approved', calcReviewPoints(book.totalPages, book.language));
+                reloadPoints();
+              }
+              await refetchBooks();
+            }}
+            onClose={() => setShowChildComplete(false)}
+          />
+        );
+      })()}
+      {profile?.is_child && isOwnLibrary && !selectedBook && (() => {
+        const hasReading = filterBooks(user.id, 'reading', 'all', 'all', '').length > 0;
+        const hasNoReview = filterBooks(user.id, 'finished', 'all', 'all', '').some(b => !b.review?.trim());
+        if (!hasReading && !hasNoReview) return null;
+        return (
+          <button className="child-complete-fab" onClick={() => setShowChildComplete(true)}>
+            {hasReading ? '📖 다 읽었어요!' : '✏️ 후기 쓰기'}
+          </button>
+        );
+      })()}
     </div>
   );
 }

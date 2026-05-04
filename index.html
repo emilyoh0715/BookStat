@@ -6,7 +6,8 @@
     <title>북스탯</title>
 
     <!-- PWA -->
-    <meta name="theme-color" content="#0e1624" />
+    <meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0F1923" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="북스탯" />
 
@@ -19,6 +20,20 @@
     <!-- 파비콘 -->
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Pretendard 폰트 -->
+    <link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+
+    <!-- 테마 초기화 — FOUC 방지 (JS 번들 로드 전 실행) -->
+    <script>
+      (function () {
+        var stored = localStorage.getItem('bookstat-theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = stored || (prefersDark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

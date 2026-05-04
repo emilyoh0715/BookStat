@@ -23,6 +23,8 @@ function dbToBook(row: Record<string, unknown>): Book {
     createdAt: row.created_at as string,
     vocab: (row.vocab as VocabEntry[]) ?? [],
     notes: (row.notes as Note[]) ?? [],
+    childEmotion: row.child_emotion as string | undefined,
+    childAnswers: row.child_answers as { question: string; answer: string }[] | undefined,
   };
 }
 
@@ -47,6 +49,8 @@ function bookToDb(book: Book) {
     created_at: book.createdAt,
     vocab: book.vocab,
     notes: book.notes,
+    child_emotion: book.childEmotion ?? null,
+    child_answers: book.childAnswers ?? null,
   };
 }
 

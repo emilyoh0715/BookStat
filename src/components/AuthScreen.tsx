@@ -1,27 +1,20 @@
 import { useState } from 'react';
-import { useAuth, type ChildAccount } from '../contexts/AuthContext';
-import { Mail, Lock, Eye, EyeOff, KeyRound, ArrowLeft, Baby } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 type MainTab = 'login' | 'signup';
 
 export default function AuthScreen() {
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInAsChild, getStoredChildren } = useAuth();
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
 
   const [tab, setTab] = useState<MainTab>('login');
-  const [showChildLogin, setShowChildLogin] = useState(false);
-  const [selectedChild, setSelectedChild] = useState<ChildAccount | null>(null);
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
-  const [childPin, setChildPin] = useState('');
-  const [showChildPin, setShowChildPin] = useState(false);
 
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const storedChildren = getStoredChildren();
 
   const switchTab = (t: MainTab) => {
     setTab(t);
@@ -53,81 +46,11 @@ export default function AuthScreen() {
     setLoading(false);
   };
 
-  const handleChildLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedChild) return;
-    setError(''); setLoading(true);
-    const { error } = await signInAsChild(selectedChild, childPin);
-    if (error) setError('PIN이 올바르지 않아요.');
-    setLoading(false);
-  };
-
-  // ── 자녀 선택 화면 ────────────────────────────────────
-  if (showChildLogin) {
-    return (
-      <div className="auth-screen">
-        <div className="auth-card">
-          <div className="auth-logo">
-            <img src="/logo.png" alt="북스탯" />
-            <span>북스탯</span>
-          </div>
-          <button className="auth-back-btn" onClick={() => { setShowChildLogin(false); setSelectedChild(null); setChildPin(''); setError(''); }}>
-            <ArrowLeft size={16} /> 뒤로
-          </button>
-
-          {!selectedChild ? (
-            <>
-              <p className="auth-subtitle">누구인가요?</p>
-              <div className="child-list">
-                {storedChildren.map(child => (
-                  <button key={child.childId} className="child-profile-btn" onClick={() => { setSelectedChild(child); setError(''); }}>
-                    <span className="child-avatar">{child.avatarEmoji}</span>
-                    <span className="child-name">{child.name}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <form className="auth-form" onSubmit={handleChildLogin}>
-              <div className="child-selected-header">
-                <span className="child-avatar large">{selectedChild.avatarEmoji}</span>
-                <p className="child-selected-name">{selectedChild.name}</p>
-              </div>
-              <div className="auth-field">
-                <KeyRound size={16} className="auth-field-icon" />
-                <input
-                  type={showChildPin ? 'text' : 'password'}
-                  inputMode="numeric"
-                  placeholder="PIN 번호 입력"
-                  value={childPin}
-                  onChange={e => setChildPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  required
-                  autoFocus
-                />
-                <button type="button" className="auth-pw-toggle" onClick={() => setShowChildPin(v => !v)}>
-                  {showChildPin ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-              {error && <p className="auth-error">{error}</p>}
-              <button type="submit" className="btn-primary auth-submit" disabled={loading || childPin.length < 4}>
-                {loading ? '확인 중...' : '로그인'}
-              </button>
-              <button type="button" className="auth-link-btn" onClick={() => { setSelectedChild(null); setChildPin(''); setError(''); }}>
-                다른 자녀 선택
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="auth-screen">
       <div className="auth-card">
         <div className="auth-logo">
-          <img src="/logo.png" alt="북스탯" />
-          <span>북스탯</span>
+          <img src="/logo-vertical.png" alt="북스탯 Bookstat" className="auth-logo-img" />
         </div>
 
         <div className="auth-tabs">
@@ -182,11 +105,6 @@ export default function AuthScreen() {
           </button>
         </form>
 
-        {storedChildren.length > 0 && (
-          <button className="child-login-btn" onClick={() => setShowChildLogin(true)}>
-            <Baby size={16} /> 자녀 계정으로 로그인
-          </button>
-        )}
       </div>
     </div>
   );

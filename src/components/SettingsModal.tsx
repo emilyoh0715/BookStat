@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getAladinKey, setAladinKey } from '../services/claudeVocab';
-import { useAuth, type ChildAccount } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
 
 const AVATAR_OPTIONS = ['🧒', '👦', '👧', '🧑', '👩', '👨', '🐣', '🦊', '🐬', '🦄', '🐱', '🐶'];
 
-export default function SettingsModal({ onClose }: { onClose: () => void }) {
-  const { profile, updateProfile, createChildAccount, getStoredChildren, removeStoredChild } = useAuth();
+interface DbChild {
+  child_user_id: string;
+  full_name: string;
+  nickname: string;
+  avatar_emoji: string;
+  birth_date?: string;
+}
+
+export default function SettingsModal({ onClose, onGroupChange }: { onClose: () => void; onGroupChange?: () => void }) {
+  const { profile, user, updateProfile, createChildAccount, removeStoredChild } = useAuth();
 
   const [aladinKey, setAladinKeyState] = useState(getAladinKey());
   const [aladinSaved, setAladinSaved] = useState(false);
@@ -22,6 +30,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   // 자녀 계정 추가
   const [showAddChild, setShowAddChild] = useState(false);
   const [childName, setChildName] = useState('');
+  const [childNickname, setChildNickname] = useState('');
   const [childBirthDate, setChildBirthDate] = useState('');
   const [childPin, setChildPin] = useState('');
   const [childPinConfirm, setChildPinConfirm] = useState('');
@@ -31,9 +40,44 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [childSaving, setChildSaving] = useState(false);
   const [childError, setChildError] = useState('');
   const [childSuccess, setChildSuccess] = useState('');
-  const [storedChildren, setStoredChildren] = useState<ChildAccount[]>(getStoredChildren());
+
+  // DB 기반 자녀 목록 (localStorage 대신 child_accounts 테이블)
+  const [dbChildren, setDbChildren] = useState<DbChild[]>([]);
+  const [childrenLoading, setChildrenLoading] = useState(false);
+
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [editingChildName, setEditingChildName] = useState('');
+  const [editingChildNickname, setEditingChildNickname] = useState('');
+  const [fetchError, setFetchError] = useState('');
+  const [resetPinChildId, setResetPinChildId] = useState<string | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [newPinConfirm, setNewPinConfirm] = useState('');
+  const [pinResetting, setPinResetting] = useState(false);
+  const [pinResetMsg, setPinResetMsg] = useState('');
+
+  const fetchDbChildren = async () => {
+    if (!user) return;
+    setChildrenLoading(true);
+    setFetchError('');
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, display_name, full_name, avatar_emoji, birth_date')
+      .eq('parent_id', user.id)
+      .eq('is_child', true);
+    if (error) setFetchError(`오류: ${error.message}`);
+    setDbChildren((data ?? []).map(p => ({
+      child_user_id: p.id,
+      full_name: p.full_name ?? p.display_name,
+      nickname: p.display_name,
+      avatar_emoji: p.avatar_emoji ?? '🧒',
+      birth_date: p.birth_date,
+    })));
+    setChildrenLoading(false);
+  };
+
+  useEffect(() => {
+    if (!profile?.is_child) fetchDbChildren();
+  }, [user?.id]);
 
   const checkHandle = async (h: string) => {
     const cleaned = h.replace(/[^a-z0-9_]/gi, '').toLowerCase();
@@ -75,15 +119,16 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     setChildSaving(true);
     try {
       const { error, child, migratedBooks } = await createChildAccount(
-        childName, childPin, childBirthDate, childAvatar, childLegacyId || undefined
+        childName, childPin, childBirthDate, childAvatar, childLegacyId || undefined, childNickname.trim() || undefined
       );
       if (error) {
         setChildError(error);
       } else if (child) {
         const migrateMsg = migratedBooks ? ` (기존 책 ${migratedBooks}권 통합 완료)` : '';
         setChildSuccess(`${child.name} 서재가 만들어졌어요!${migrateMsg}`);
-        setStoredChildren(getStoredChildren());
-        setChildName(''); setChildBirthDate(''); setChildPin(''); setChildPinConfirm('');
+        await fetchDbChildren();
+        onGroupChange?.();
+        setChildName(''); setChildNickname(''); setChildBirthDate(''); setChildPin(''); setChildPinConfirm('');
         setChildAvatar('🧒'); setChildLegacyId('');
         setTimeout(() => { setChildSuccess(''); setShowAddChild(false); }, 3000);
       }
@@ -94,23 +139,60 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const handleRemoveChild = (childId: string) => {
-    if (!confirm('이 기기에서 자녀 계정을 삭제할까요?\n자녀의 책 데이터는 유지됩니다.')) return;
+  const handleRemoveChild = async (childId: string) => {
+    if (!confirm('자녀 서재를 삭제할까요?\n자녀의 책 데이터는 유지됩니다.')) return;
+    setDbChildren(prev => prev.filter(c => c.child_user_id !== childId));
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${supabaseUrl}/functions/v1/delete-child-account`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ childId }),
+    });
+    const json = await res.json() as { error?: string };
+    if (json.error) {
+      setFetchError(`삭제 오류: ${json.error}`);
+      await fetchDbChildren();
+      return;
+    }
     removeStoredChild(childId);
-    setStoredChildren(getStoredChildren());
+    onGroupChange?.();
+  };
+
+  const handleResetPin = async (childId: string) => {
+    if (newPin.length < 4) { setPinResetMsg('PIN은 4자리 이상이어야 해요.'); return; }
+    if (newPin !== newPinConfirm) { setPinResetMsg('PIN이 일치하지 않아요.'); return; }
+    setPinResetting(true); setPinResetMsg('');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${supabaseUrl}/functions/v1/reset-child-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ childId, newPin }),
+    });
+    const json = await res.json() as { error?: string };
+    if (json.error) { setPinResetMsg(`오류: ${json.error}`); }
+    else {
+      setPinResetMsg('PIN이 변경됐어요!');
+      setTimeout(() => { setResetPinChildId(null); setNewPin(''); setNewPinConfirm(''); setPinResetMsg(''); }, 1500);
+    }
+    setPinResetting(false);
   };
 
   const handleRenameChild = async (childId: string) => {
-    const name = editingChildName.trim();
-    if (!name) return;
-    // 로컬 저장소 업데이트
-    const updated = getStoredChildren().map(c =>
-      c.childId === childId ? { ...c, name } : c
-    );
-    localStorage.setItem('bookstat-children', JSON.stringify(updated));
-    // Supabase profiles 업데이트
-    await supabase.from('profiles').update({ display_name: name, full_name: name }).eq('id', childId);
-    setStoredChildren(updated);
+    const fullName = editingChildName.trim();
+    const nickname = editingChildNickname.trim();
+    if (!fullName) return;
+    const displayName = nickname || fullName;
+    await supabase.from('profiles').update({ display_name: displayName, full_name: fullName }).eq('id', childId);
+    await supabase.from('child_accounts').update({ name: displayName }).eq('child_user_id', childId);
+    const stored = JSON.parse(localStorage.getItem('bookstat-children') ?? '[]');
+    localStorage.setItem('bookstat-children', JSON.stringify(
+      stored.map((c: { childId: string }) => c.childId === childId ? { ...c, name: displayName } : c)
+    ));
+    setDbChildren(prev => prev.map(c =>
+      c.child_user_id === childId ? { ...c, full_name: fullName, nickname: displayName } : c
+    ));
     setEditingChildId(null);
   };
 
@@ -155,38 +237,76 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                 </p>
 
                 {/* 등록된 자녀 목록 */}
-                {storedChildren.length > 0 && (
+                {fetchError && (
+                  <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8, wordBreak: 'break-all' }}>{fetchError}</p>
+                )}
+                {childrenLoading ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>불러오는 중...</p>
+                ) : dbChildren.length > 0 && (
                   <div className="child-account-list">
-                    {storedChildren.map(child => (
-                      <div key={child.childId} className="child-account-item">
-                        <span className="child-avatar">{child.avatarEmoji}</span>
-                        {editingChildId === child.childId ? (
-                          <div style={{ flex: 1, display: 'flex', gap: 6 }}>
+                    {dbChildren.map(child => (
+                      <div key={child.child_user_id} className="child-account-item" style={{ flexWrap: 'wrap' }}>
+                        <span className="child-avatar">{child.avatar_emoji}</span>
+                        {editingChildId === child.child_user_id ? (
+                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                             <input
                               value={editingChildName}
                               onChange={e => setEditingChildName(e.target.value)}
-                              onKeyDown={e => { if (e.key === 'Enter') handleRenameChild(child.childId); if (e.key === 'Escape') setEditingChildId(null); }}
-                              style={{ flex: 1, fontSize: 14, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--bg-base)', color: 'var(--text)' }}
+                              placeholder="이름 (실제 이름)"
+                              style={{ fontSize: 13, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text)' }}
                               autoFocus
                             />
-                            <button className="btn-primary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => handleRenameChild(child.childId)}>저장</button>
-                            <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setEditingChildId(null)}>취소</button>
+                            <input
+                              value={editingChildNickname}
+                              onChange={e => setEditingChildNickname(e.target.value)}
+                              placeholder="닉네임 (비워두면 이름 사용)"
+                              style={{ fontSize: 13, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--bg-base)', color: 'var(--text)' }}
+                            />
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn-primary" style={{ flex: 1, padding: '4px 10px', fontSize: 12 }} onClick={() => handleRenameChild(child.child_user_id)}>저장</button>
+                              <button className="btn-secondary" style={{ flex: 1, padding: '4px 10px', fontSize: 12 }} onClick={() => setEditingChildId(null)}>취소</button>
+                            </div>
                           </div>
                         ) : (
                           <>
-                            <span className="child-account-name">{child.name}</span>
-                            <button className="icon-btn" title="닉네임 수정" onClick={() => { setEditingChildId(child.childId); setEditingChildName(child.name); }}>
+                            <div style={{ flex: 1 }}>
+                              <div className="child-account-name">{child.nickname}</div>
+                              {child.full_name !== child.nickname && (
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{child.full_name}</div>
+                              )}
+                            </div>
+                            <button className="icon-btn" title="이름/닉네임 수정" onClick={() => { setEditingChildId(child.child_user_id); setEditingChildName(child.full_name); setEditingChildNickname(child.nickname === child.full_name ? '' : child.nickname); }}>
                               <Pencil size={14} />
+                            </button>
+                            <button className="icon-btn" title="PIN 변경" onClick={() => { setResetPinChildId(child.child_user_id); setNewPin(''); setNewPinConfirm(''); setPinResetMsg(''); }}>
+                              <Key size={14} />
                             </button>
                           </>
                         )}
                         <button
                           className="icon-btn danger-icon"
-                          onClick={() => handleRemoveChild(child.childId)}
-                          title="이 기기에서 삭제"
+                          onClick={() => handleRemoveChild(child.child_user_id)}
+                          title="삭제"
                         >
                           <Trash2 size={15} />
                         </button>
+                        {resetPinChildId === child.child_user_id && (
+                          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                            <input type="password" inputMode="numeric" placeholder="새 PIN (4~6자리)" value={newPin}
+                              onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              style={{ fontSize: 13, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--bg-base)', color: 'var(--text)' }} />
+                            <input type="password" inputMode="numeric" placeholder="PIN 확인" value={newPinConfirm}
+                              onChange={e => setNewPinConfirm(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              style={{ fontSize: 13, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text)' }} />
+                            {pinResetMsg && <p style={{ fontSize: 12, color: pinResetMsg.includes('변경') ? 'var(--success)' : 'var(--danger)', margin: 0 }}>{pinResetMsg}</p>}
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn-primary" style={{ flex: 1, padding: '4px 10px', fontSize: 12 }} disabled={pinResetting} onClick={() => handleResetPin(child.child_user_id)}>
+                                {pinResetting ? '변경 중...' : 'PIN 변경'}
+                              </button>
+                              <button className="btn-secondary" style={{ flex: 1, padding: '4px 10px', fontSize: 12 }} onClick={() => setResetPinChildId(null)}>취소</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -212,8 +332,12 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                     </div>
 
                     <div className="form-group" style={{ marginTop: 8 }}>
-                      <label>이름</label>
-                      <input placeholder="자녀 이름" value={childName} onChange={e => setChildName(e.target.value)} maxLength={20} required />
+                      <label>이름 <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <input placeholder="실제 이름" value={childName} onChange={e => setChildName(e.target.value)} maxLength={20} required />
+                    </div>
+                    <div className="form-group">
+                      <label>닉네임 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>(선택 · 서재에 표시될 이름)</span></label>
+                      <input placeholder="예: 수연이, 딸기공주 (비워두면 이름 사용)" value={childNickname} onChange={e => setChildNickname(e.target.value)} maxLength={20} />
                     </div>
                     <div className="form-group">
                       <label>생년월일 <span style={{ color: 'var(--danger)' }}>*</span></label>

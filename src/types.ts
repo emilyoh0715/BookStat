@@ -37,4 +37,6 @@ export interface Book {
   createdAt: string;
   vocab: VocabEntry[];
   notes: Note[];
+  childEmotion?: string;
+  childAnswers?: { question: string; answer: string }[];
 }

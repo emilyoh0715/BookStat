@@ -27,13 +27,15 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const { name, pin, birthDate, avatarEmoji, legacyUserId } = await req.json() as {
+    const { name, pin, birthDate, avatarEmoji, legacyUserId, nickname } = await req.json() as {
       name: string;
       pin: string;
       birthDate: string;
       avatarEmoji?: string;
-      legacyUserId?: string; // 예: 'suyeon'
+      legacyUserId?: string;
+      nickname?: string;
     };
+    const displayName = nickname?.trim() || name.trim();
 
     if (!name?.trim()) throw new Error('이름을 입력해주세요.');
     if (!birthDate) throw new Error('생년월일을 입력해주세요.');
@@ -56,7 +58,7 @@ Deno.serve(async (req) => {
     // 자녀 프로필 생성
     const { error: profileError } = await supabaseAdmin.from('profiles').insert({
       id: childUserId,
-      display_name: name.trim(),
+      display_name: displayName,
       handle: `child_${childId.replace(/-/g, '').slice(0, 10)}`,
       full_name: name.trim(),
       birth_date: birthDate,

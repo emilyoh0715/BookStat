@@ -51,7 +51,7 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<void>;
   signInWithKakao: () => Promise<void>;
   // 자녀 계정
-  createChildAccount: (name: string, pin: string, birthDate: string, avatarEmoji?: string, legacyUserId?: string) => Promise<{ error: string | null; child?: ChildAccount; migratedBooks?: number }>;
+  createChildAccount: (name: string, pin: string, birthDate: string, avatarEmoji?: string, legacyUserId?: string, nickname?: string) => Promise<{ error: string | null; child?: ChildAccount; migratedBooks?: number }>;
   signInAsChild: (child: ChildAccount, pin: string) => Promise<{ error: string | null }>;
   getStoredChildren: () => ChildAccount[];
   removeStoredChild: (childId: string) => void;
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ── 자녀 계정 ────────────────────────────────────────
-  const createChildAccount = async (name: string, pin: string, birthDate: string, avatarEmoji = '🧒', legacyUserId?: string) => {
+  const createChildAccount = async (name: string, pin: string, birthDate: string, avatarEmoji = '🧒', legacyUserId?: string, nickname?: string) => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession) return { error: '로그인이 필요합니다.' };
 
@@ -179,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${currentSession.access_token}`,
       },
-      body: JSON.stringify({ name, pin, birthDate, avatarEmoji, legacyUserId }),
+      body: JSON.stringify({ name, pin, birthDate, avatarEmoji, legacyUserId, nickname }),
     });
 
     const json = await res.json() as { error?: string; childId?: string; childEmail?: string; name?: string; avatarEmoji?: string; migratedBooks?: number };

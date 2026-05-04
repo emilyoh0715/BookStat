@@ -55,8 +55,7 @@ export default function ProfileSetup() {
     <div className="auth-screen">
       <div className="auth-card" style={{ maxWidth: 440 }}>
         <div className="auth-logo">
-          <img src="/logo.png" alt="북스탯" />
-          <span>프로필 설정</span>
+          <img src="/logo-vertical.png" alt="북스탯" className="auth-logo-img" />
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, marginBottom: 20 }}>
           처음이시네요! 닉네임과 핸들을 설정해주세요.

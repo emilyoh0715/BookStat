@@ -105,6 +105,91 @@ export async function validateReview(review: string, bookTitle?: string): Promis
   }
 }
 
+const EMOTION_LABELS: Record<string, string> = {
+  fun:       '재미있었어요',
+  moving:    '감동받았어요',
+  surprised: '놀라웠어요',
+  sad:       '슬펐어요',
+  hard:      '어려웠어요',
+  boring:    '지루했어요',
+};
+
+function buildFallbackReview(
+  emotionLabel: string,
+  answers: { question: string; answer: string }[],
+): string {
+  const parts: string[] = [`이 책을 읽고 ${emotionLabel}.`];
+  for (const a of answers) {
+    if (a.answer.trim()) parts.push(a.answer.trim());
+  }
+  return parts.join(' ');
+}
+
+/**
+ * 아이의 답변(평점·감정·질문 2개)을 바탕으로 Claude가 독후감 자동 생성
+ */
+export async function generateChildReview(
+  bookTitle: string,
+  rating: number,
+  emotionKey: string,
+  answers: { question: string; answer: string }[],
+): Promise<string> {
+  const emotionLabel = EMOTION_LABELS[emotionKey] ?? emotionKey;
+  const filled = answers.filter(a => a.answer.trim());
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return buildFallbackReview(emotionLabel, answers);
+  }
+
+  const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+  const answersText = filled.length
+    ? filled.map(a => `Q: ${a.question}\nA: ${a.answer.trim()}`).join('\n\n')
+    : '(답변 없음)';
+
+  const prompt = `아이가 책을 읽고 답한 내용을 바탕으로 자연스러운 독후감을 작성해주세요.
+
+책 제목: "${bookTitle}"
+별점: ${stars} (${rating}/5)
+이 책을 읽은 느낌: ${emotionLabel}
+
+아이의 답변:
+${answersText}
+
+[작성 지침]
+- 초등학생 아이가 직접 쓴 것처럼 솔직하고 자연스러운 말투
+- 아이의 답변 내용을 충실히 반영해 책의 구체적인 내용이 들어가도록 작성
+- 2~4문장, 짧고 진솔하게
+- 과하게 꾸미거나 어른스러운 표현 금지
+- 독후감 텍스트만 출력 (JSON·특수 기호 불필요)`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 300,
+        temperature: 0.7,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) return buildFallbackReview(emotionLabel, answers);
+
+    const data = await response.json() as { content: Array<{ type: string; text: string }> };
+    const text = data.content.find(b => b.type === 'text')?.text?.trim() ?? '';
+    return text || buildFallbackReview(emotionLabel, answers);
+  } catch {
+    return buildFallbackReview(emotionLabel, answers);
+  }
+}
+
 export interface BookRecognitionResult {
   title: string;
   author: string;

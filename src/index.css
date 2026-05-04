@@ -1,43 +1,69 @@
-/* ===== CSS Variables — Dark Mode First ===== */
+/* ===== CSS Variables — Light Mode Default ===== */
 :root {
-  /* 북스탯 다크 테마: 로고의 딥네이비 기반 */
-  --bg-base: #0e1624;
-  --bg-surface: #162033;
-  --border: #253249;
-  --text: #c2ccdc;
-  --text-heading: #e8edf6;
-  --text-muted: #5d7292;
-  --accent: #3b7fd4;
-  --accent-hover: #2d6bbf;
-  --accent-yellow: #f5c518;
-  --accent-green: #2ecc71;
-  --member-accent: #3b7fd4;
+  /* ── Bookstat Brand Colors ── */
+  --color-navy:   #1E2A3A;
+  --color-blue:   #7AA7FF;
+  --color-mint:   #7CCEB4;
+  --color-coral:  #FF7D7D;
+  --color-yellow: #FFC857;
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* ── Light Mode Surfaces ── */
+  --bg-base:    #F7F7F5;
+  --bg-surface: #FFFFFF;
+
+  /* ── Light Mode Borders ── */
+  --border: #E6E9EE;
+
+  /* ── Light Mode Text ── */
+  --text:         #6D7280;
+  --text-heading: #1E2A3A;
+  --text-muted:   #B5B8C3;
+
+  /* ── Semantic Tokens ── */
+  --accent:          var(--color-blue);
+  --accent-hover:    #5A91EF;
+  --accent-yellow:   var(--color-yellow);
+  --accent-green:    var(--color-mint);
+  --btn-primary-bg:  var(--color-navy);
+  --btn-primary-hover: #2D3F56;
+  --member-accent:   var(--color-blue);
+
+  /* ── Typography ── */
+  font-family: 'Pretendard', 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 16px;
   line-height: 1.5;
-  color-scheme: dark;
+  color-scheme: light;
   color: var(--text);
   background: var(--bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Light mode — 로고 배경의 크림 베이지 기반 */
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg-base: #f0ebe0;
-    --bg-surface: #faf7f2;
-    --border: #ddd5c6;
-    --text: #3a4a5e;
-    --text-heading: #152238;
-    --text-muted: #8a9ab0;
-    --accent: #3b7fd4;
-    --accent-hover: #2d6bbf;
-    --accent-yellow: #e6b800;
-    --accent-green: #27ae60;
-    --member-accent: #3b7fd4;
-    color-scheme: light;
+/* ===== Dark Mode — manual toggle ===== */
+[data-theme="dark"] {
+  --bg-base:    #0F1923;
+  --bg-surface: #162033;
+  --border:     #263347;
+  --text:         #C2CCDC;
+  --text-heading: #E8EDF6;
+  --text-muted:   #5D7292;
+  --btn-primary-bg:    var(--color-blue);
+  --btn-primary-hover: #5A91EF;
+  color-scheme: dark;
+}
+
+/* ===== Dark Mode — system preference fallback (JS 실행 전) ===== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-base:    #0F1923;
+    --bg-surface: #162033;
+    --border:     #263347;
+    --text:         #C2CCDC;
+    --text-heading: #E8EDF6;
+    --text-muted:   #5D7292;
+    --btn-primary-bg:    var(--color-blue);
+    --btn-primary-hover: #5A91EF;
+    color-scheme: dark;
   }
 }
 
@@ -69,9 +95,7 @@ input, select, textarea {
 
 select { appearance: none; cursor: pointer; }
 
-#root {
-  min-height: 100vh;
-}
+#root { min-height: 100vh; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

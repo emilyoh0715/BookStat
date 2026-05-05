@@ -3361,14 +3361,16 @@ textarea { resize: vertical; }
 .home-points-card:hover {
   box-shadow: 0 4px 16px rgba(245,168,35,0.2);
 }
-/* 라벨·숫자 공용 행 — 왼쪽/오른쪽 2열 */
-.home-points-row {
+.home-points-body {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
 }
-.home-points-row--values {
-  align-items: flex-end;
+.home-points-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .home-points-label {
   display: flex;
@@ -3378,9 +3380,6 @@ textarea { resize: vertical; }
   font-weight: 600;
   color: #9A7B2A;
 }
-.home-points-label--right {
-  justify-content: flex-end;
-}
 .home-points-icon { color: #C8920A; }
 .home-points-total {
   font-size: 40px;
@@ -3388,49 +3387,58 @@ textarea { resize: vertical; }
   color: #1A1A1A;
   line-height: 1;
 }
-.home-points-month-total {
-  font-size: 22px;
-  font-weight: 600;
-  color: #22C55E;
-  line-height: 1;
-}
 .home-points-total-unit {
   font-size: 13px;
   font-weight: 600;
   margin-left: 1px;
 }
-.home-points-divider {
-  height: 1px;
-  background: #FFE8A3;
-  margin: 2px 0;
-}
-/* 세부 내역 행 */
-.home-points-detail-row {
+.home-points-right {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }
-.home-points-detail-item {
+.home-points-month-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9A7B2A;
+}
+.home-points-month-label strong {
+  color: #22C55E;
+  margin-left: 4px;
+}
+.home-points-month-rows {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 5px;
+}
+.home-points-month-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #9A7B2A;
 }
-.home-points-detail-val {
-  font-size: 12px;
+.home-points-month-val {
   font-weight: 700;
   color: #1A1A1A;
+  margin-left: 6px;
 }
-.home-points-footer {
+/* 가족 서재 보기와 동일한 양식의 링크 버튼 */
+.home-points-link-btn {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
-  font-size: 12px;
-  font-weight: 600;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid rgba(180, 130, 10, 0.22);
+  border-radius: 12px;
+  background: rgba(180, 130, 10, 0.07);
   color: #9A6C00;
-  padding-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* ── 오늘의 매거진 (플레이스홀더) ── */

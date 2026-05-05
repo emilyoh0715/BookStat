@@ -134,36 +134,35 @@ export default function HomeView({
 
       {/* ③ 내 포인트 현황 */}
       <button className="home-points-card" onClick={onShowPoints}>
-        {/* 상단: 라벨 행 */}
-        <div className="home-points-row">
-          <span className="home-points-label">
-            <Award size={13} className="home-points-icon" /> 내 포인트
-          </span>
-          <span className="home-points-label home-points-label--right">이번 달</span>
+        <div className="home-points-body">
+          <div className="home-points-left">
+            <span className="home-points-label">
+              <Award size={13} className="home-points-icon" /> 내 포인트
+            </span>
+            <span className="home-points-total">
+              {myPoints.toLocaleString()}<span className="home-points-total-unit">pt</span>
+            </span>
+          </div>
+          <div className="home-points-right">
+            <span className="home-points-month-label">
+              이번 달 {thisMonthTotal > 0 && <strong>+{thisMonthTotal}pt</strong>}
+            </span>
+            <div className="home-points-month-rows">
+              <div className="home-points-month-row">
+                <Zap size={11} />
+                <span>책 추가</span>
+                <span className="home-points-month-val">+{thisMonthBookPts}pt</span>
+              </div>
+              <div className="home-points-month-row">
+                <Star size={11} />
+                <span>후기 승인</span>
+                <span className="home-points-month-val">+{thisMonthReviewPts}pt</span>
+              </div>
+            </div>
+          </div>
         </div>
-        {/* 중단: 숫자 행 */}
-        <div className="home-points-row home-points-row--values">
-          <span className="home-points-total">
-            {myPoints.toLocaleString()}<span className="home-points-total-unit">pt</span>
-          </span>
-          <span className="home-points-month-total">
-            {thisMonthTotal > 0 ? `+${thisMonthTotal}` : '--'}<span className="home-points-total-unit">pt</span>
-          </span>
-        </div>
-        {/* 구분선 */}
-        <div className="home-points-divider" />
-        {/* 하단: 세부 내역 */}
-        <div className="home-points-detail-row">
-          <span className="home-points-detail-item"><Zap size={11} /> 책 추가</span>
-          <span className="home-points-detail-val">+{thisMonthBookPts}pt</span>
-        </div>
-        <div className="home-points-detail-row">
-          <span className="home-points-detail-item"><Star size={11} /> 후기 승인</span>
-          <span className="home-points-detail-val">+{thisMonthReviewPts}pt</span>
-        </div>
-        {/* 푸터 */}
-        <div className="home-points-footer">
-          포인트 내역 보기 <ChevronRight size={12} />
+        <div className="home-points-link-btn">
+          포인트 내역 보기 <ChevronRight size={14} />
         </div>
       </button>
 

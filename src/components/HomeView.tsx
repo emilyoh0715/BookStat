@@ -1,4 +1,4 @@
-import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked } from 'lucide-react';
+import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked, FileText, Flame } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
@@ -28,14 +28,35 @@ export default function HomeView({
   const myStats = groupMemberPoints.find(m => m.user_id === userId);
   const myPoints = myStats?.total_points ?? 0;
 
-  const familyReading = books.filter(b => b.status === 'reading').length;
   const familyFinishedThisMonth = books.filter(
     b => b.status === 'finished' && b.finishDate?.startsWith(thisMonth)
-  ).length;
+  );
+  const familyBooksCount = familyFinishedThisMonth.length;
+  const familyPagesCount = familyFinishedThisMonth.reduce((s, b) => s + (b.totalPages ?? 0), 0);
+  const hasFamilyPages = familyFinishedThisMonth.some(b => (b.totalPages ?? 0) > 0);
 
-  const sortedByPoints = [...groupMemberPoints].sort((a, b) => b.total_points - a.total_points);
-  const myRankIdx = sortedByPoints.findIndex(m => m.user_id === userId);
-  const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
+  // 가족 연속 완독 스트릭 (완독일 기준 연속 일수)
+  const familyStreak = (() => {
+    const dates = books
+      .filter(b => b.status === 'finished' && b.finishDate)
+      .map(b => b.finishDate!.slice(0, 10))
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .sort();
+    if (dates.length === 0) return 0;
+    const today = now.toISOString().split('T')[0];
+    const yesterday = new Date(now.getTime() - 86400000).toISOString().split('T')[0];
+    const rev = [...dates].reverse();
+    if (rev[0] !== today && rev[0] !== yesterday) return 0;
+    let streak = 1;
+    for (let i = 1; i < rev.length; i++) {
+      const diff = Math.round(
+        (new Date(rev[i - 1]).getTime() - new Date(rev[i]).getTime()) / 86400000
+      );
+      if (diff === 1) streak++;
+      else break;
+    }
+    return streak;
+  })();
 
   const recentBooks = [...myBooks]
     .sort((a, b) => {
@@ -71,23 +92,27 @@ export default function HomeView({
         <p className="home-family-card-label">이번 달 우리 가족 독서 현황</p>
         <div className="home-fstats">
           <div className="home-fstat">
-            <span className="home-fstat-num">{familyReading}<span className="home-fstat-unit">권</span></span>
-            <span className="home-fstat-lbl">읽는 책</span>
-          </div>
-          <div className="home-fstat">
-            <span className="home-fstat-num">{familyFinishedThisMonth}<span className="home-fstat-unit">권</span></span>
-            <span className="home-fstat-lbl">이번달 완독</span>
-          </div>
-          <div className="home-fstat">
-            <span className="home-fstat-num">--</span>
-            <span className="home-fstat-lbl">연속 독서</span>
-          </div>
-          <div className="home-fstat home-fstat--highlight">
+            <span className="home-fstat-lbl">읽은 책</span>
+            <BookOpen size={20} className="home-fstat-icon" />
             <span className="home-fstat-num">
-              {myRank != null ? myRank : '--'}
-              {myRank != null && <span className="home-fstat-unit">등</span>}
+              {familyBooksCount}<span className="home-fstat-unit">권</span>
             </span>
-            <span className="home-fstat-lbl">가족 순위</span>
+          </div>
+          <div className="home-fstat">
+            <span className="home-fstat-lbl">읽은 페이지</span>
+            <FileText size={20} className="home-fstat-icon" />
+            <span className="home-fstat-num">
+              {hasFamilyPages ? familyPagesCount.toLocaleString() : '--'}
+              {hasFamilyPages && <span className="home-fstat-unit">p</span>}
+            </span>
+          </div>
+          <div className="home-fstat">
+            <span className="home-fstat-lbl">연속 독서</span>
+            <Flame size={20} className="home-fstat-icon" style={{ color: familyStreak > 0 ? '#FF9F43' : undefined }} />
+            <span className="home-fstat-num">
+              {familyStreak > 0 ? familyStreak : '--'}
+              {familyStreak > 0 && <span className="home-fstat-unit">일</span>}
+            </span>
           </div>
         </div>
         {isFamily && (

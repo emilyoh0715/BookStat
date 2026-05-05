@@ -3184,7 +3184,7 @@ textarea { resize: vertical; }
 
 /* ── 가족 현황 카드 ── */
 .home-family-card {
-  background: linear-gradient(135deg, #1E2A3A 0%, #2a4a7a 100%);
+  background: linear-gradient(135deg, #1A65C9 0%, #2a7de1 100%);
   border-radius: 20px;
   padding: 20px 20px 14px;
   display: flex;

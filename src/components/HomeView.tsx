@@ -92,23 +92,26 @@ export default function HomeView({
         <p className="home-family-card-label">이번 달 우리 가족 독서 현황</p>
         <div className="home-fstats">
           <div className="home-fstat">
-            <span className="home-fstat-lbl">읽은 책</span>
-            <BookOpen size={20} className="home-fstat-icon" />
+            <span className="home-fstat-lbl">
+              <BookOpen size={11} /> 읽은 책
+            </span>
             <span className="home-fstat-num">
               {familyBooksCount}<span className="home-fstat-unit">권</span>
             </span>
           </div>
           <div className="home-fstat">
-            <span className="home-fstat-lbl">읽은 페이지</span>
-            <FileText size={20} className="home-fstat-icon" />
+            <span className="home-fstat-lbl">
+              <FileText size={11} /> 읽은 페이지
+            </span>
             <span className="home-fstat-num">
               {hasFamilyPages ? familyPagesCount.toLocaleString() : '--'}
               {hasFamilyPages && <span className="home-fstat-unit">p</span>}
             </span>
           </div>
           <div className="home-fstat">
-            <span className="home-fstat-lbl">연속 독서</span>
-            <Flame size={20} className="home-fstat-icon" style={{ color: familyStreak > 0 ? '#FF9F43' : undefined }} />
+            <span className="home-fstat-lbl" style={{ color: familyStreak > 0 ? '#FF9F43' : undefined }}>
+              <Flame size={11} /> 연속 독서
+            </span>
             <span className="home-fstat-num">
               {familyStreak > 0 ? familyStreak : '--'}
               {familyStreak > 0 && <span className="home-fstat-unit">일</span>}

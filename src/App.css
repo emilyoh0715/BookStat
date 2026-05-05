@@ -3301,22 +3301,20 @@ textarea { resize: vertical; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   padding: 4px 8px 8px;
   border-right: 1px solid rgba(255,255,255,0.12);
 }
 .home-fstat:last-child { border-right: none; }
 .home-fstat-lbl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 600;
   color: rgba(255,255,255,0.6);
-  text-align: center;
   letter-spacing: 0.03em;
   white-space: nowrap;
-}
-.home-fstat-icon {
-  color: rgba(255,255,255,0.75);
-  flex-shrink: 0;
 }
 .home-fstat-num {
   font-size: 24px;

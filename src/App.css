@@ -34,14 +34,12 @@
 
 /* ===== Header ===== */
 .app-header {
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg-base);
+  border-bottom: none;
   padding: env(safe-area-inset-top) 24px 0;
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
 }
 
 .header-inner {

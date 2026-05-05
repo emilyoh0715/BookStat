@@ -3347,8 +3347,8 @@ textarea { resize: vertical; }
 /* ── 포인트 카드 ── */
 .home-points-card {
   width: 100%;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #FFF3D6 0%, #FFE8A3 100%);
+  border: 1px solid #F5D87A;
   border-radius: 18px;
   padding: 18px 20px 14px;
   display: flex;
@@ -3356,11 +3356,10 @@ textarea { resize: vertical; }
   gap: 12px;
   text-align: left;
   cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: box-shadow 0.15s;
 }
 .home-points-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 2px 12px rgba(122,167,255,0.12);
+  box-shadow: 0 4px 16px rgba(245,168,35,0.2);
 }
 .home-points-body {
   display: flex;
@@ -3379,13 +3378,13 @@ textarea { resize: vertical; }
   gap: 5px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: #9A7B2A;
 }
-.home-points-icon { color: var(--accent-yellow); }
+.home-points-icon { color: #C8920A; }
 .home-points-total {
   font-size: 34px;
   font-weight: 800;
-  color: var(--accent-yellow);
+  color: #1A1A1A;
   line-height: 1;
 }
 .home-points-total-unit {
@@ -3403,10 +3402,10 @@ textarea { resize: vertical; }
 .home-points-month-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: #9A7B2A;
 }
 .home-points-month-label strong {
-  color: var(--accent-green);
+  color: #2A7A3B;
   margin-left: 4px;
 }
 .home-points-month-rows {
@@ -3419,11 +3418,11 @@ textarea { resize: vertical; }
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: #9A7B2A;
 }
 .home-points-month-val {
   font-weight: 700;
-  color: var(--text-heading);
+  color: #1A1A1A;
   margin-left: auto;
   padding-left: 8px;
 }
@@ -3433,7 +3432,7 @@ textarea { resize: vertical; }
   gap: 2px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent);
+  color: #9A6C00;
   align-self: flex-end;
 }
 

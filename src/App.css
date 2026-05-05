@@ -3779,27 +3779,27 @@ textarea { resize: vertical; }
 }
 .stats-seg-group {
   display: flex;
-  background: var(--bg-base);
+  background: #EAECF0;
   border-radius: 10px;
   padding: 3px;
   gap: 2px;
 }
 .stats-seg-btn {
   flex: 1;
-  padding: 7px 4px;
+  padding: 8px 4px;
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--text-muted);
+  color: #8A90A0;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 .stats-seg-btn.active {
-  background: var(--bg-surface);
-  color: var(--text-heading);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(122, 167, 255, 0.35);
 }
 .stats-scope-label {
   font-size: 13px;

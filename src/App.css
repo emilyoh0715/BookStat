@@ -3913,9 +3913,9 @@ textarea { resize: vertical; }
   transition: background 0.15s, color 0.15s;
 }
 .stats-seg-btn.active {
-  background: var(--accent);
+  background: #1A65C9;
   color: #fff;
-  box-shadow: 0 2px 6px rgba(122, 167, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(26, 101, 201, 0.35);
 }
 .stats-scope-label {
   font-size: 13px;

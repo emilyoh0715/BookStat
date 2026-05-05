@@ -144,21 +144,21 @@ export default function HomeView({
             </span>
           </div>
           <div className="home-points-right">
-            <span className="home-points-month-label">
-              이번 달 {thisMonthTotal > 0 && <strong>+{thisMonthTotal}pt</strong>}
+            {/* 이번 달 헤더 — 2열 차지 */}
+            <span className="home-points-month-label">이번 달</span>
+            <span className="home-points-month-val">
+              {thisMonthTotal > 0 ? <strong style={{ color: '#22C55E' }}>+{thisMonthTotal}pt</strong> : '--'}
             </span>
-            <div className="home-points-month-rows">
-              <div className="home-points-month-row">
-                <Zap size={11} />
-                <span>책 추가</span>
-                <span className="home-points-month-val">+{thisMonthBookPts}pt</span>
-              </div>
-              <div className="home-points-month-row">
-                <Star size={11} />
-                <span>후기 승인</span>
-                <span className="home-points-month-val">+{thisMonthReviewPts}pt</span>
-              </div>
+            {/* 책 추가 */}
+            <div className="home-points-month-row">
+              <span className="home-points-month-row-label"><Zap size={11} /> 책 추가</span>
             </div>
+            <span className="home-points-month-val">+{thisMonthBookPts}pt</span>
+            {/* 후기 승인 */}
+            <div className="home-points-month-row">
+              <span className="home-points-month-row-label"><Star size={11} /> 후기 승인</span>
+            </div>
+            <span className="home-points-month-val">+{thisMonthReviewPts}pt</span>
           </div>
         </div>
         <div className="home-points-link-btn">

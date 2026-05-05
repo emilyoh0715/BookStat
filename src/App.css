@@ -3382,8 +3382,8 @@ textarea { resize: vertical; }
 }
 .home-points-icon { color: #C8920A; }
 .home-points-total {
-  font-size: 34px;
-  font-weight: 800;
+  font-size: 40px;
+  font-weight: 500;
   color: #1A1A1A;
   line-height: 1;
 }
@@ -3913,9 +3913,9 @@ textarea { resize: vertical; }
   transition: background 0.15s, color 0.15s;
 }
 .stats-seg-btn.active {
-  background: #1A65C9;
+  background: #3B82F6;
   color: #fff;
-  box-shadow: 0 2px 8px rgba(26, 101, 201, 0.35);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
 }
 .stats-scope-label {
   font-size: 13px;

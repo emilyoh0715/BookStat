@@ -8,11 +8,11 @@
   --color-yellow: #FFC857;
 
   /* ── Light Mode Surfaces ── */
-  --bg-base:    #F7F7F5;
-  --bg-surface: #FFFFFF;
+  --bg-base:    #FFFFFF;
+  --bg-surface: #F5F7FA;
 
   /* ── Light Mode Borders ── */
-  --border: #E6E9EE;
+  --border: #E2E8F0;
 
   /* ── Light Mode Text ── */
   --text:         #6D7280;

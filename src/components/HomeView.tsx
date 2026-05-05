@@ -1,0 +1,175 @@
+import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked } from 'lucide-react';
+import type { Book } from '../types';
+import type { Profile } from '../contexts/AuthContext';
+import type { MemberStat } from './GroupDashboard';
+
+interface Props {
+  profile: Profile;
+  books: Book[];
+  userId: string;
+  groupMembers: Profile[];
+  groupMemberPoints: MemberStat[];
+  onNavigateToLibrary: () => void;
+  onNavigateToFamily: () => void;
+  onShowAdd: () => void;
+  onShowPoints: () => void;
+}
+
+const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
+
+export default function HomeView({
+  profile, books, userId, groupMembers, groupMemberPoints,
+  onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints,
+}: Props) {
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const myBooks = books.filter(b => b.userId === userId);
+  const myStats = groupMemberPoints.find(m => m.user_id === userId);
+  const myPoints = myStats?.total_points ?? 0;
+
+  const familyReading = books.filter(b => b.status === 'reading').length;
+  const familyFinishedThisMonth = books.filter(
+    b => b.status === 'finished' && b.finishDate?.startsWith(thisMonth)
+  ).length;
+
+  const sortedByPoints = [...groupMemberPoints].sort((a, b) => b.total_points - a.total_points);
+  const myRankIdx = sortedByPoints.findIndex(m => m.user_id === userId);
+  const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
+
+  const recentBooks = [...myBooks]
+    .sort((a, b) => {
+      const da = a.finishDate ?? a.startDate ?? a.createdAt;
+      const db = b.finishDate ?? b.startDate ?? b.createdAt;
+      return db.localeCompare(da);
+    })
+    .slice(0, 8);
+
+  const memberIdx = groupMembers.findIndex(m => m.id === userId);
+  const myColor = MEMBER_COLORS[memberIdx >= 0 ? memberIdx % MEMBER_COLORS.length : 0];
+
+  const isFamily = groupMembers.length > 1;
+
+  return (
+    <div className="home-view">
+
+      {/* ① 상단 헤더 */}
+      <div className="home-header">
+        <div>
+          <p className="home-greeting">안녕하세요 👋</p>
+          <h1 className="home-username">{profile.display_name}</h1>
+        </div>
+        <div className="home-header-avatar" style={{ background: myColor }}>
+          {profile.avatar_url
+            ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+            : profile.display_name[0].toUpperCase()}
+        </div>
+      </div>
+
+      {/* ② 이번 달 가족 독서 현황 */}
+      <div className="home-family-card">
+        <p className="home-family-card-label">이번 달 우리 가족 독서 현황</p>
+        <div className="home-fstats">
+          <div className="home-fstat">
+            <span className="home-fstat-num">{familyReading}<span className="home-fstat-unit">권</span></span>
+            <span className="home-fstat-lbl">읽는 책</span>
+          </div>
+          <div className="home-fstat">
+            <span className="home-fstat-num">{familyFinishedThisMonth}<span className="home-fstat-unit">권</span></span>
+            <span className="home-fstat-lbl">이번달 완독</span>
+          </div>
+          <div className="home-fstat">
+            <span className="home-fstat-num">--</span>
+            <span className="home-fstat-lbl">연속 독서</span>
+          </div>
+          <div className="home-fstat home-fstat--highlight">
+            <span className="home-fstat-num">
+              {myRank != null ? myRank : '--'}
+              {myRank != null && <span className="home-fstat-unit">등</span>}
+            </span>
+            <span className="home-fstat-lbl">가족 순위</span>
+          </div>
+        </div>
+        {isFamily && (
+          <button className="home-family-link-btn" onClick={onNavigateToFamily}>
+            가족 서재 보기 <ChevronRight size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* ③ 내 포인트 현황 */}
+      <button className="home-points-card" onClick={onShowPoints}>
+        <div className="home-points-top">
+          <div className="home-points-left">
+            <Award size={15} className="home-points-icon" />
+            <span className="home-points-label">내 포인트 현황</span>
+          </div>
+          <span className="home-points-total">
+            {myPoints}<span className="home-points-total-unit">pt</span>
+          </span>
+        </div>
+        <div className="home-points-breakdown">
+          <span className="home-points-item"><Zap size={11} /> 책 추가 <strong>+{myStats?.book_added_points ?? 0}</strong></span>
+          <span className="home-points-sep">·</span>
+          <span className="home-points-item"><Star size={11} /> 후기 승인 <strong>+{myStats?.review_approved_points ?? 0}</strong></span>
+        </div>
+        <span className="home-points-link">포인트 내역 보기 <ChevronRight size={12} /></span>
+      </button>
+
+      {/* ④ 오늘의 매거진 (플레이스홀더) */}
+      <div className="home-magazine-card">
+        <div className="home-magazine-top">
+          <span className="home-magazine-tag">오늘의 매거진</span>
+          <span className="home-magazine-coming">준비 중</span>
+        </div>
+        <div className="home-magazine-body">
+          <div className="home-magazine-thumb">
+            <BookMarked size={26} style={{ opacity: 0.25 }} />
+          </div>
+          <div className="home-magazine-text">
+            <p className="home-magazine-title">독서 습관을 만드는 법</p>
+            <p className="home-magazine-sub">매일 10분, 작은 시작이 큰 변화를 만들어요</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ⑤ 최근 읽은 책 */}
+      <section className="home-section">
+        <div className="home-section-hd">
+          <BookOpen size={14} />
+          <span>최근 읽은 책</span>
+          <button className="home-section-more" onClick={onNavigateToLibrary}>
+            전체 보기 <ChevronRight size={13} />
+          </button>
+        </div>
+        {recentBooks.length === 0 ? (
+          <div className="home-empty">
+            <BookOpen size={36} style={{ opacity: 0.2 }} />
+            <p>아직 추가한 책이 없어요</p>
+            <button className="btn-primary" onClick={onShowAdd}>
+              <Plus size={14} /> 첫 책 추가하기
+            </button>
+          </div>
+        ) : (
+          <div className="home-books-scroll">
+            {recentBooks.map(book => (
+              <button key={book.id} className="home-book-item" onClick={onNavigateToLibrary}>
+                {book.cover
+                  ? <img src={book.cover} alt={book.title} className="home-book-cover" />
+                  : <div className="home-book-cover home-book-cover-empty"><BookOpen size={18} /></div>
+                }
+                <p className="home-book-title">{book.title}</p>
+                <p className={`home-book-badge home-book-badge--${book.status}`}>
+                  {book.status === 'finished' ? '완독'
+                    : book.status === 'reading' ? '읽는 중'
+                    : book.status === 'paused' ? '멈춤' : '읽고 싶음'}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+    </div>
+  );
+}

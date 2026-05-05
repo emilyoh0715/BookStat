@@ -10,20 +10,21 @@ import AuthScreen from './components/AuthScreen';
 import ProfileSetup from './components/ProfileSetup';
 import GroupManager from './components/GroupManager';
 import PointsModal from './components/PointsModal';
-import GroupDashboard from './components/GroupDashboard';
 import type { MemberStat } from './components/GroupDashboard';
-import PointsMarket from './components/PointsMarket';
+import StatsView from './components/StatsView';
 import HelpModal from './components/HelpModal';
 import ChildReadingComplete from './components/ChildReadingComplete';
 import ProfileSelector from './components/ProfileSelector';
 import BookstatLogo from './components/BookstatLogo';
+import HomeView from './components/HomeView';
+import FamilyView from './components/FamilyView';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints, removePoints, calcReviewPoints } from './services/points';
 import type { PointLog } from './services/points';
 import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/claudeVocab';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
-import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, ShoppingBag, BookOpen, RefreshCw, HelpCircle, Sun, Moon } from 'lucide-react';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, BookOpen, RefreshCw, HelpCircle, Home } from 'lucide-react';
 import { useTheme } from './useTheme';
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
@@ -50,11 +51,15 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 ];
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme();
+  useTheme(); // 테마 초기화 (토글은 SettingsModal에서)
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear, refetchBooks } = useBooks();
 
-  const [introVisible, setIntroVisible] = useState(true);
+  const [introVisible, setIntroVisible] = useState(() => {
+    if (sessionStorage.getItem('bookstat-intro-shown')) return false;
+    sessionStorage.setItem('bookstat-intro-shown', '1');
+    return true;
+  });
   const [introFading, setIntroFading] = useState(false);
 
   const [profileSelected, setProfileSelected] = useState(() =>
@@ -76,12 +81,11 @@ export default function App() {
   const [inviteToast, setInviteToast] = useState<string | null>(null);
 
   const [groupMemberPoints, setGroupMemberPoints] = useState<MemberStat[]>([]);
-  const [groupPointsLoading, setGroupPointsLoading] = useState(false);
   const [myPointLogs, setMyPointLogs] = useState<PointLog[]>([]);
   // userId → Set<bookId> : 그룹 전체 승인된 후기
   const [groupApprovedBookIds, setGroupApprovedBookIds] = useState<Map<string, Set<string>>>(new Map());
   const [showPoints, setShowPoints] = useState(false);
-  const [mainView, setMainView] = useState<'library' | 'group-dashboard' | 'market'>('library');
+  const [mainView, setMainView] = useState<'home' | 'library' | 'stats' | 'family'>('home');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -153,7 +157,6 @@ export default function App() {
 
   // ─── 포인트 로드 & 실시간 동기화 ───
   const loadGroupPoints = async () => {
-    setGroupPointsLoading(true);
     const { data } = await supabase.rpc('get_group_member_points');
     if (data) {
       setGroupMemberPoints(
@@ -165,7 +168,6 @@ export default function App() {
         }))
       );
     }
-    setGroupPointsLoading(false);
   };
 
   const loadMyLogs = async () => {
@@ -378,48 +380,24 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div className="header-inner">
+          {/* 왼쪽: 사용법 */}
+          <div className="header-left">
+            <button className="icon-btn" onClick={() => setShowHelp(true)} title="사용법">
+              <HelpCircle size={20} />
+            </button>
+          </div>
+
+          {/* 가운데: 로고 */}
           <div className="logo">
-            <BookstatLogo size={52} className="logo-img" />
+            <BookstatLogo size={44} className="logo-img" />
             <div className="logo-brand">
               <span className="logo-korean">북스탯</span>
               <span className="logo-english">Bookstat</span>
             </div>
-            <span className="logo-tagline">읽는 시간을, 보이는 성장으로</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {!selectedBook && isOwnLibrary && (
-              <button className="btn-primary header-add-btn" onClick={() => setShowAdd(true)}>
-                <Plus size={18} /> 책 추가
-              </button>
-            )}
-            {isOwnLibrary && !selectedBook && (
-              <button
-                className="icon-btn"
-                onClick={revalidateAllReviews}
-                disabled={revalidating}
-                title="내 후기 전체 재검증"
-              >
-                <RefreshCw size={18} className={revalidating ? 'spin' : ''} />
-              </button>
-            )}
-            <button className="icon-btn" onClick={() => { setShowGroupManager(true); setPendingInviteCount(0); }} title="그룹 관리" style={{ position: 'relative' }}>
-              <Users size={20} />
-              {pendingInviteCount > 0 && (
-                <span style={{
-                  position: 'absolute', top: 2, right: 2,
-                  background: 'var(--accent)', color: '#fff',
-                  borderRadius: '50%', fontSize: 10, fontWeight: 700,
-                  width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  lineHeight: 1,
-                }}>{pendingInviteCount}</span>
-              )}
-            </button>
-            <button className="btn-secondary header-help-btn" onClick={() => setShowHelp(true)}>
-              <HelpCircle size={15} /> 사용법
-            </button>
-            <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? '라이트 모드' : '다크 모드'}>
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
+
+          {/* 오른쪽: 설정 + 로그아웃 */}
+          <div className="header-right">
             <button className="icon-btn" onClick={() => setShowSettings(true)} title="설정">
               <Settings size={20} />
             </button>
@@ -438,8 +416,17 @@ export default function App() {
       )}
 
       <div className="app-body">
-        {/* 유저 사이드바 */}
+        {/* 사이드바 네비게이션 */}
         <aside className="user-sidebar">
+          <button
+            className={`user-item ${mainView === 'home' ? 'active' : ''}`}
+            onClick={() => setMainView('home')}
+          >
+            <span className="user-avatar"><Home size={16} /></span>
+            <span className="user-name">홈</span>
+          </button>
+
+          <div className="sidebar-divider" />
           <div className="sidebar-title">서재</div>
           <nav className="user-list">
             {groupMembers.map((member, idx) => {
@@ -466,39 +453,63 @@ export default function App() {
               );
             })}
           </nav>
+
           <div className="sidebar-divider" />
           <button
-            className={`user-item ${mainView === 'group-dashboard' ? 'active' : ''}`}
-            onClick={() => setMainView('group-dashboard')}
+            className={`user-item ${mainView === 'stats' ? 'active' : ''}`}
+            onClick={() => setMainView('stats')}
           >
             <span className="user-avatar"><BarChart2 size={16} /></span>
-            <span className="user-name">그룹 대시보드</span>
+            <span className="user-name">통계</span>
           </button>
           <button
-            className={`user-item ${mainView === 'market' ? 'active' : ''}`}
-            onClick={() => setMainView('market')}
+            className={`user-item ${mainView === 'family' ? 'active' : ''}`}
+            onClick={() => { setMainView('family'); setPendingInviteCount(0); }}
           >
-            <span className="user-avatar"><ShoppingBag size={16} /></span>
-            <span className="user-name">포인트 마켓</span>
-          </button>
-          <button className="user-item add-group-btn" onClick={() => setShowGroupManager(true)}>
-            <span className="user-avatar"><Users size={16} /></span>
-            <span className="user-name">그룹 관리</span>
+            <span className="user-avatar" style={{ position: 'relative' }}>
+              <Users size={16} />
+              {pendingInviteCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -6,
+                  background: 'var(--accent)', color: '#fff',
+                  borderRadius: '50%', fontSize: 9, fontWeight: 700,
+                  width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{pendingInviteCount}</span>
+              )}
+            </span>
+            <span className="user-name">가족</span>
           </button>
         </aside>
 
         {/* 메인 컨텐츠 */}
         <main className="main-content">
-          {mainView === 'group-dashboard' ? (
-            <GroupDashboard
-              members={groupMemberPoints}
+          {mainView === 'home' ? (
+            <HomeView
+              profile={profile}
               books={books}
-              loading={groupPointsLoading}
-            />
-          ) : mainView === 'market' ? (
-            <PointsMarket
               userId={user.id}
-              totalEarnedPoints={groupMemberPoints.find(m => m.user_id === user.id)?.total_points ?? 0}
+              groupMembers={groupMembers}
+              groupMemberPoints={groupMemberPoints}
+              onNavigateToLibrary={() => { handleSelectUser(user.id); setMainView('library'); }}
+              onNavigateToFamily={() => setMainView('family')}
+              onShowAdd={() => setShowAdd(true)}
+              onShowPoints={() => setShowPoints(true)}
+            />
+          ) : mainView === 'stats' ? (
+            <StatsView
+              books={books}
+              userId={user.id}
+              groupMembers={groupMembers}
+              groupMemberPoints={groupMemberPoints}
+            />
+          ) : mainView === 'family' ? (
+            <FamilyView
+              members={groupMembers}
+              memberPoints={groupMemberPoints}
+              books={books}
+              userId={user.id}
+              onViewLibrary={(uid) => { handleSelectUser(uid); setMainView('library'); }}
+              onOpenGroupManager={() => setShowGroupManager(true)}
             />
           ) : selectedBook ? (
             <BookDetail
@@ -515,6 +526,31 @@ export default function App() {
             />
           ) : (
             <>
+              {/* 모바일 멤버 전환 스트립 — 사이드바 대체 */}
+              {groupMembers.length > 1 && (
+                <div className="mobile-member-strip">
+                  {groupMembers.map((member, idx) => {
+                    const color = getMemberColor(idx);
+                    const isActive = selectedUserId === member.id;
+                    return (
+                      <button
+                        key={member.id}
+                        className={`mobile-member-chip ${isActive ? 'active' : ''}`}
+                        style={{ '--chip-color': color } as React.CSSProperties}
+                        onClick={() => handleSelectUser(member.id)}
+                      >
+                        <span className="mobile-member-chip-avatar" style={{ background: color }}>
+                          {member.avatar_url
+                            ? <img src={member.avatar_url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                            : member.display_name[0].toUpperCase()}
+                        </span>
+                        <span className="mobile-member-chip-name">{member.display_name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <div className="user-heading">
                 <span className="user-heading-emoji">
                   {selectedUser?.avatar_url
@@ -522,6 +558,17 @@ export default function App() {
                     : selectedUser?.display_name[0].toUpperCase()}
                 </span>
                 <h2>{selectedUser?.display_name}의 서재</h2>
+                {isOwnLibrary && (
+                  <button
+                    className="icon-btn"
+                    onClick={revalidateAllReviews}
+                    disabled={revalidating}
+                    title="내 후기 전체 재검증"
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    <RefreshCw size={16} className={revalidating ? 'spin' : ''} />
+                  </button>
+                )}
               </div>
 
               <Dashboard
@@ -704,28 +751,34 @@ export default function App() {
 
       {/* 모바일 하단 탭 바 */}
       <nav className="mobile-tab-bar">
-        {groupMembers.map((member, idx) => (
-          <button
-            key={member.id}
-            className={`mobile-tab ${mainView === 'library' && selectedUserId === member.id ? 'active' : ''}`}
-            style={{ '--item-color': getMemberColor(idx) } as React.CSSProperties}
-            onClick={() => { handleSelectUser(member.id); setMainView('library'); }}
-          >
-            <span className="mobile-tab-avatar" style={{ background: getMemberColor(idx) }}>
-              {member.avatar_url
-                ? <img src={member.avatar_url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                : member.display_name[0].toUpperCase()}
-            </span>
-            <span className="mobile-tab-name">{member.display_name.split(' ')[0]}</span>
-          </button>
-        ))}
-        <button className={`mobile-tab ${mainView === 'group-dashboard' ? 'active' : ''}`} onClick={() => setMainView('group-dashboard')}>
+        <button className={`mobile-tab ${mainView === 'home' ? 'active' : ''}`} onClick={() => setMainView('home')}>
+          <Home size={20} />
+          <span className="mobile-tab-name">홈</span>
+        </button>
+        <button
+          className={`mobile-tab ${mainView === 'library' ? 'active' : ''}`}
+          onClick={() => { handleSelectUser(user.id); setMainView('library'); }}
+        >
+          <BookOpen size={20} />
+          <span className="mobile-tab-name">서재</span>
+        </button>
+        <button className={`mobile-tab ${mainView === 'stats' ? 'active' : ''}`} onClick={() => setMainView('stats')}>
           <BarChart2 size={20} />
           <span className="mobile-tab-name">통계</span>
         </button>
-        <button className={`mobile-tab ${mainView === 'market' ? 'active' : ''}`} onClick={() => setMainView('market')}>
-          <ShoppingBag size={20} />
-          <span className="mobile-tab-name">마켓</span>
+        <button className={`mobile-tab ${mainView === 'family' ? 'active' : ''}`} onClick={() => { setMainView('family'); setPendingInviteCount(0); }}>
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <Users size={20} />
+            {pendingInviteCount > 0 && (
+              <span style={{
+                position: 'absolute', top: -4, right: -6,
+                background: 'var(--accent)', color: '#fff',
+                borderRadius: '50%', fontSize: 9, fontWeight: 700,
+                width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{pendingInviteCount}</span>
+            )}
+          </span>
+          <span className="mobile-tab-name">가족</span>
         </button>
       </nav>
 

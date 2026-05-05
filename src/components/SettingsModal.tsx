@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { getAladinKey, setAladinKey } from '../services/claudeVocab';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../useTheme';
 import { supabase } from '../lib/supabase';
-import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
+import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff, Pencil, Sun, Moon } from 'lucide-react';
 
 const AVATAR_OPTIONS = ['🧒', '👦', '👧', '🧑', '👩', '👨', '🐣', '🦊', '🐬', '🦄', '🐱', '🐶'];
 
@@ -16,6 +17,7 @@ interface DbChild {
 
 export default function SettingsModal({ onClose, onGroupChange }: { onClose: () => void; onGroupChange?: () => void }) {
   const { profile, user, updateProfile, createChildAccount, removeStoredChild } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const [aladinKey, setAladinKeyState] = useState(getAladinKey());
   const [aladinSaved, setAladinSaved] = useState(false);
@@ -204,6 +206,27 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
           <button className="icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
         <div className="modal-form">
+
+          {/* 화면 모드 */}
+          <div className="settings-section">
+            <h3 className="settings-section-title">화면 모드</h3>
+            <div className="settings-theme-row">
+              <button
+                className={`settings-theme-btn ${theme === 'light' ? 'active' : ''}`}
+                onClick={() => theme === 'dark' && toggleTheme()}
+              >
+                <Sun size={16} /> 라이트 모드
+              </button>
+              <button
+                className={`settings-theme-btn ${theme === 'dark' ? 'active' : ''}`}
+                onClick={() => theme === 'light' && toggleTheme()}
+              >
+                <Moon size={16} /> 다크 모드
+              </button>
+            </div>
+          </div>
+
+          <div className="settings-divider" />
 
           {/* 프로필 */}
           <div className="settings-section">

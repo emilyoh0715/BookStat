@@ -2,6 +2,7 @@ import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked, FileText, F
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
+import type { PointLog } from '../services/points';
 
 interface Props {
   profile: Profile;
@@ -9,6 +10,7 @@ interface Props {
   userId: string;
   groupMembers: Profile[];
   groupMemberPoints: MemberStat[];
+  pointLogs: PointLog[];
   onNavigateToLibrary: () => void;
   onNavigateToFamily: () => void;
   onShowAdd: () => void;
@@ -18,7 +20,7 @@ interface Props {
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 
 export default function HomeView({
-  profile, books, userId, groupMembers, groupMemberPoints,
+  profile, books, userId, groupMembers, groupMemberPoints, pointLogs,
   onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints,
 }: Props) {
   const now = new Date();
@@ -27,6 +29,11 @@ export default function HomeView({
   const myBooks = books.filter(b => b.userId === userId);
   const myStats = groupMemberPoints.find(m => m.user_id === userId);
   const myPoints = myStats?.total_points ?? 0;
+
+  const thisMonthLogs = pointLogs.filter(l => l.created_at.startsWith(thisMonth));
+  const thisMonthBookPts = thisMonthLogs.filter(l => l.reason === 'book_added').reduce((s, l) => s + l.points, 0);
+  const thisMonthReviewPts = thisMonthLogs.filter(l => l.reason === 'review_approved').reduce((s, l) => s + l.points, 0);
+  const thisMonthTotal = thisMonthLogs.reduce((s, l) => s + l.points, 0);
 
   const familyFinishedThisMonth = books.filter(
     b => b.status === 'finished' && b.finishDate?.startsWith(thisMonth)
@@ -127,21 +134,36 @@ export default function HomeView({
 
       {/* ③ 내 포인트 현황 */}
       <button className="home-points-card" onClick={onShowPoints}>
-        <div className="home-points-top">
+        <div className="home-points-body">
           <div className="home-points-left">
-            <Award size={15} className="home-points-icon" />
-            <span className="home-points-label">내 포인트 현황</span>
+            <span className="home-points-label">
+              <Award size={13} className="home-points-icon" /> 내 포인트
+            </span>
+            <span className="home-points-total">
+              {myPoints.toLocaleString()}<span className="home-points-total-unit">pt</span>
+            </span>
           </div>
-          <span className="home-points-total">
-            {myPoints}<span className="home-points-total-unit">pt</span>
-          </span>
+          <div className="home-points-right">
+            <span className="home-points-month-label">
+              이번 달 {thisMonthTotal > 0 && <strong>+{thisMonthTotal}pt</strong>}
+            </span>
+            <div className="home-points-month-rows">
+              <div className="home-points-month-row">
+                <Zap size={11} />
+                <span>책 추가</span>
+                <span className="home-points-month-val">+{thisMonthBookPts}pt</span>
+              </div>
+              <div className="home-points-month-row">
+                <Star size={11} />
+                <span>후기 승인</span>
+                <span className="home-points-month-val">+{thisMonthReviewPts}pt</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="home-points-breakdown">
-          <span className="home-points-item"><Zap size={11} /> 책 추가 <strong>+{myStats?.book_added_points ?? 0}</strong></span>
-          <span className="home-points-sep">·</span>
-          <span className="home-points-item"><Star size={11} /> 후기 승인 <strong>+{myStats?.review_approved_points ?? 0}</strong></span>
+        <div className="home-points-footer">
+          포인트 내역 보기 <ChevronRight size={12} />
         </div>
-        <span className="home-points-link">포인트 내역 보기 <ChevronRight size={12} /></span>
       </button>
 
       {/* ④ 오늘의 매거진 (플레이스홀더) */}

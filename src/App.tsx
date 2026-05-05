@@ -491,6 +491,7 @@ export default function App() {
               userId={user.id}
               groupMembers={groupMembers}
               groupMemberPoints={groupMemberPoints}
+              pointLogs={myPointLogs}
               onNavigateToLibrary={() => { handleSelectUser(user.id); setMainView('library'); }}
               onNavigateToFamily={() => setMainView('family')}
               onShowAdd={() => setShowAdd(true)}

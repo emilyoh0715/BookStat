@@ -218,6 +218,99 @@
   color: var(--text-heading);
 }
 
+/* ===== Reading Checkin Section ===== */
+.checkin-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.checkin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.checkin-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+.checkin-progress {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.checkin-progress.done {
+  color: var(--accent-green);
+}
+.checkin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.checkin-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s;
+}
+.checkin-item:hover { background: var(--bg-base); }
+.checkin-item.checked { opacity: 0.55; }
+.checkin-cover {
+  width: 30px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+.checkin-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+  color: var(--text-muted);
+}
+.checkin-book-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.checkin-item.checked .checkin-book-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.checkin-streak {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #FF6B35;
+  flex-shrink: 0;
+}
+.checkin-check-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--border);
+}
+.checkin-item.checked .checkin-check-icon { color: var(--accent-green); }
+
 /* ===== Main ===== */
 .main-content {
   flex: 1;

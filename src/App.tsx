@@ -18,6 +18,7 @@ import ProfileSelector from './components/ProfileSelector';
 import BookstatLogo from './components/BookstatLogo';
 import HomeView from './components/HomeView';
 import FamilyView from './components/FamilyView';
+import ReadingCheckinSection from './components/ReadingCheckinSection';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints, removePoints, calcReviewPoints } from './services/points';
 import type { PointLog } from './services/points';
@@ -570,6 +571,10 @@ export default function App() {
                   </button>
                 )}
               </div>
+
+              {isOwnLibrary && (
+                <ReadingCheckinSection books={books} userId={user.id} />
+              )}
 
               <Dashboard
                 stats={stats}

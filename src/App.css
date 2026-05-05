@@ -3347,8 +3347,8 @@ textarea { resize: vertical; }
 /* ── 포인트 카드 ── */
 .home-points-card {
   width: 100%;
-  background: linear-gradient(135deg, #FFF3D6 0%, #FFE8A3 100%);
-  border: 1px solid #F5D87A;
+  background: #FFF3D6;
+  border: 1px solid #FFE8A3;
   border-radius: 18px;
   padding: 18px 20px 14px;
   display: flex;
@@ -3405,7 +3405,7 @@ textarea { resize: vertical; }
   color: #9A7B2A;
 }
 .home-points-month-label strong {
-  color: #2A7A3B;
+  color: #22C55E;
   margin-left: 4px;
 }
 .home-points-month-rows {

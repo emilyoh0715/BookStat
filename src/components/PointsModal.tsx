@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Award, BookPlus, Star, Sparkles, CheckCircle, XCircle, Loader } from 'lucide-react';
+import { X, Award, BookPlus, Star, BookOpen, Sparkles, CheckCircle, XCircle, Loader } from 'lucide-react';
 import type { Book } from '../types';
 import type { PointLog } from '../services/points';
 import { awardPoints, calcReviewPoints } from '../services/points';
@@ -22,16 +22,19 @@ interface ValidationResult {
   pts: number;
 }
 
-const REASON_META: Record<string, { label: string; icon: React.ReactNode; pts: string }> = {
-  book_added:      { label: '책 추가',  icon: <BookPlus size={14} />, pts: '+1' },
-  review_approved: { label: '후기 승인', icon: <Star size={14} />,    pts: '+5' },
+const REASON_META: Record<string, { label: string; icon: React.ReactNode }> = {
+  book_added:      { label: '책 추가',  icon: <BookPlus  size={14} /> },
+  book_finished:   { label: '완독',     icon: <BookOpen  size={14} /> },
+  review_approved: { label: '후기 승인', icon: <Star      size={14} /> },
 };
 
 export default function PointsModal({ total, logs, books, userId, onClose }: Props) {
   const getBook = (bookId: string) => books.find(b => b.id === bookId);
 
-  const addedCount  = logs.filter(l => l.reason === 'book_added').length;
-  const reviewCount = logs.filter(l => l.reason === 'review_approved').length;
+  const addedLogs    = logs.filter(l => l.reason === 'book_added');
+  const finishedLogs = logs.filter(l => l.reason === 'book_finished');
+  const reviewLogs   = logs.filter(l => l.reason === 'review_approved');
+  const sum = (ls: typeof logs) => ls.reduce((s, l) => s + l.points, 0);
 
   // 기존 후기 AI 검증
   const [validating, setValidating]         = useState(false);
@@ -96,12 +99,16 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
           {/* Breakdown */}
           <div className="points-breakdown">
             <div className="points-breakdown-item">
-              <span><BookPlus size={13} style={{ display: 'inline', marginRight: 4 }} />책 추가 (+1점)</span>
-              <span className="points-breakdown-count">{addedCount}회 · {addedCount}점</span>
+              <span><BookPlus size={13} style={{ display: 'inline', marginRight: 4 }} />책 추가</span>
+              <span className="points-breakdown-count">{addedLogs.length}회 · {sum(addedLogs)}점</span>
             </div>
             <div className="points-breakdown-item">
-              <span><Star size={13} style={{ display: 'inline', marginRight: 4 }} />후기 승인 (+5점)</span>
-              <span className="points-breakdown-count">{reviewCount}회 · {reviewCount * 5}점</span>
+              <span><BookOpen size={13} style={{ display: 'inline', marginRight: 4 }} />완독</span>
+              <span className="points-breakdown-count">{finishedLogs.length}회 · {sum(finishedLogs)}점</span>
+            </div>
+            <div className="points-breakdown-item">
+              <span><Star size={13} style={{ display: 'inline', marginRight: 4 }} />후기 승인</span>
+              <span className="points-breakdown-count">{reviewLogs.length}회 · {sum(reviewLogs)}점</span>
             </div>
           </div>
 
@@ -187,7 +194,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
               <div className="points-log-list">
                 {logs.map(log => {
                   const book = getBook(log.book_id);
-                  const meta = REASON_META[log.reason] ?? { label: log.reason, icon: null, pts: `+${log.points}` };
+                  const meta = REASON_META[log.reason] ?? { label: log.reason, icon: null };
                   return (
                     <div key={log.id} className="points-log-item">
                       <div className="points-log-icon">{meta.icon}</div>
@@ -196,7 +203,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
                         {book && <span className="points-log-book">{book.title}</span>}
                       </div>
                       <div className="points-log-right">
-                        <span className="points-log-pts">{meta.pts}</span>
+                        <span className="points-log-pts">+{log.points}</span>
                         <span className="points-log-date">{log.created_at.split('T')[0]}</span>
                       </div>
                     </div>

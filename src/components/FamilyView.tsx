@@ -13,8 +13,7 @@ import {
   type ReadingGoal,
 } from '../services/goals';
 
-type FamilyTab   = 'activity' | 'library' | 'market';
-type RewardMode  = 'instant' | 'goal';
+type FamilyTab = 'activity' | 'library' | 'market';
 
 interface Props {
   members:            Profile[];
@@ -37,11 +36,11 @@ export default function FamilyView({
   members, memberPoints, books, userId, onViewLibrary, onOpenGroupManager,
 }: Props) {
   const [tab, setTab]                   = useState<FamilyTab>('activity');
-  const [rewardMode, setRewardMode]     = useState<RewardMode>('instant');
   const [myGoal, setMyGoal]             = useState<ReadingGoal | null>(null);
   const [pendingGoals, setPendingGoals] = useState<ReadingGoal[]>([]);
   const [goalPreselect, setGoalPreselect] = useState<typeof MARKET_ITEMS[0] | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<typeof MARKET_ITEMS[0] | null>(null);
   const [resolving, setResolving]       = useState<string | null>(null);
   const [rejectingId, setRejectingId]   = useState<string | null>(null);
   const [rejectNote, setRejectNote]     = useState('');
@@ -106,15 +105,6 @@ export default function FamilyView({
     if (!myGoal) return;
     await cancelGoal(myGoal.id);
     setMyGoal(null);
-  };
-
-  const handleItemClick = (item: typeof MARKET_ITEMS[0]) => {
-    if (rewardMode === 'instant') {
-      if (spendablePoints >= item.cost) setInstantConfirming(item);
-    } else {
-      setGoalPreselect(item);
-      setShowGoalModal(true);
-    }
   };
 
   const submitInstant = async () => {
@@ -351,21 +341,74 @@ export default function FamilyView({
       {tab === 'market' && (
         <div className="family-tab-content">
 
-          {/* 내 목표 */}
+          {/* 포인트 히어로 카드 */}
+          <div className="market-pts-hero">
+            <p className="market-pts-hero-label">사용 가능 포인트</p>
+            <div className="market-pts-hero-body">
+              <div className="market-pts-hero-left">
+                <span className="market-pts-hero-val">{spendablePoints.toLocaleString()}</span>
+                <span className="market-pts-hero-unit">P</span>
+                {pendingCost > 0 && (
+                  <span className="market-pts-hero-pending">{pendingCost.toLocaleString()}P 승인 대기</span>
+                )}
+              </div>
+              <div className="market-pts-hero-right">
+                <div className="market-pts-hero-row">
+                  <span className="market-pts-hero-row-lbl">총 적립</span>
+                  <span className="market-pts-hero-row-val earned">{myPoints.toLocaleString()}P</span>
+                </div>
+                <div className="market-pts-hero-divider" />
+                <div className="market-pts-hero-row">
+                  <span className="market-pts-hero-row-lbl">사용</span>
+                  <span className="market-pts-hero-row-val used">{approvedCost.toLocaleString()}P</span>
+                </div>
+              </div>
+            </div>
+            <p className="market-pts-hero-expiry">⏳ {year}년 12월 31일까지 사용 가능</p>
+          </div>
+
+          {/* 현재 목표 */}
           <div className="family-section-hd">
-            <Target size={15} /><span>내 목표</span>
+            <Target size={15} /><span>현재 목표</span>
             {myGoal && (
               <button className="goal-change-btn" onClick={() => { setGoalPreselect(null); setShowGoalModal(true); }}>변경</button>
             )}
           </div>
           {myGoal
             ? <GoalCard goal={myGoal} />
-            : <button className="goal-empty-btn" onClick={() => { setGoalPreselect(null); setRewardMode('goal'); setShowGoalModal(true); }}>
-                <Target size={16} />
-                <span>목표 설정하기</span>
-                <span className="goal-empty-hint">원하는 보상을 목표로 설정해보세요!</span>
+            : <button className="market-goal-empty" onClick={() => { setGoalPreselect(null); setShowGoalModal(true); }}>
+                <span className="market-goal-empty-icon">🎯</span>
+                <div className="market-goal-empty-text">
+                  <span>목표를 설정하세요</span>
+                  <span className="market-goal-empty-sub">포인트를 모아서 원하는 보상을 받아보세요!</span>
+                </div>
               </button>
           }
+
+          {/* 추천 보상 — 가로 스크롤 */}
+          <div className="family-section-hd" style={{ marginTop: 16 }}>
+            <ShoppingBag size={15} /><span>추천 보상</span>
+            <span className="market-section-hint">탭해서 신청하거나 목표로 설정하세요</span>
+          </div>
+          <div className="market-items-scroll">
+            {MARKET_ITEMS.map(item => (
+              <button key={item.id}
+                className="market-scroll-card"
+                style={{ '--item-color': item.color, '--item-bg': item.bg, '--item-border': item.border } as React.CSSProperties}
+                onClick={() => setSelectedItem(item)}
+              >
+                <div className="market-scroll-emoji">{item.emoji}</div>
+                <div className="market-scroll-name">{item.name}</div>
+                <div className="market-scroll-pts" style={{ color: item.color }}>{item.cost.toLocaleString()}P</div>
+              </button>
+            ))}
+            <button className="market-scroll-card market-scroll-custom"
+              onClick={() => { setGoalPreselect(null); setShowGoalModal(true); }}>
+              <div className="market-scroll-emoji"><Plus size={24} /></div>
+              <div className="market-scroll-name">직접 설정</div>
+              <div className="market-scroll-pts">직접 입력</div>
+            </button>
+          </div>
 
           {/* 승인 요청 */}
           {pendingGoals.length > 0 && (
@@ -428,87 +471,86 @@ export default function FamilyView({
             </>
           )}
 
-          {/* 보상 선택 — 통합 아이템 그리드 */}
-          <div className="family-section-hd" style={{ marginTop: 16 }}>
-            <ShoppingBag size={15} /><span>보상</span>
-          </div>
-
-          {/* 모드 토글 */}
-          <div className="reward-mode-tabs">
-            <button className={`reward-mode-tab ${rewardMode === 'instant' ? 'active' : ''}`}
-              onClick={() => setRewardMode('instant')}>
-              💳 바로 사용하기
-            </button>
-            <button className={`reward-mode-tab ${rewardMode === 'goal' ? 'active' : ''}`}
-              onClick={() => setRewardMode('goal')}>
-              🎯 목표로 설정하기
-            </button>
-          </div>
-
-          {rewardMode === 'instant' && (
-            <p className="reward-mode-desc">포인트를 바로 사용해 보상을 신청해요. 부모님 승인 후 지급됩니다.</p>
-          )}
-          {rewardMode === 'goal' && (
-            <p className="reward-mode-desc">원하는 보상을 목표로 설정하고 포인트를 모아요!</p>
-          )}
-
-          <div className="goal-preset-grid">
-            {MARKET_ITEMS.map(item => {
-              const canAfford  = spendablePoints >= item.cost;
-              const isDisabled = rewardMode === 'instant' && !canAfford;
-              return (
-                <button key={item.id}
-                  className={`goal-preset-card ${isDisabled ? 'disabled' : ''}`}
-                  style={{ '--item-color': item.color, '--item-bg': item.bg, '--item-border': item.border } as React.CSSProperties}
-                  onClick={() => !isDisabled && handleItemClick(item)}
-                  disabled={isDisabled}
-                >
-                  <div className="goal-preset-emoji">{item.emoji}</div>
-                  <div className="goal-preset-name">{item.name}</div>
-                  <div className="goal-preset-pts" style={{ color: item.color }}>{item.cost.toLocaleString()}p</div>
-                  {isDisabled && <div className="market-item-lock">포인트 부족</div>}
-                </button>
-              );
-            })}
-            {/* 직접 설정하기 — 목표 모드에서만 */}
-            {rewardMode === 'goal' && (
-              <button className="goal-preset-card goal-preset-custom"
-                onClick={() => { setGoalPreselect(null); setShowGoalModal(true); }}>
-                <div className="goal-preset-emoji"><Plus size={22} /></div>
-                <div className="goal-preset-name">직접 설정</div>
-                <div className="goal-preset-pts" style={{ color: 'var(--text-muted)' }}>직접 입력</div>
-              </button>
-            )}
-          </div>
-
-          {/* 바로 사용하기 확인 모달 */}
-          {instantConfirming && (
-            <div className="modal-overlay modal-overlay--center" onClick={() => !instantSubmitting && setInstantConfirming(null)}>
-              <div className="modal modal-dialog" onClick={e => e.stopPropagation()}>
-                <div className="market-confirm-body">
-                  <div className="market-confirm-emoji">{instantConfirming.emoji}</div>
-                  <h3 className="market-confirm-title">{instantConfirming.name}</h3>
-                  <p className="market-confirm-desc">{instantConfirming.desc}</p>
-                  <div className="market-confirm-cost">
-                    <span>{instantConfirming.cost.toLocaleString()}pt 차감</span>
-                    <span className="market-confirm-remain">잔여 {(spendablePoints - instantConfirming.cost).toLocaleString()}pt</span>
-                  </div>
-                  <p className="market-confirm-hint">그룹장이 승인하면 최종 차감돼요.</p>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                    <button className="btn-secondary" style={{ flex: 1 }}
-                      onClick={() => setInstantConfirming(null)} disabled={instantSubmitting}>취소</button>
-                    <button className="btn-primary" style={{ flex: 1 }}
-                      onClick={submitInstant} disabled={instantSubmitting}>
-                      {instantSubmitting ? <><Loader size={14} className="spin" /> 신청 중...</> : '신청하기'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* 신청 내역 / 관리 */}
           <PointsMarket userId={userId} totalEarnedPoints={myPoints} hideShop />
+        </div>
+      )}
+
+      {/* 아이템 상세 모달 */}
+      {selectedItem && (
+        <div className="modal-overlay modal-overlay--center" onClick={() => setSelectedItem(null)}>
+          <div className="modal market-detail-modal" onClick={e => e.stopPropagation()}>
+            <button className="icon-btn market-detail-close" onClick={() => setSelectedItem(null)}>
+              <X size={18} />
+            </button>
+            <div className="market-detail-hero" style={{ background: selectedItem.bg, borderColor: selectedItem.border }}>
+              <span className="market-detail-hero-emoji">{selectedItem.emoji}</span>
+            </div>
+            <h3 className="market-detail-name">{selectedItem.name}</h3>
+            <p className="market-detail-cost" style={{ color: selectedItem.color }}>{selectedItem.cost.toLocaleString()}P</p>
+            <div className="market-detail-pts-info">
+              <div className="market-detail-pts-row">
+                <span>보유 포인트</span>
+                <span className="market-detail-pts-val accent">{spendablePoints.toLocaleString()}P</span>
+              </div>
+              <div className="market-detail-pts-row">
+                <span>필요 포인트</span>
+                <span className="market-detail-pts-val">{selectedItem.cost.toLocaleString()}P</span>
+              </div>
+              <div className="market-detail-pts-divider" />
+              {spendablePoints < selectedItem.cost ? (
+                <div className="market-detail-pts-row">
+                  <span>포인트 부족</span>
+                  <span className="market-detail-pts-val danger">{(selectedItem.cost - spendablePoints).toLocaleString()}P</span>
+                </div>
+              ) : (
+                <div className="market-detail-pts-row">
+                  <span>잔여 포인트</span>
+                  <span className="market-detail-pts-val muted">{(spendablePoints - selectedItem.cost).toLocaleString()}P</span>
+                </div>
+              )}
+            </div>
+            <div className="market-detail-actions">
+              <button className="btn-primary" onClick={() => {
+                setGoalPreselect(selectedItem);
+                setSelectedItem(null);
+                setShowGoalModal(true);
+              }}>
+                🎯 목표로 설정
+              </button>
+              <button className="btn-secondary"
+                disabled={spendablePoints < selectedItem.cost}
+                onClick={() => { setInstantConfirming(selectedItem); setSelectedItem(null); }}>
+                💳 보상 신청
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 보상 신청 확인 모달 */}
+      {instantConfirming && (
+        <div className="modal-overlay modal-overlay--center" onClick={() => !instantSubmitting && setInstantConfirming(null)}>
+          <div className="modal modal-dialog" onClick={e => e.stopPropagation()}>
+            <div className="market-confirm-body">
+              <div className="market-confirm-emoji">{instantConfirming.emoji}</div>
+              <h3 className="market-confirm-title">{instantConfirming.name}</h3>
+              <p className="market-confirm-desc">{instantConfirming.desc}</p>
+              <div className="market-confirm-cost">
+                <span>{instantConfirming.cost.toLocaleString()}pt 차감</span>
+                <span className="market-confirm-remain">잔여 {(spendablePoints - instantConfirming.cost).toLocaleString()}pt</span>
+              </div>
+              <p className="market-confirm-hint">가족 중 한 명이 승인하면 최종 차감돼요.</p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <button className="btn-secondary" style={{ flex: 1 }}
+                  onClick={() => setInstantConfirming(null)} disabled={instantSubmitting}>취소</button>
+                <button className="btn-primary" style={{ flex: 1 }}
+                  onClick={submitInstant} disabled={instantSubmitting}>
+                  {instantSubmitting ? <><Loader size={14} className="spin" /> 신청 중...</> : '신청하기'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

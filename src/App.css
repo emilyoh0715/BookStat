@@ -5098,6 +5098,282 @@ textarea { resize: vertical; }
   margin: 0;
 }
 
+/* ── 리워드 마켓 포인트 히어로 카드 ── */
+.market-pts-hero {
+  background: linear-gradient(135deg, #1A65C9 0%, #2a7de1 100%);
+  border-radius: 20px;
+  padding: 20px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 4px 20px rgba(30,42,58,0.22);
+  margin-bottom: 4px;
+}
+.market-pts-hero-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+.market-pts-hero-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.market-pts-hero-left {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.market-pts-hero-val {
+  font-size: 42px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.market-pts-hero-unit {
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  line-height: 1;
+}
+.market-pts-hero-pending {
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin-top: 2px;
+}
+.market-pts-hero-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.market-pts-hero-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255,255,255,0.15);
+}
+.market-pts-hero-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.market-pts-hero-row-lbl {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+}
+.market-pts-hero-row-val {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.market-pts-hero-row-val.earned { color: #fff; }
+.market-pts-hero-row-val.used   { color: rgba(255,255,255,0.5); }
+.market-pts-hero-expiry {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.5);
+  margin: 0;
+}
+
+/* ── 목표 없을 때 빈 상태 ── */
+.market-goal-empty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  background: var(--bg-surface);
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+.market-goal-empty:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-surface));
+}
+.market-goal-empty-icon { font-size: 28px; flex-shrink: 0; }
+.market-goal-empty-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.market-goal-empty-text > span:first-child {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.market-goal-empty-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ── 추천 보상 섹션 힌트 ── */
+.market-section-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-weight: 400;
+}
+
+/* ── 아이템 가로 스크롤 ── */
+.market-items-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 0 12px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.market-items-scroll::-webkit-scrollbar { display: none; }
+
+.market-scroll-card {
+  flex-shrink: 0;
+  width: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px 12px;
+  background: var(--item-bg, var(--bg-surface));
+  border: 1.5px solid var(--item-border, var(--border));
+  border-radius: 16px;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.market-scroll-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.market-scroll-card:active { transform: scale(0.97); }
+.market-scroll-emoji {
+  font-size: 30px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+}
+.market-scroll-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1.3;
+  word-break: keep-all;
+}
+.market-scroll-pts {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--item-color, var(--accent));
+}
+.market-scroll-custom {
+  border-style: dashed !important;
+  border-color: var(--border) !important;
+  background: transparent !important;
+}
+.market-scroll-custom .market-scroll-name,
+.market-scroll-custom .market-scroll-pts {
+  color: var(--text-muted);
+}
+.market-scroll-custom:hover .market-scroll-name,
+.market-scroll-custom:hover .market-scroll-pts {
+  color: var(--accent);
+}
+.market-scroll-custom:hover { border-color: var(--accent) !important; }
+
+/* ── 아이템 상세 모달 ── */
+.market-detail-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 20px 20px;
+  max-width: 320px;
+  width: 100%;
+}
+.market-detail-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+.market-detail-hero {
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.market-detail-hero-emoji { font-size: 44px; line-height: 1; }
+.market-detail-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-heading);
+  margin: 8px 0 0;
+  text-align: center;
+}
+.market-detail-cost {
+  font-size: 22px;
+  font-weight: 900;
+  margin: 2px 0 12px;
+}
+.market-detail-pts-info {
+  width: 100%;
+  background: var(--bg-base);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.market-detail-pts-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.market-detail-pts-row > span:first-child { color: var(--text-muted); font-weight: 500; }
+.market-detail-pts-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+.market-detail-pts-val { font-weight: 700; color: var(--text-primary); }
+.market-detail-pts-val.accent  { color: var(--accent); }
+.market-detail-pts-val.danger  { color: var(--danger); }
+.market-detail-pts-val.muted   { color: var(--text-muted); }
+.market-detail-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.market-detail-actions .btn-primary,
+.market-detail-actions .btn-secondary { width: 100%; }
+
 /* 리워드 마켓 모드 토글 */
 .reward-mode-tabs {
   display: flex;

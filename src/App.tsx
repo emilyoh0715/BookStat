@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useBooks } from './useBooks';
 import type { ReadingStatus, BookLanguage } from './types';
 import BookCard from './components/BookCard';
@@ -99,6 +99,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
+  const [genreFilter, setGenreFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState<'recent' | 'title'>('recent');
   const [groupByYearEnabled, setGroupByYearEnabled] = useState(false);
@@ -264,12 +265,21 @@ export default function App() {
 
   const totalBooksForUser = filterBooks(selectedUserId, 'all', 'all', 'all', '').length;
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search)
+    .filter(b => genreFilter === 'all' || b.genre === genreFilter)
     .slice().sort((a, b) => {
       if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
       const dateA = a.finishDate ?? a.startDate ?? a.createdAt;
       const dateB = b.finishDate ?? b.startDate ?? b.createdAt;
       return dateB.localeCompare(dateA);
     });
+
+  const availableGenres = useMemo(
+    () => [...new Set(
+      books.filter(b => b.userId === selectedUserId && b.genre?.trim())
+           .map(b => b.genre!)
+    )].sort((a, b) => a.localeCompare(b, 'ko')),
+    [books, selectedUserId]
+  );
 
   const years = getYears(selectedUserId);
 
@@ -279,6 +289,7 @@ export default function App() {
     setStatusFilter('all');
     setLangFilter('all');
     setYearFilter('all');
+    setGenreFilter('all');
     setSearch('');
     setSortOrder('recent');
     const idx = groupMembers.findIndex(m => m.id === userId);
@@ -677,6 +688,26 @@ export default function App() {
                 </div>
               </div>
 
+              {availableGenres.length > 0 && (
+                <div className="genre-chip-row">
+                  <button
+                    className={`genre-chip ${genreFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setGenreFilter('all')}
+                  >
+                    전체
+                  </button>
+                  {availableGenres.map(g => (
+                    <button
+                      key={g}
+                      className={`genre-chip ${genreFilter === g ? 'active' : ''}`}
+                      onClick={() => setGenreFilter(genreFilter === g ? 'all' : g)}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {filtered.length === 0 ? (
                 isOwnLibrary && totalBooksForUser === 0 ? (
                   <div className="empty-guide-card">
@@ -781,8 +812,9 @@ export default function App() {
               <Plus size={15} /> 책 추가
             </button>
             {hasCompletable && (
-              <button className="library-action-btn library-action-btn--primary" onClick={() => { setChildCompleteBookId(null); setShowChildComplete(true); }}>
-                {hasReading ? '📖 다 읽었어요' : '✏️ 후기 쓰기'}
+              <button className="library-action-btn library-action-btn--ai" onClick={() => { setChildCompleteBookId(null); setShowChildComplete(true); }}>
+                <span className="library-action-ai-badge">AI</span>
+                {hasReading ? '다 읽었어요' : '후기 쓰기'}
               </button>
             )}
           </div>

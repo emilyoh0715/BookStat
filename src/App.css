@@ -1606,6 +1606,65 @@ textarea { resize: vertical; }
   box-shadow: 0 4px 16px rgba(0,0,0,0.22);
 }
 
+/* AI CTA 버튼 */
+.library-action-btn--ai {
+  background: linear-gradient(135deg, #6C3EF5 0%, #3b7fd4 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(108,62,245,0.35);
+  gap: 7px;
+}
+.library-action-btn--ai:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 20px rgba(108,62,245,0.45);
+}
+.library-action-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.22);
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
+/* ── 장르 칩 행 ── */
+.genre-chip-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  scrollbar-width: none;
+}
+.genre-chip-row::-webkit-scrollbar { display: none; }
+.genre-chip {
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 13px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.genre-chip:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.genre-chip.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
 /* ===== Mobile Bottom Tab Bar (hidden on desktop) ===== */
 .mobile-tab-bar { display: none; }
 
@@ -5937,13 +5996,69 @@ textarea { resize: vertical; }
 }
 
 /* ================================================================
-   TABLET LANDSCAPE (769px–1279px)
+   TABLET LANDSCAPE (769px–1279px) — 200px full sidebar
    ================================================================ */
 @media (min-width: 769px) and (max-width: 1279px) {
   .right-panel { display: none; }
   .user-sidebar {
     width: 200px;
     min-width: 200px;
+  }
+}
+
+/* ================================================================
+   TABLET LANDSCAPE NARROW (769px–1023px, landscape) — 70px icon sidebar
+   ================================================================ */
+@media (min-width: 769px) and (max-width: 1023px) and (orientation: landscape) {
+  .user-sidebar {
+    width: 70px;
+    min-width: 70px;
+    padding: 8px 0;
+    align-items: center;
+    overflow: hidden;
+  }
+  .sidebar-profile {
+    flex-direction: column;
+    gap: 0;
+    padding: 8px 0 10px;
+    align-items: center;
+  }
+  .sidebar-profile-info { display: none; }
+  .sidebar-profile-avatar {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 14px;
+  }
+  .sidebar-title { display: none; }
+  .sidebar-divider { width: 40px; }
+  .user-item {
+    width: 46px;
+    height: 46px;
+    min-height: 46px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 12px;
+  }
+  .user-name { display: none; }
+  .user-count-pill { display: none; }
+  .user-avatar,
+  .user-avatar-circle {
+    margin: 0;
+  }
+  .sidebar-bottom {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding-top: 8px;
+  }
+  .sidebar-bottom .user-item {
+    width: 46px;
+    height: 46px;
+    justify-content: center;
+    padding: 0;
   }
 }
 

@@ -109,6 +109,7 @@ export async function syncBookPoints(
  * Award points for a book action. Idempotent — won't double-award the same book+reason.
  * @param finishDate  책의 완독일 (YYYY-MM-DD). 전달하면 로그 created_at을 완독 연도 기준으로 설정해
  *                    연도별 포인트 집계가 완독 연도를 따르게 됩니다.
+ *                    올해가 아닌 연도의 완독일이면 포인트를 적립하지 않습니다.
  */
 export async function awardPoints(
   bookId: string,
@@ -119,6 +120,12 @@ export async function awardPoints(
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
   const userId = session.user.id;
+
+  // 완독일이 있으면 올해 완독한 책만 포인트 적립 (book_added 포함 — 완독일 기준으로 앵커됨)
+  if (finishDate) {
+    const finishYear = new Date(finishDate).getFullYear();
+    if (finishYear !== new Date().getFullYear()) return;
+  }
 
   const { data: existing } = await supabase
     .from('point_logs')

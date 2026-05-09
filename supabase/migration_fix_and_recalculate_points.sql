@@ -53,7 +53,13 @@ SELECT
     ELSE created_at::timestamptz
   END AS created_at
 FROM books
-WHERE status != 'want-to-read';
+WHERE status != 'want-to-read'
+  -- 완독된 책은 올해 완독한 것만, 미완독 읽는중 책은 올해 추가된 것만
+  AND (
+    (status = 'finished' AND finish_date IS NOT NULL AND EXTRACT(YEAR FROM finish_date::date) = EXTRACT(YEAR FROM CURRENT_DATE))
+    OR
+    (status != 'finished' AND EXTRACT(YEAR FROM created_at::date) = EXTRACT(YEAR FROM CURRENT_DATE))
+  );
 
 -- ─────────────────────────────────────────────
 -- ⑤ book_finished : 완독일 기준, status = 'finished'
@@ -79,7 +85,9 @@ SELECT
     created_at::timestamptz
   ) AS created_at
 FROM books
-WHERE status = 'finished';
+WHERE status = 'finished'
+  AND finish_date IS NOT NULL
+  AND EXTRACT(YEAR FROM finish_date::date) = EXTRACT(YEAR FROM CURRENT_DATE);
 
 -- ─────────────────────────────────────────────
 -- ⑥ review_approved : 완독일 기준, 완독 + 후기 + 별점 모두 있는 책
@@ -106,6 +114,8 @@ SELECT
   ) AS created_at
 FROM books
 WHERE status = 'finished'
+  AND finish_date IS NOT NULL
+  AND EXTRACT(YEAR FROM finish_date::date) = EXTRACT(YEAR FROM CURRENT_DATE)
   AND review IS NOT NULL AND TRIM(review) != ''
   AND rating IS NOT NULL AND rating > 0;
 

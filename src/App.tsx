@@ -309,7 +309,7 @@ export default function App() {
     let awarded = 0;
     let kept = 0;
     for (const book of reviewBooks) {
-      const result = await validateReview(book.review!, book.title);
+      const result = await validateReview(book.review!, book.title, book.childAnswers);
       if (!result.valid) {
         await removePoints(book.id, 'review_approved');
         saveRejectionReason(book.id, result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.');

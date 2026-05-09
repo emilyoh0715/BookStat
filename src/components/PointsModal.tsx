@@ -61,7 +61,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
     const out: ValidationResult[] = [];
     for (const book of reviewBooks) {
       setCurrentBook(book.title);
-      const result = await validateReview(book.review!, book.title);
+      const result = await validateReview(book.review!, book.title, book.childAnswers);
       const alreadyHad = approvedBookIds.has(book.id);
       const pts = calcReviewPoints(book.totalPages, book.language);
       if (result.valid && !alreadyHad) {

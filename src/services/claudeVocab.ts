@@ -22,6 +22,17 @@ export interface ReviewValidationResult {
   reason?: string;
 }
 
+export type ReviewAnswer = { question: string; answer: string };
+
+/** 0=답변 없음, 1=일부 또는 짧은 답변, 2=두 질문 모두 충분히 답변(≥30자) */
+export function calcAnswerQuality(answers: ReviewAnswer[]): 0 | 1 | 2 {
+  const filled = answers.filter(a => a.answer.trim().length > 0);
+  const wellAnswered = answers.filter(a => a.answer.trim().length >= 30);
+  if (filled.length === 0) return 0;
+  if (wellAnswered.length >= 2) return 2;
+  return 1;
+}
+
 // localStorage helpers for persisting rejection reasons across page loads
 const rejectionKey = (bookId: string) => `review-rejection-${bookId}`;
 export function saveRejectionReason(bookId: string, reason: string) {
@@ -37,22 +48,45 @@ export function getRejectionReason(bookId: string): string | null {
 /**
  * Validate a book review:
  *  - Must be ≥ 30 characters
- *  - If a Claude API key is set, AI checks for complete sentence + book-relevance + no spam
+ *  - If answers provided (guided flow): quality 0 → auto-fail, quality 1 → strict AI check
+ *  - If a Claude API key is set, AI checks for personal content + book-relevance + no spam
  *  - Falls back to length-only check when no API key
  */
-export async function validateReview(review: string, bookTitle?: string): Promise<ReviewValidationResult> {
+export async function validateReview(
+  review: string,
+  bookTitle?: string,
+  answers?: ReviewAnswer[],
+): Promise<ReviewValidationResult> {
   const text = review.trim();
   if (text.length < 30) {
     return { valid: false, reason: '후기는 30자 이상 작성해주세요.' };
   }
 
+  // 가이드 흐름(질문 답변)을 통해 작성된 경우 품질 사전 검사
+  const quality = answers && answers.length > 0 ? calcAnswerQuality(answers) : null;
+  if (quality === 0) {
+    return { valid: false, reason: '질문에 직접 답해야 후기로 인정돼요. 나만의 생각을 질문에 담아주세요!' };
+  }
+
   const apiKey = getApiKey();
   if (!apiKey) {
-    // No API key — length check passes
     return { valid: true };
   }
 
   const bookCtx = bookTitle ? `책 제목: "${bookTitle}"\n` : '';
+
+  // quality 1 = 답변이 부실한 채로 AI가 생성한 독후감 → 더 엄격한 프롬프트
+  const strictMode = quality === 1;
+
+  const strictExtra = strictMode ? `
+[추가 엄격 기준 — 답변이 부족한 상태에서 AI가 작성한 독후감일 가능성이 높습니다]
+- 1인칭 주어(나, 저, 내가, 제가)로 본인의 직접 경험이나 느낌을 표현한 문장이 최소 1개 이상 있어야 합니다.
+- 글의 전체 흐름이 AI가 책 제목만 보고 생성했을 법한 전형적·공식적 독후감 문체이면 거절하세요.
+  예: "이 책은 ~에 대해 이야기합니다. ~을 통해 우리는 ~을 배울 수 있습니다."와 같이
+      구체적인 1인칭 감상 없이 요약·설명만 나열된 경우 거절.
+- 책의 특정 장면·인물·사건에 대해 독자 본인의 반응(좋았던 이유, 놀랐던 이유, 슬펐던 이유 등)을
+  설명한 문장이 없으면 거절하세요.` : '';
+
   const prompt = `${bookCtx}후기: "${text}"
 
 이 후기가 아래 기준을 모두 충족하는지 매우 엄격하게 판단해주세요.
@@ -63,7 +97,7 @@ export async function validateReview(review: string, bookTitle?: string): Promis
 - 책을 통해 새롭게 알게 된 사실이나 정보
 - 책의 특정 부분이 왜 좋았는지 또는 왜 인상적이었는지에 대한 설명
 - 책이 자신의 생각이나 행동에 어떤 영향을 줬는지
-
+${strictExtra}
 [반드시 거절 (valid: false)]
 - "재미있었다", "신기했다", "흥미로웠다", "또 읽고 싶다" 등 막연한 감정/평가만 나열한 경우
   → 설령 이런 문장이 여러 개여도 책의 구체적 내용이 없으면 거절
@@ -139,13 +173,7 @@ export async function generateChildReview(
   isChild: boolean = true,
 ): Promise<string> {
   const emotionLabel = EMOTION_LABELS[emotionKey] ?? emotionKey;
-  const filled = answers.filter(a => a.answer.trim().length > 0);
-  const wellAnswered = answers.filter(a => a.answer.trim().length >= 30);
-
-  const qualityLevel: 0 | 1 | 2 =
-    filled.length === 0 ? 0
-    : wellAnswered.length >= 2 ? 2
-    : 1;
+  const qualityLevel = calcAnswerQuality(answers);
 
   const apiKey = getApiKey();
   if (!apiKey || qualityLevel === 0) {
@@ -153,6 +181,7 @@ export async function generateChildReview(
   }
 
   const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+  const filled = answers.filter(a => a.answer.trim().length > 0);
   const answersText = filled.map(a => `Q: ${a.question}\nA: ${a.answer.trim()}`).join('\n\n');
   const writer = isChild ? '아이가' : '독자가';
   const writerPoss = isChild ? '아이의' : '독자의';

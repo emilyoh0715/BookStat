@@ -3660,9 +3660,76 @@ textarea { resize: vertical; }
   color: var(--text-muted);
 }
 .home-goal-pct {
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--accent);
+}
+.home-goal-reward {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.home-goal-reward-emoji {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.home-goal-reward-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.home-goal-reward-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.home-goal-pending-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #f5a623;
+  background: color-mix(in srgb, #f5a623 12%, transparent);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+.home-goal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 2px;
+}
+.home-goal-empty p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.home-goal-set-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.home-goal-loading {
+  height: 52px;
+  background: var(--bg-base);
+  border-radius: 10px;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
 }
 
 /* ── 가족 현황 카드 ── */

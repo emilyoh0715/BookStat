@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked, FileText, Flame, CheckCircle, Target, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
 import type { PointLog } from '../services/points';
+import { getMyCurrentGoal, type ReadingGoal } from '../services/goals';
 
 interface Props {
   profile: Profile;
@@ -20,7 +21,6 @@ interface Props {
 }
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
-const ANNUAL_GOAL = 12;
 
 type MissionType = 'add' | 'stagnant' | 'check' | 'review';
 interface Mission {
@@ -51,7 +51,6 @@ export default function HomeView({
     const d = new Date(now.getFullYear(), now.getMonth() - 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   })();
-  const currentYear = String(now.getFullYear());
   const todayStr = now.toISOString().slice(0, 10);
   const todayKey = `reading_check_${userId}_${todayStr}`;
 
@@ -88,9 +87,14 @@ export default function HomeView({
   const myFinishedLast  = myBooks.filter(b => b.status === 'finished' && b.finishDate?.startsWith(lastMonth)).length;
   const myFinishedDelta = myFinishedThis - myFinishedLast;
 
-  // Annual goal progress
-  const myFinishedThisYear = myBooks.filter(b => b.status === 'finished' && b.finishDate?.startsWith(currentYear)).length;
-  const goalPct = Math.min(100, Math.round((myFinishedThisYear / ANNUAL_GOAL) * 100));
+  // 리워드 마켓 목표
+  const [currentGoal, setCurrentGoal] = useState<ReadingGoal | null | undefined>(undefined);
+  useEffect(() => {
+    getMyCurrentGoal().then(setCurrentGoal);
+  }, [userId]);
+  const goalPct = currentGoal
+    ? Math.min(100, Math.round((myPoints / currentGoal.points_required) * 100))
+    : 0;
 
   // Family finished books
   const familyFinishedThisMonth = books.filter(b => b.status === 'finished' && b.finishDate?.startsWith(thisMonth));
@@ -328,19 +332,46 @@ export default function HomeView({
               <Target size={13} />
               <span>현재 목표</span>
             </div>
-            <div className="home-goal-body">
-              <div className="home-goal-label">올해 {ANNUAL_GOAL}권 읽기</div>
-              <div className="home-goal-bar-track">
-                <div
-                  className="home-goal-bar-fill"
-                  style={{ width: `${goalPct}%` }}
-                />
+
+            {/* 목표 없음 */}
+            {currentGoal === null && (
+              <div className="home-goal-empty">
+                <p>설정된 목표가 없어요</p>
+                <button className="home-goal-set-btn" onClick={onNavigateToFamily}>
+                  목표 설정하기 <ChevronRight size={13} />
+                </button>
               </div>
-              <div className="home-goal-foot">
-                <span className="home-goal-count">{myFinishedThisYear}권 완독</span>
-                <span className="home-goal-pct">{goalPct}%</span>
+            )}
+
+            {/* 목표 로딩 중 */}
+            {currentGoal === undefined && (
+              <div className="home-goal-loading" />
+            )}
+
+            {/* 목표 있음 */}
+            {currentGoal != null && (
+              <div className="home-goal-body">
+                <div className="home-goal-reward">
+                  {currentGoal.item_image_url
+                    ? <img src={currentGoal.item_image_url} alt="" className="home-goal-reward-img" />
+                    : <span className="home-goal-reward-emoji">{currentGoal.item_emoji ?? '🎁'}</span>
+                  }
+                  <div className="home-goal-reward-info">
+                    <div className="home-goal-label">{currentGoal.item_name}</div>
+                    {currentGoal.status === 'pending_approval' && (
+                      <span className="home-goal-pending-badge">승인 대기 중</span>
+                    )}
+                  </div>
+                </div>
+                <div className="home-goal-bar-track">
+                  <div className="home-goal-bar-fill" style={{ width: `${goalPct}%` }} />
+                </div>
+                <div className="home-goal-foot">
+                  <span className="home-goal-count">{myPoints.toLocaleString()}pt</span>
+                  <span className="home-goal-pct">{goalPct}% · 목표 {currentGoal.points_required.toLocaleString()}pt</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 

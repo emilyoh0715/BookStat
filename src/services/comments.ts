@@ -46,18 +46,26 @@ export async function addBookComment(
   bookId: string,
   bookOwnerId: string,
   content: string
-): Promise<void> {
+): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return;
+  if (!session) return '로그인이 필요해요.';
+
   const groupId = await getMyGroupId();
-  if (!groupId) return;
-  await supabase.from('book_comments').insert({
+  if (!groupId) return '그룹에 가입되어 있지 않아요.';
+
+  const { error } = await supabase.from('book_comments').insert({
     group_id: groupId,
     book_id: bookId,
     book_owner_id: bookOwnerId,
     user_id: session.user.id,
     content: content.trim(),
   });
+
+  if (error) {
+    console.error('[addBookComment]', error);
+    return error.message;
+  }
+  return null;
 }
 
 export async function deleteBookComment(commentId: string): Promise<void> {

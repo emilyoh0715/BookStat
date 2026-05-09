@@ -4663,6 +4663,14 @@ textarea { resize: vertical; }
   flex-shrink: 0;
 }
 .book-comment-delete:hover { color: var(--danger); }
+.book-comment-error {
+  font-size: 12px;
+  color: var(--danger);
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-radius: 8px;
+}
 .book-comment-form {
   display: flex;
   gap: 6px;

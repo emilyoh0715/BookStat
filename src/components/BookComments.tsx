@@ -16,6 +16,7 @@ export default function BookComments({ bookId, bookOwnerId, currentUserId, membe
   const [text, setText]           = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting]   = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const load = async () => {
     const data = await getBookComments(bookId);
@@ -38,9 +39,14 @@ export default function BookComments({ bookId, bookOwnerId, currentUserId, membe
     e.preventDefault();
     if (!text.trim()) return;
     setSubmitting(true);
-    await addBookComment(bookId, bookOwnerId, text.trim());
-    setText('');
-    await load();
+    setSubmitError(null);
+    const err = await addBookComment(bookId, bookOwnerId, text.trim());
+    if (err) {
+      setSubmitError(err);
+    } else {
+      setText('');
+      await load();
+    }
     setSubmitting(false);
   };
 
@@ -104,10 +110,13 @@ export default function BookComments({ bookId, bookOwnerId, currentUserId, membe
         })}
       </div>
 
+      {submitError && (
+        <p className="book-comment-error">⚠️ {submitError}</p>
+      )}
       <form onSubmit={handleSubmit} className="book-comment-form">
         <input
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={e => { setText(e.target.value); setSubmitError(null); }}
           placeholder="가족 한마디 남기기..."
           maxLength={500}
           className="book-comment-input"

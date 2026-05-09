@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Users, BookOpen, Award, ShoppingBag, Activity, Trophy, Target, Check, X, Loader, Plus } from 'lucide-react';
+import { Users, BookOpen, Award, ShoppingBag, Activity, Trophy, Target, Check, X, Loader, Plus, Bell, Clock, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
 import { MARKET_ITEMS } from './PointsMarket';
-import PointsMarket from './PointsMarket';
 import ActivityFeed from './ActivityFeed';
 import GoalSetupModal from './GoalSetupModal';
 import { supabase } from '../lib/supabase';
@@ -14,6 +13,17 @@ import {
 } from '../services/goals';
 
 type FamilyTab = 'activity' | 'library' | 'market';
+
+interface Redemption {
+  id: string;
+  user_id: string;
+  item_id: string;
+  item_name: string;
+  points_cost: number;
+  status: 'pending' | 'approved' | 'rejected';
+  requested_at: string;
+  note: string | null;
+}
 
 interface Props {
   members:            Profile[];
@@ -45,12 +55,19 @@ export default function FamilyView({
   const [rejectingId, setRejectingId]   = useState<string | null>(null);
   const [rejectNote, setRejectNote]     = useState('');
 
-  // 바로 사용하기 — 인라인 신청
-  const [groupId, setGroupId]             = useState<string | null>(null);
-  const [approvedCost, setApprovedCost]   = useState(0);
-  const [pendingCost, setPendingCost]     = useState(0);
+  // 보상 신청 관련
+  const [groupId, setGroupId]               = useState<string | null>(null);
+  const [approvedCost, setApprovedCost]     = useState(0);
+  const [pendingCost, setPendingCost]       = useState(0);
+  const [myRedemptions, setMyRedemptions]   = useState<Redemption[]>([]);
+  const [adminPending, setAdminPending]     = useState<Redemption[]>([]);
   const [instantConfirming, setInstantConfirming] = useState<typeof MARKET_ITEMS[0] | null>(null);
   const [instantSubmitting, setInstantSubmitting] = useState(false);
+  const [resolvingRed, setResolvingRed]     = useState<string | null>(null);
+  const [rejectingRedId, setRejectingRedId] = useState<string | null>(null);
+  const [rejectRedNote, setRejectRedNote]   = useState('');
+  const [cancellingRed, setCancellingRed]   = useState<string | null>(null);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const myPoints      = memberPoints.find(m => m.user_id === userId)?.total_points ?? 0;
   const spendablePoints = myPoints - approvedCost - pendingCost;
@@ -72,13 +89,25 @@ export default function FamilyView({
 
     const yearStart = `${year}-01-01`;
     const yearEnd   = `${year + 1}-01-01`;
-    const { data: mine } = await supabase
-      .from('point_redemptions').select('status, points_cost')
-      .eq('user_id', userId)
-      .gte('requested_at', yearStart).lt('requested_at', yearEnd);
-    const list = mine ?? [];
-    setApprovedCost(list.filter(r => r.status === 'approved').reduce((s: number, r: any) => s + r.points_cost, 0));
-    setPendingCost(list.filter(r => r.status === 'pending').reduce((s: number, r: any) => s + r.points_cost, 0));
+
+    const [{ data: mine }, { data: groupPending }] = await Promise.all([
+      supabase.from('point_redemptions').select('*')
+        .eq('user_id', userId)
+        .gte('requested_at', yearStart).lt('requested_at', yearEnd)
+        .order('requested_at', { ascending: false }),
+      supabase.from('point_redemptions').select('*')
+        .eq('group_id', membership.group_id)
+        .eq('status', 'pending')
+        .neq('user_id', userId)
+        .gte('requested_at', yearStart).lt('requested_at', yearEnd)
+        .order('requested_at', { ascending: false }),
+    ]);
+
+    const myList = (mine ?? []) as Redemption[];
+    setMyRedemptions(myList);
+    setApprovedCost(myList.filter(r => r.status === 'approved').reduce((s, r) => s + r.points_cost, 0));
+    setPendingCost(myList.filter(r => r.status === 'pending').reduce((s, r) => s + r.points_cost, 0));
+    setAdminPending((groupPending ?? []) as Redemption[]);
   };
 
   useEffect(() => {
@@ -118,6 +147,33 @@ export default function FamilyView({
     setInstantConfirming(null);
     await loadRedemptions();
     setInstantSubmitting(false);
+  };
+
+  const approveRedemption = async (id: string) => {
+    setResolvingRed(id);
+    await supabase.from('point_redemptions').update({
+      status: 'approved', resolved_at: new Date().toISOString(),
+    }).eq('id', id);
+    await loadRedemptions();
+    setResolvingRed(null);
+  };
+
+  const rejectRedemption = async (id: string) => {
+    setResolvingRed(id);
+    await supabase.from('point_redemptions').update({
+      status: 'rejected', resolved_at: new Date().toISOString(),
+      note: rejectRedNote || null,
+    }).eq('id', id);
+    setRejectingRedId(null); setRejectRedNote('');
+    await loadRedemptions();
+    setResolvingRed(null);
+  };
+
+  const cancelRedemption = async (id: string) => {
+    setCancellingRed(id);
+    await supabase.from('point_redemptions').delete().eq('id', id);
+    await loadRedemptions();
+    setCancellingRed(null);
   };
 
   const TABS = [
@@ -471,8 +527,113 @@ export default function FamilyView({
             </>
           )}
 
-          {/* 신청 내역 / 관리 */}
-          <PointsMarket userId={userId} totalEarnedPoints={myPoints} hideShop />
+          {/* 신청 관리 */}
+          <div className="family-section-hd" style={{ marginTop: 16 }}>
+            <Bell size={15} /><span>신청 관리</span>
+            {adminPending.length > 0 && (
+              <span className="market-tab-badge" style={{ marginLeft: 4 }}>{adminPending.length}</span>
+            )}
+          </div>
+          {adminPending.length === 0 ? (
+            <p className="market-inline-empty">승인 대기 중인 신청이 없어요</p>
+          ) : adminPending.map(r => {
+            const requester = members.find(m => m.id === r.user_id);
+            const color = memberColor(members, r.user_id);
+            const item = MARKET_ITEMS.find(i => i.id === r.item_id);
+            return (
+              <div key={r.id} className="goal-approval-card">
+                <div className="goal-approval-who">
+                  <div className="goal-approval-avatar" style={{ background: color }}>
+                    {requester?.avatar_url
+                      ? <img src={requester.avatar_url} alt="" />
+                      : <span>{(requester?.display_name ?? '?')[0].toUpperCase()}</span>}
+                  </div>
+                  <div>
+                    <span className="goal-approval-name">{requester?.display_name ?? '—'}</span>
+                    <span className="goal-approval-label">의 보상 신청</span>
+                  </div>
+                </div>
+                <div className="goal-approval-item">
+                  <span className="goal-approval-emoji">{item?.emoji ?? '🎁'}</span>
+                  <div>
+                    <p className="goal-approval-item-name">{r.item_name}</p>
+                    <p className="goal-approval-pts">{r.points_cost.toLocaleString()}pt 차감 예정</p>
+                  </div>
+                </div>
+                {rejectingRedId === r.id ? (
+                  <div className="goal-reject-form">
+                    <input className="market-reject-input" placeholder="거절 사유 (선택)"
+                      value={rejectRedNote} onChange={e => setRejectRedNote(e.target.value)} />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)' }}
+                        onClick={() => rejectRedemption(r.id)} disabled={resolvingRed === r.id}>
+                        {resolvingRed === r.id ? <Loader size={13} className="spin" /> : '거절'}
+                      </button>
+                      <button className="btn-secondary" style={{ flex: 1 }}
+                        onClick={() => { setRejectingRedId(null); setRejectRedNote(''); }}>취소</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn-primary" style={{ flex: 1 }}
+                      onClick={() => approveRedemption(r.id)} disabled={resolvingRed === r.id}>
+                      {resolvingRed === r.id ? <Loader size={13} className="spin" /> : <><Check size={13} /> 승인</>}
+                    </button>
+                    <button className="btn-secondary" onClick={() => setRejectingRedId(r.id)}>거절</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* 내 사용 내역 */}
+          <div className="family-section-hd" style={{ marginTop: 16 }}>
+            <Clock size={15} /><span>내 사용 내역</span>
+          </div>
+          {myRedemptions.length === 0 ? (
+            <p className="market-inline-empty">아직 신청 내역이 없어요</p>
+          ) : (
+            <>
+              {(historyExpanded ? myRedemptions : myRedemptions.slice(0, 5)).map(r => {
+                const item = MARKET_ITEMS.find(i => i.id === r.item_id);
+                const isPending = r.status === 'pending';
+                return (
+                  <div key={r.id} className="market-history-row">
+                    <div className="market-history-emoji">{item?.emoji ?? '🎁'}</div>
+                    <div className="market-history-info">
+                      <span className="market-history-name">{r.item_name}</span>
+                      <span className="market-history-date">{r.requested_at.split('T')[0]}</span>
+                      {r.note && <span className="market-history-note">{r.note}</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                      <span className="market-history-pts">-{r.points_cost}pt</span>
+                      {isPending ? (
+                        <button className="market-cancel-btn"
+                          onClick={() => cancelRedemption(r.id)}
+                          disabled={cancellingRed === r.id}>
+                          {cancellingRed === r.id
+                            ? <Loader size={11} className="spin" />
+                            : <><Trash2 size={11} /> 취소</>}
+                        </button>
+                      ) : (
+                        <span className="market-status-badge"
+                          style={{ color: r.status === 'approved' ? '#2ecc71' : 'var(--danger)' }}>
+                          {r.status === 'approved'
+                            ? <><CheckCircle size={12} /> 승인됨</>
+                            : <><XCircle size={12} /> 거절됨</>}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {myRedemptions.length > 5 && (
+                <button className="feed-more-btn" onClick={() => setHistoryExpanded(e => !e)}>
+                  {historyExpanded ? '접기' : `더보기 (${myRedemptions.length - 5}개)`}
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
 

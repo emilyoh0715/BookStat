@@ -5374,6 +5374,15 @@ textarea { resize: vertical; }
 .market-detail-actions .btn-primary,
 .market-detail-actions .btn-secondary { width: 100%; }
 
+/* 인라인 빈 상태 */
+.market-inline-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0 4px;
+  margin: 0;
+}
+
 /* 리워드 마켓 모드 토글 */
 .reward-mode-tabs {
   display: flex;

@@ -4158,6 +4158,21 @@ textarea { resize: vertical; }
   font-size: 13px;
   text-align: center;
 }
+.feed-more-btn {
+  width: 100%;
+  padding: 9px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.feed-more-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
 
 /* ── 책 상세 댓글 ── */
 .book-comments {

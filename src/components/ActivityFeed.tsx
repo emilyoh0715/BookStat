@@ -30,9 +30,12 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
+const PAGE_SIZE = 5;
+
 export default function ActivityFeed({ books, members }: Props) {
-  const [feed, setFeed]       = useState<FeedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [feed, setFeed]         = useState<FeedItem[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const load = async () => {
     const memberIds = members.map(m => m.id);
@@ -75,9 +78,12 @@ export default function ActivityFeed({ books, members }: Props) {
     </div>
   );
 
+  const visible = expanded ? feed : feed.slice(0, PAGE_SIZE);
+  const hasMore = feed.length > PAGE_SIZE;
+
   return (
     <div className="activity-feed">
-      {feed.map(item => {
+      {visible.map(item => {
         if (item.kind === 'comment') {
           const c      = item.data;
           const member = getMember(c.user_id);
@@ -137,6 +143,11 @@ export default function ActivityFeed({ books, members }: Props) {
           </div>
         );
       })}
+      {hasMore && (
+        <button className="feed-more-btn" onClick={() => setExpanded(e => !e)}>
+          {expanded ? '접기' : `더보기 (${feed.length - PAGE_SIZE}개)`}
+        </button>
+      )}
     </div>
   );
 }

@@ -3429,7 +3429,7 @@ textarea { resize: vertical; }
 }
 @media (min-width: 1024px) {
   .home-view {
-    max-width: 900px;
+    max-width: 100%;
   }
 }
 
@@ -3519,7 +3519,8 @@ textarea { resize: vertical; }
   flex-direction: column;
   gap: 16px;
 }
-@media (min-width: 1024px) {
+@media (min-width: 1024px) and (max-width: 1279px) {
+  /* 우측 패널 없을 때만 60/40 분할 */
   .home-content-split {
     flex-direction: row;
     align-items: flex-start;
@@ -3538,6 +3539,18 @@ textarea { resize: vertical; }
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+}
+@media (min-width: 1280px) {
+  /* 우측 패널이 가족 정보 담당 → 단일 컬럼, 통계 그리드 강조 */
+  .home-col-side { display: none; }
+  .home-col-main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .home-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -4191,6 +4204,60 @@ textarea { resize: vertical; }
   border-radius: 4px;
   border: 1px solid var(--border);
   box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+
+/* ── 가족 리포트 - 월별 바 차트 ── */
+.family-report-month-bar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.family-report-month-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.family-report-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.family-report-bar-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  width: 60px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.family-report-bar-track {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-base);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.family-report-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  min-width: 4px;
+  transition: width 0.4s ease;
+}
+.family-report-bar-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .family-section-hd {
@@ -5276,6 +5343,84 @@ textarea { resize: vertical; }
   text-align: center;
   padding: 16px 0;
   margin: 0;
+}
+
+/* ── 데스크탑 2열 레이아웃 ── */
+.stats-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.stats-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 개요 카드 (내 통계 / 가족 통계) */
+.stats-scope-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stats-scope-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* 기간 선택 바 */
+.stats-period-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.stats-period-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-heading);
+  white-space: nowrap;
+}
+
+/* 모바일: 단일 컬럼 */
+@media (max-width: 1023px) {
+  .stats-view {
+    flex-direction: column;
+    max-width: 560px;
+  }
+  .stats-left-col,
+  .stats-right-col {
+    width: 100%;
+  }
+}
+
+/* 데스크탑: 2열 */
+@media (min-width: 1024px) {
+  .stats-view {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 24px;
+    max-width: 1100px;
+  }
+  .stats-left-col {
+    width: 300px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 16px;
+  }
+  .stats-right-col {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 /* ── 리워드 마켓 포인트 히어로 카드 ── */

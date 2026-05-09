@@ -240,7 +240,7 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* ③ 데스크탑 60/40 레이아웃 */}
+      {/* ③ 데스크탑 60/40 레이아웃 (≥1280px에서는 우측패널이 가족 정보 담당 → 단일 컬럼) */}
       <div className="home-content-split">
 
         {/* 왼쪽 60% */}

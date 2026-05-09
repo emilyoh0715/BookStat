@@ -178,7 +178,7 @@ export default function FamilyView({
 
   const TABS = [
     { id: 'activity' as const, label: '가족 활동',   icon: <Activity    size={14} /> },
-    { id: 'library'  as const, label: '가족 서재',   icon: <BookOpen    size={14} /> },
+    { id: 'library'  as const, label: '가족 리포트', icon: <BookOpen    size={14} /> },
     { id: 'market'   as const, label: '리워드 마켓', icon: <ShoppingBag size={14} /> },
   ];
 
@@ -318,80 +318,121 @@ export default function FamilyView({
         </div>
       )}
 
-      {/* ── 서재 ── */}
-      {tab === 'library' && (
-        <div className="family-tab-content">
-          <div className="family-members-grid">
-            {members.map((member, idx) => {
-              const color         = MEMBER_COLORS[idx % MEMBER_COLORS.length];
-              const stats         = memberPoints.find(m => m.user_id === member.id);
-              const memberBooks   = books.filter(b => b.userId === member.id);
-              const finished      = memberBooks.filter(b => b.status === 'finished').length;
-              const reading       = memberBooks.filter(b => b.status === 'reading').length;
-              const isMe          = member.id === userId;
-              const rankIdx       = sortedByPts.findIndex(m => m.user_id === member.id);
-              const rank          = rankIdx >= 0 ? rankIdx + 1 : null;
-              const rankEmoji     = rank != null && rank <= 3 ? RANK_EMOJI[rank - 1] : null;
-              const readingCovers = memberBooks.filter(b => b.status === 'reading' && b.cover).slice(0, 3);
-              return (
-                <div key={member.id} className="family-member-card"
-                  style={{ '--member-color': color } as React.CSSProperties}>
-                  <div className="family-member-color-bar" style={{ background: color }} />
-                  <div className="family-member-top">
-                    <div className="family-member-avatar-wrap">
-                      <div className="family-member-avatar" style={{ background: color }}>
-                        {member.avatar_url
-                          ? <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                          : member.display_name[0].toUpperCase()}
-                      </div>
-                      {rankEmoji && <span className="family-member-rank-badge">{rankEmoji}</span>}
+      {/* ── 가족 리포트 ── */}
+      {tab === 'library' && (() => {
+        const now = new Date();
+        const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const maxMonthBooks = Math.max(1, ...members.map(m =>
+          books.filter(b => b.userId === m.id && b.status === 'finished' && b.finishDate?.startsWith(thisMonth)).length
+        ));
+        return (
+          <div className="family-tab-content">
+            {/* 이번 달 독서 현황 비교 */}
+            <div className="family-report-month-bar">
+              <span className="family-report-month-label">
+                이번 달 완독
+              </span>
+              {members.map((member, idx) => {
+                const color = MEMBER_COLORS[idx % MEMBER_COLORS.length];
+                const thisMonthBooks = books.filter(b =>
+                  b.userId === member.id &&
+                  b.status === 'finished' &&
+                  b.finishDate?.startsWith(thisMonth)
+                ).length;
+                return (
+                  <div key={member.id} className="family-report-bar-row">
+                    <div className="family-report-bar-name">{member.display_name}</div>
+                    <div className="family-report-bar-track">
+                      <div
+                        className="family-report-bar-fill"
+                        style={{
+                          width: `${(thisMonthBooks / maxMonthBooks) * 100}%`,
+                          background: color
+                        }}
+                      />
                     </div>
-                    <div className="family-member-info">
-                      <p className="family-member-name">
-                        {member.display_name}
-                        {isMe && <span className="family-member-me-badge">나</span>}
-                      </p>
-                      <p className="family-member-pts">
-                        <Award size={12} style={{ color: 'var(--accent-yellow)' }} />
-                        <strong>{stats?.total_points ?? 0}</strong>pt
-                        {rank != null && <span className="family-member-rank-text">{rank}위</span>}
-                      </p>
-                    </div>
+                    <span className="family-report-bar-val">{thisMonthBooks}권</span>
                   </div>
-                  <div className="family-member-stats">
-                    <div className="family-member-stat">
-                      <span className="family-member-stat-val">{finished}</span>
-                      <span className="family-member-stat-lbl">완독</span>
-                    </div>
-                    <div className="family-member-stat">
-                      <span className="family-member-stat-val">{reading}</span>
-                      <span className="family-member-stat-lbl">읽는 중</span>
-                    </div>
-                    <div className="family-member-stat">
-                      <span className="family-member-stat-val">{memberBooks.length}</span>
-                      <span className="family-member-stat-lbl">전체</span>
-                    </div>
-                  </div>
-                  {readingCovers.length > 0 && (
-                    <div className="family-member-reading">
-                      <span className="family-member-reading-label">읽는 중</span>
-                      <div className="family-member-reading-covers">
-                        {readingCovers.map(book => (
-                          <img key={book.id} src={book.cover} alt={book.title}
-                            className="family-member-reading-cover" title={book.title} />
-                        ))}
+                );
+              })}
+            </div>
+
+            <div className="family-section-hd" style={{ marginTop: 16 }}>
+              <Users size={15} /><span>멤버</span>
+            </div>
+
+            <div className="family-members-grid">
+              {members.map((member, idx) => {
+                const color         = MEMBER_COLORS[idx % MEMBER_COLORS.length];
+                const stats         = memberPoints.find(m => m.user_id === member.id);
+                const memberBooks   = books.filter(b => b.userId === member.id);
+                const finished      = memberBooks.filter(b => b.status === 'finished').length;
+                const reading       = memberBooks.filter(b => b.status === 'reading').length;
+                const isMe          = member.id === userId;
+                const rankIdx       = sortedByPts.findIndex(m => m.user_id === member.id);
+                const rank          = rankIdx >= 0 ? rankIdx + 1 : null;
+                const rankEmoji     = rank != null && rank <= 3 ? RANK_EMOJI[rank - 1] : null;
+                const readingCovers = memberBooks.filter(b => b.status === 'reading' && b.cover).slice(0, 3);
+                return (
+                  <div key={member.id} className="family-member-card"
+                    style={{ '--member-color': color } as React.CSSProperties}>
+                    <div className="family-member-color-bar" style={{ background: color }} />
+                    <div className="family-member-top">
+                      <div className="family-member-avatar-wrap">
+                        <div className="family-member-avatar" style={{ background: color }}>
+                          {member.avatar_url
+                            ? <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                            : member.display_name[0].toUpperCase()}
+                        </div>
+                        {rankEmoji && <span className="family-member-rank-badge">{rankEmoji}</span>}
+                      </div>
+                      <div className="family-member-info">
+                        <p className="family-member-name">
+                          {member.display_name}
+                          {isMe && <span className="family-member-me-badge">나</span>}
+                        </p>
+                        <p className="family-member-pts">
+                          <Award size={12} style={{ color: 'var(--accent-yellow)' }} />
+                          <strong>{stats?.total_points ?? 0}</strong>pt
+                          {rank != null && <span className="family-member-rank-text">{rank}위</span>}
+                        </p>
                       </div>
                     </div>
-                  )}
-                  <button className="family-member-library-btn" onClick={() => onViewLibrary(member.id)}>
-                    <BookOpen size={13} /> 서재 보기
-                  </button>
-                </div>
-              );
-            })}
+                    <div className="family-member-stats">
+                      <div className="family-member-stat">
+                        <span className="family-member-stat-val">{finished}</span>
+                        <span className="family-member-stat-lbl">완독</span>
+                      </div>
+                      <div className="family-member-stat">
+                        <span className="family-member-stat-val">{reading}</span>
+                        <span className="family-member-stat-lbl">읽는 중</span>
+                      </div>
+                      <div className="family-member-stat">
+                        <span className="family-member-stat-val">{memberBooks.length}</span>
+                        <span className="family-member-stat-lbl">전체</span>
+                      </div>
+                    </div>
+                    {readingCovers.length > 0 && (
+                      <div className="family-member-reading">
+                        <span className="family-member-reading-label">읽는 중</span>
+                        <div className="family-member-reading-covers">
+                          {readingCovers.map(book => (
+                            <img key={book.id} src={book.cover} alt={book.title}
+                              className="family-member-reading-cover" title={book.title} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button className="family-member-library-btn" onClick={() => onViewLibrary(member.id)}>
+                      <BookOpen size={13} /> 서재 보기
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── 리워드 마켓 ── */}
       {tab === 'market' && (

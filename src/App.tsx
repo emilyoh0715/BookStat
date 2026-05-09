@@ -318,7 +318,7 @@ export default function App() {
         clearRejectionReason(book.id);
         // 완독 + 별점 있는 경우 포인트 재지급 (awardPoints는 idempotent)
         if (book.status === 'finished' && (book.rating ?? 0) > 0) {
-          await awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language));
+          await awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language), book.finishDate);
           awarded++;
         } else {
           kept++;

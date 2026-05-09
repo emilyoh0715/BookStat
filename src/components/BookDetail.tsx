@@ -179,7 +179,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
         clearRejectionReason(book.id);
         setReviewCheckResult('pass');
         if (book.status === 'finished' && book.rating && book.rating > 0) {
-          awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language))
+          awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language), book.finishDate)
             .then(() => onPointsSync?.())
             .catch(console.error);
         }
@@ -247,7 +247,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   };
 
   const saveInfo = async () => {
-    syncBookPoints(book.id, infoForm.status, book.review, book.totalPages, book.language, book.rating)
+    syncBookPoints(book.id, infoForm.status, book.review, book.totalPages, book.language, book.rating, infoForm.finishDate || book.finishDate)
       .then(() => onPointsSync?.())
       .catch(console.error);
 

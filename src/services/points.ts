@@ -64,19 +64,27 @@ export async function syncBookPoints(
   review: string | undefined,
   _totalPages: number | undefined,
   _language: string | undefined,
-  rating?: number
+  rating?: number,
+  finishDate?: string
 ): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
   const userId = session.user.id;
 
   // book_added 동기화
+  // 완독된 책은 완독일을 created_at 으로 사용 → 연도 집계가 완독 연도 기준으로 동작
   if (status === 'want-to-read') {
     await supabase.from('point_logs')
       .delete()
       .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'book_added');
+  } else if (status === 'finished' && finishDate) {
+    // 완독 시 기존 book_added 로그를 삭제하고 완독일로 재삽입
+    await supabase.from('point_logs')
+      .delete()
+      .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'book_added');
+    await awardPoints(bookId, 'book_added', 1, finishDate);
   } else {
-    await awardPoints(bookId, 'book_added', 1); // idempotent
+    await awardPoints(bookId, 'book_added', 1); // idempotent (책 추가일 기준)
   }
 
   // book_finished / review_approved — 완독이 아닌 경우 제거

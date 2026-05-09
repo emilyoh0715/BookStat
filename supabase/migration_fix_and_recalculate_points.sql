@@ -37,15 +37,21 @@ ALTER TABLE point_logs ADD CONSTRAINT point_logs_unique_user_book_reason
   UNIQUE (user_id, book_id, reason);
 
 -- ─────────────────────────────────────────────
--- ④ book_added : 추가일 기준, want-to-read 제외
+-- ④ book_added
+--    완독된 책 → 완독일(finish_date) 기준 (연도 집계가 완독 연도를 따르게)
+--    완독되지 않은 책 → 책 추가일 기준
 -- ─────────────────────────────────────────────
 INSERT INTO point_logs (user_id, book_id, reason, points, created_at)
 SELECT
   user_id::uuid,
-  id            AS book_id,
-  'book_added'  AS reason,
-  1             AS points,
-  created_at::timestamptz
+  id           AS book_id,
+  'book_added' AS reason,
+  1            AS points,
+  CASE
+    WHEN status = 'finished' AND finish_date IS NOT NULL
+      THEN (finish_date || 'T12:00:00.000Z')::timestamptz
+    ELSE created_at::timestamptz
+  END AS created_at
 FROM books
 WHERE status != 'want-to-read';
 

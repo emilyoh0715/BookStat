@@ -19,6 +19,7 @@ import HomeView from './components/HomeView';
 import FamilyView from './components/FamilyView';
 import PointsCelebration from './components/PointsCelebration';
 import ReadingCheckinSection from './components/ReadingCheckinSection';
+import RightPanel from './components/RightPanel';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints, removePoints, calcReviewPoints, calcFinishedPoints } from './services/points';
 import type { PointLog } from './services/points';
@@ -411,6 +412,21 @@ export default function App() {
       <div className="app-body">
         {/* 사이드바 네비게이션 */}
         <aside className="user-sidebar">
+          {/* 프로필 — 데스크탑 사이드바 */}
+          {profile && (
+            <div className="sidebar-profile">
+              <div className="sidebar-profile-avatar" style={{ background: getMemberColor(0) }}>
+                {profile.avatar_url
+                  ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                  : profile.display_name[0].toUpperCase()}
+              </div>
+              <div className="sidebar-profile-info">
+                <span className="sidebar-profile-name">{profile.display_name}</span>
+                <span className="sidebar-profile-pts">⭐ {(groupMemberPoints.find(m => m.user_id === user.id)?.total_points ?? 0).toLocaleString()}pt</span>
+              </div>
+            </div>
+          )}
+
           <button
             className={`user-item ${mainView === 'home' ? 'active' : ''}`}
             onClick={() => setMainView('home')}
@@ -472,6 +488,17 @@ export default function App() {
             </span>
             <span className="user-name">가족</span>
           </button>
+
+          <div className="sidebar-bottom">
+            <button className="user-item" onClick={() => setShowSettings(true)}>
+              <span className="user-avatar"><Settings size={16} /></span>
+              <span className="user-name">설정</span>
+            </button>
+            <button className="user-item" onClick={signOut}>
+              <span className="user-avatar"><LogOut size={16} /></span>
+              <span className="user-name">로그아웃</span>
+            </button>
+          </div>
         </aside>
 
         {/* 메인 컨텐츠 */}
@@ -732,6 +759,15 @@ export default function App() {
             </>
           )}
         </main>
+
+        {/* 우측 패널 — 데스크탑 전용 */}
+        <RightPanel
+          books={books}
+          members={groupMembers}
+          memberPoints={groupMemberPoints}
+          userId={user.id}
+          onNavigateToFamily={() => { setMainView('family'); setPendingInviteCount(0); }}
+        />
       </div>
 
       {/* 서재 탭 통합 액션 바 */}

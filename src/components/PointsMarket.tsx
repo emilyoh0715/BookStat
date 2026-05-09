@@ -63,6 +63,7 @@ interface Redemption {
 interface Props {
   userId: string;
   totalEarnedPoints: number;
+  hideShop?: boolean;
 }
 
 const STATUS_META = {
@@ -71,9 +72,9 @@ const STATUS_META = {
   rejected: { label: '거절됨',   icon: <XCircle size={13} />,     color: 'var(--danger)' },
 };
 
-export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
+export default function PointsMarket({ userId, totalEarnedPoints, hideShop = false }: Props) {
   const year = new Date().getFullYear();
-  const [tab, setTab] = useState<'shop' | 'history' | 'admin'>('shop');
+  const [tab, setTab] = useState<'shop' | 'history' | 'admin'>(hideShop ? 'history' : 'shop');
   const [groupId, setGroupId] = useState<string | null>(null);
   const [myRedemptions, setMyRedemptions]     = useState<Redemption[]>([]);
   const [adminRequests, setAdminRequests]     = useState<Redemption[]>([]);
@@ -224,9 +225,11 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
 
       {/* 탭 */}
       <div className="market-tabs">
-        <button className={`market-tab ${tab === 'shop' ? 'active' : ''}`} onClick={() => setTab('shop')}>
-          <ShoppingBag size={14} /> 마켓
-        </button>
+        {!hideShop && (
+          <button className={`market-tab ${tab === 'shop' ? 'active' : ''}`} onClick={() => setTab('shop')}>
+            <ShoppingBag size={14} /> 마켓
+          </button>
+        )}
         <button className={`market-tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>
           <Clock size={14} /> 내 신청
           {myRedemptions.filter(r => r.status === 'pending').length > 0 && (

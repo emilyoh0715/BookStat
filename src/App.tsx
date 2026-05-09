@@ -159,40 +159,11 @@ export default function App() {
 
   // ─── 포인트 로드 & 실시간 동기화 (현재 연도만 집계) ───
   const loadGroupPoints = async () => {
-    // RPC로 멤버 프로필 목록을 가져온 뒤, point_logs를 연도 필터로 직접 집계
+    // get_group_member_points RPC는 SECURITY DEFINER로 연도 필터 포함 집계
+    // point_logs는 RLS로 본인 것만 읽히므로 클라이언트 직접 쿼리 불가 → RPC 결과만 사용
     const { data: rpcData } = await supabase.rpc('get_group_member_points');
-    if (!rpcData || (rpcData as MemberStat[]).length === 0) return;
-
-    const year = new Date().getFullYear();
-    const memberIds = (rpcData as MemberStat[]).map(m => m.user_id);
-
-    const { data: yearLogs } = await supabase
-      .from('point_logs')
-      .select('user_id, reason, points')
-      .in('user_id', memberIds)
-      .gte('created_at', `${year}-01-01T00:00:00.000Z`)
-      .lt('created_at',  `${year + 1}-01-01T00:00:00.000Z`);
-
-    const totals = new Map<string, { total: number; bookAdded: number; reviewApproved: number }>();
-    (yearLogs ?? []).forEach(log => {
-      const cur = totals.get(log.user_id) ?? { total: 0, bookAdded: 0, reviewApproved: 0 };
-      cur.total += log.points;
-      if (log.reason === 'book_added')      cur.bookAdded      += log.points;
-      if (log.reason === 'review_approved') cur.reviewApproved += log.points;
-      totals.set(log.user_id, cur);
-    });
-
-    setGroupMemberPoints(
-      (rpcData as MemberStat[]).map(m => {
-        const yr = totals.get(m.user_id);
-        return {
-          ...m,
-          total_points:           yr?.total          ?? 0,
-          book_added_points:      yr?.bookAdded       ?? 0,
-          review_approved_points: yr?.reviewApproved  ?? 0,
-        };
-      })
-    );
+    if (!rpcData) return;
+    setGroupMemberPoints(rpcData as MemberStat[]);
   };
 
   const loadMyLogs = async () => {

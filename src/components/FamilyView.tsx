@@ -1,81 +1,133 @@
 import { useState, useEffect } from 'react';
-import { Users, BookOpen, Award, ShoppingBag, Activity, Trophy, Target, Check, X, Loader } from 'lucide-react';
+import { Users, BookOpen, Award, ShoppingBag, Activity, Trophy, Target, Check, X, Loader, Plus } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
+import { MARKET_ITEMS } from './PointsMarket';
 import PointsMarket from './PointsMarket';
 import ActivityFeed from './ActivityFeed';
 import GoalSetupModal from './GoalSetupModal';
+import { supabase } from '../lib/supabase';
 import {
   getMyCurrentGoal, getGroupPendingGoals, approveGoal, rejectGoal, cancelGoal,
   type ReadingGoal,
 } from '../services/goals';
 
-type FamilyTab = 'activity' | 'library' | 'market';
+type FamilyTab   = 'activity' | 'library' | 'market';
+type RewardMode  = 'instant' | 'goal';
 
 interface Props {
-  members:          Profile[];
-  memberPoints:     MemberStat[];
-  books:            Book[];
-  userId:           string;
-  onViewLibrary:    (userId: string) => void;
+  members:            Profile[];
+  memberPoints:       MemberStat[];
+  books:              Book[];
+  userId:             string;
+  onViewLibrary:      (userId: string) => void;
   onOpenGroupManager: () => void;
 }
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 const RANK_EMOJI    = ['🥇', '🥈', '🥉'];
 
-function memberColor(members: Profile[], userId: string) {
-  const idx = members.findIndex(m => m.id === userId);
+function memberColor(members: Profile[], uid: string) {
+  const idx = members.findIndex(m => m.id === uid);
   return MEMBER_COLORS[idx >= 0 ? idx % MEMBER_COLORS.length : 0];
 }
 
 export default function FamilyView({
   members, memberPoints, books, userId, onViewLibrary, onOpenGroupManager,
 }: Props) {
-  const [tab, setTab]               = useState<FamilyTab>('activity');
-  const [myGoal, setMyGoal]         = useState<ReadingGoal | null>(null);
+  const [tab, setTab]                   = useState<FamilyTab>('activity');
+  const [rewardMode, setRewardMode]     = useState<RewardMode>('instant');
+  const [myGoal, setMyGoal]             = useState<ReadingGoal | null>(null);
   const [pendingGoals, setPendingGoals] = useState<ReadingGoal[]>([]);
+  const [goalPreselect, setGoalPreselect] = useState<typeof MARKET_ITEMS[0] | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
-  const [resolving, setResolving]   = useState<string | null>(null);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectNote, setRejectNote] = useState('');
+  const [resolving, setResolving]       = useState<string | null>(null);
+  const [rejectingId, setRejectingId]   = useState<string | null>(null);
+  const [rejectNote, setRejectNote]     = useState('');
 
-  const myPoints    = memberPoints.find(m => m.user_id === userId)?.total_points ?? 0;
-  const sortedByPts = [...memberPoints].sort((a, b) => b.total_points - a.total_points);
-  const year        = new Date().getFullYear();
+  // 바로 사용하기 — 인라인 신청
+  const [groupId, setGroupId]             = useState<string | null>(null);
+  const [approvedCost, setApprovedCost]   = useState(0);
+  const [pendingCost, setPendingCost]     = useState(0);
+  const [instantConfirming, setInstantConfirming] = useState<typeof MARKET_ITEMS[0] | null>(null);
+  const [instantSubmitting, setInstantSubmitting] = useState(false);
+
+  const myPoints      = memberPoints.find(m => m.user_id === userId)?.total_points ?? 0;
+  const spendablePoints = myPoints - approvedCost - pendingCost;
+  const sortedByPts   = [...memberPoints].sort((a, b) => b.total_points - a.total_points);
+  const year          = new Date().getFullYear();
 
   const loadGoals = async () => {
-    const [mine, pending] = await Promise.all([
-      getMyCurrentGoal(),
-      getGroupPendingGoals(),
-    ]);
+    const [mine, pending] = await Promise.all([getMyCurrentGoal(), getGroupPendingGoals()]);
     setMyGoal(mine);
     setPendingGoals(pending);
   };
 
-  useEffect(() => { loadGoals(); }, [userId]);
+  const loadRedemptions = async () => {
+    const { data: membership } = await supabase
+      .from('group_members').select('group_id')
+      .eq('user_id', userId).eq('status', 'accepted').limit(1).maybeSingle();
+    if (!membership) return;
+    setGroupId(membership.group_id);
 
-  const handleApprove = async (goalId: string) => {
+    const yearStart = `${year}-01-01`;
+    const yearEnd   = `${year + 1}-01-01`;
+    const { data: mine } = await supabase
+      .from('point_redemptions').select('status, points_cost')
+      .eq('user_id', userId)
+      .gte('requested_at', yearStart).lt('requested_at', yearEnd);
+    const list = mine ?? [];
+    setApprovedCost(list.filter(r => r.status === 'approved').reduce((s: number, r: any) => s + r.points_cost, 0));
+    setPendingCost(list.filter(r => r.status === 'pending').reduce((s: number, r: any) => s + r.points_cost, 0));
+  };
+
+  useEffect(() => {
+    loadGoals();
+    loadRedemptions();
+  }, [userId]);
+
+  const handleApproveGoal = async (goalId: string) => {
     setResolving(goalId);
     await approveGoal(goalId);
     await loadGoals();
     setResolving(null);
   };
 
-  const handleReject = async (goalId: string) => {
+  const handleRejectGoal = async (goalId: string) => {
     setResolving(goalId);
     await rejectGoal(goalId, rejectNote || undefined);
-    setRejectingId(null);
-    setRejectNote('');
+    setRejectingId(null); setRejectNote('');
     await loadGoals();
     setResolving(null);
   };
 
-  const handleCancel = async () => {
+  const handleCancelGoal = async () => {
     if (!myGoal) return;
     await cancelGoal(myGoal.id);
     setMyGoal(null);
+  };
+
+  const handleItemClick = (item: typeof MARKET_ITEMS[0]) => {
+    if (rewardMode === 'instant') {
+      if (spendablePoints >= item.cost) setInstantConfirming(item);
+    } else {
+      setGoalPreselect(item);
+      setShowGoalModal(true);
+    }
+  };
+
+  const submitInstant = async () => {
+    if (!instantConfirming || !groupId) return;
+    setInstantSubmitting(true);
+    await supabase.from('point_redemptions').insert({
+      user_id: userId, group_id: groupId,
+      item_id: instantConfirming.id, item_name: instantConfirming.name,
+      points_cost: instantConfirming.cost,
+    });
+    setInstantConfirming(null);
+    await loadRedemptions();
+    setInstantSubmitting(false);
   };
 
   const TABS = [
@@ -84,15 +136,17 @@ export default function FamilyView({
     { id: 'market'   as const, label: '리워드 마켓', icon: <ShoppingBag size={14} /> },
   ];
 
-  const GoalCard = ({ goal, currentPoints }: { goal: ReadingGoal; currentPoints: number }) => {
-    const progress  = Math.min(100, Math.round((currentPoints / goal.points_required) * 100));
-    const remaining = Math.max(0, goal.points_required - currentPoints);
-    const isPending = goal.status === 'pending_approval';
+  // 내 목표 카드 컴포넌트
+  const GoalCard = ({ goal }: { goal: ReadingGoal }) => {
+    const isPending  = goal.status === 'pending_approval';
+    const progress   = isPending ? 0 : Math.min(100, Math.round((myPoints / goal.points_required) * 100));
+    const remaining  = Math.max(0, goal.points_required - myPoints);
     return (
       <div className="goal-card">
         <div className="goal-card-left">
           {goal.item_image_url
-            ? <img src={goal.item_image_url} alt="" className="goal-card-img" />
+            ? <img src={goal.item_image_url} alt="" className="goal-card-img"
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
             : <span className="goal-card-emoji">{goal.item_emoji ?? '🎁'}</span>
           }
         </div>
@@ -101,8 +155,7 @@ export default function FamilyView({
             <span className="goal-card-name">{goal.item_name}</span>
             {isPending
               ? <span className="goal-status-badge pending">승인 대기</span>
-              : <span className="goal-status-badge active">진행 중</span>
-            }
+              : <span className="goal-status-badge active">진행 중</span>}
           </div>
           {isPending ? (
             <p className="goal-card-hint">가족 중 한 명이 승인하면 시작돼요!</p>
@@ -112,7 +165,7 @@ export default function FamilyView({
                 <div className="goal-progress-bar">
                   <div className="goal-progress-fill" style={{ width: `${progress}%` }} />
                 </div>
-                <span className="goal-progress-text">{currentPoints}/{goal.points_required}p</span>
+                <span className="goal-progress-text">{myPoints}/{goal.points_required}p</span>
               </div>
               <p className="goal-card-hint">
                 {remaining === 0 ? '🎉 목표 달성!' : `목표까지 ${remaining.toLocaleString()}p 남았어요`}
@@ -120,7 +173,7 @@ export default function FamilyView({
             </>
           )}
         </div>
-        <button className="goal-card-cancel" onClick={handleCancel} title="목표 취소">
+        <button className="goal-card-cancel" onClick={handleCancelGoal} title="목표 취소">
           <X size={14} />
         </button>
       </div>
@@ -129,7 +182,6 @@ export default function FamilyView({
 
   return (
     <div className="family-view">
-      {/* 헤더 */}
       <div className="family-header">
         <h2 className="family-title">가족</h2>
         <button className="family-manage-btn" onClick={onOpenGroupManager}>
@@ -137,20 +189,16 @@ export default function FamilyView({
         </button>
       </div>
 
-      {/* 서브탭 */}
       <div className="family-subtabs">
         {TABS.map(t => (
-          <button
-            key={t.id}
-            className={`family-subtab ${tab === t.id ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
+          <button key={t.id} className={`family-subtab ${tab === t.id ? 'active' : ''}`}
+            onClick={() => setTab(t.id)}>
             {t.icon}<span>{t.label}</span>
           </button>
         ))}
       </div>
 
-      {/* ── 활동 탭 ── */}
+      {/* ── 활동 ── */}
       {tab === 'activity' && (
         <div className="family-tab-content">
           {members.length < 2
@@ -163,7 +211,7 @@ export default function FamilyView({
         </div>
       )}
 
-      {/* ── 서재 탭 ── */}
+      {/* ── 서재 ── */}
       {tab === 'library' && (
         <div className="family-tab-content">
           <div className="family-members-grid">
@@ -178,7 +226,6 @@ export default function FamilyView({
               const rank          = rankIdx >= 0 ? rankIdx + 1 : null;
               const rankEmoji     = rank != null && rank <= 3 ? RANK_EMOJI[rank - 1] : null;
               const readingCovers = memberBooks.filter(b => b.status === 'reading' && b.cover).slice(0, 3);
-
               return (
                 <div key={member.id} className="family-member-card"
                   style={{ '--member-color': color } as React.CSSProperties}>
@@ -239,7 +286,7 @@ export default function FamilyView({
         </div>
       )}
 
-      {/* ── 리워드 마켓 탭 (목표 + 순위 + 마켓 통합) ── */}
+      {/* ── 리워드 마켓 ── */}
       {tab === 'market' && (
         <div className="family-tab-content">
 
@@ -247,18 +294,17 @@ export default function FamilyView({
           <div className="family-section-hd">
             <Target size={15} /><span>내 목표</span>
             {myGoal && (
-              <button className="goal-change-btn" onClick={() => setShowGoalModal(true)}>변경</button>
+              <button className="goal-change-btn" onClick={() => { setGoalPreselect(null); setShowGoalModal(true); }}>변경</button>
             )}
           </div>
-          {myGoal ? (
-            <GoalCard goal={myGoal} currentPoints={myPoints} />
-          ) : (
-            <button className="goal-empty-btn" onClick={() => setShowGoalModal(true)}>
-              <Target size={16} />
-              <span>목표 설정하기</span>
-              <span className="goal-empty-hint">원하는 보상을 목표로 설정해보세요!</span>
-            </button>
-          )}
+          {myGoal
+            ? <GoalCard goal={myGoal} />
+            : <button className="goal-empty-btn" onClick={() => { setGoalPreselect(null); setRewardMode('goal'); setShowGoalModal(true); }}>
+                <Target size={16} />
+                <span>목표 설정하기</span>
+                <span className="goal-empty-hint">원하는 보상을 목표로 설정해보세요!</span>
+              </button>
+          }
 
           {/* 승인 요청 */}
           {pendingGoals.length > 0 && (
@@ -285,7 +331,8 @@ export default function FamilyView({
                     </div>
                     <div className="goal-approval-item">
                       {goal.item_image_url
-                        ? <img src={goal.item_image_url} alt="" className="goal-approval-img" />
+                        ? <img src={goal.item_image_url} alt="" className="goal-approval-img"
+                            onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; }} />
                         : <span className="goal-approval-emoji">{goal.item_emoji ?? '🎁'}</span>}
                       <div>
                         <p className="goal-approval-item-name">{goal.item_name}</p>
@@ -294,15 +341,11 @@ export default function FamilyView({
                     </div>
                     {rejectingId === goal.id ? (
                       <div className="goal-reject-form">
-                        <input
-                          className="market-reject-input"
-                          placeholder="거절 사유 (선택)"
-                          value={rejectNote}
-                          onChange={e => setRejectNote(e.target.value)}
-                        />
+                        <input className="market-reject-input" placeholder="거절 사유 (선택)"
+                          value={rejectNote} onChange={e => setRejectNote(e.target.value)} />
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)' }}
-                            onClick={() => handleReject(goal.id)} disabled={resolving === goal.id}>
+                            onClick={() => handleRejectGoal(goal.id)} disabled={resolving === goal.id}>
                             {resolving === goal.id ? <Loader size={13} className="spin" /> : '거절'}
                           </button>
                           <button className="btn-secondary" style={{ flex: 1 }}
@@ -312,7 +355,7 @@ export default function FamilyView({
                     ) : (
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button className="btn-primary" style={{ flex: 1 }}
-                          onClick={() => handleApprove(goal.id)} disabled={resolving === goal.id}>
+                          onClick={() => handleApproveGoal(goal.id)} disabled={resolving === goal.id}>
                           {resolving === goal.id ? <Loader size={13} className="spin" /> : <><Check size={13} /> 승인</>}
                         </button>
                         <button className="btn-secondary" onClick={() => setRejectingId(goal.id)}>거절</button>
@@ -323,6 +366,88 @@ export default function FamilyView({
               })}
             </>
           )}
+
+          {/* 보상 선택 — 통합 아이템 그리드 */}
+          <div className="family-section-hd" style={{ marginTop: 16 }}>
+            <ShoppingBag size={15} /><span>보상</span>
+          </div>
+
+          {/* 모드 토글 */}
+          <div className="reward-mode-tabs">
+            <button className={`reward-mode-tab ${rewardMode === 'instant' ? 'active' : ''}`}
+              onClick={() => setRewardMode('instant')}>
+              💳 바로 사용하기
+            </button>
+            <button className={`reward-mode-tab ${rewardMode === 'goal' ? 'active' : ''}`}
+              onClick={() => setRewardMode('goal')}>
+              🎯 목표로 설정하기
+            </button>
+          </div>
+
+          {rewardMode === 'instant' && (
+            <p className="reward-mode-desc">포인트를 바로 사용해 보상을 신청해요. 부모님 승인 후 지급됩니다.</p>
+          )}
+          {rewardMode === 'goal' && (
+            <p className="reward-mode-desc">원하는 보상을 목표로 설정하고 포인트를 모아요!</p>
+          )}
+
+          <div className="goal-preset-grid">
+            {MARKET_ITEMS.map(item => {
+              const canAfford  = spendablePoints >= item.cost;
+              const isDisabled = rewardMode === 'instant' && !canAfford;
+              return (
+                <button key={item.id}
+                  className={`goal-preset-card ${isDisabled ? 'disabled' : ''}`}
+                  style={{ '--item-color': item.color, '--item-bg': item.bg, '--item-border': item.border } as React.CSSProperties}
+                  onClick={() => !isDisabled && handleItemClick(item)}
+                  disabled={isDisabled}
+                >
+                  <div className="goal-preset-emoji">{item.emoji}</div>
+                  <div className="goal-preset-name">{item.name}</div>
+                  <div className="goal-preset-pts" style={{ color: item.color }}>{item.cost.toLocaleString()}p</div>
+                  {isDisabled && <div className="market-item-lock">포인트 부족</div>}
+                </button>
+              );
+            })}
+            {/* 직접 설정하기 — 목표 모드에서만 */}
+            {rewardMode === 'goal' && (
+              <button className="goal-preset-card goal-preset-custom"
+                onClick={() => { setGoalPreselect(null); setShowGoalModal(true); }}>
+                <div className="goal-preset-emoji"><Plus size={22} /></div>
+                <div className="goal-preset-name">직접 설정</div>
+                <div className="goal-preset-pts" style={{ color: 'var(--text-muted)' }}>직접 입력</div>
+              </button>
+            )}
+          </div>
+
+          {/* 바로 사용하기 확인 모달 */}
+          {instantConfirming && (
+            <div className="modal-overlay modal-overlay--center" onClick={() => !instantSubmitting && setInstantConfirming(null)}>
+              <div className="modal modal-dialog" onClick={e => e.stopPropagation()}>
+                <div className="market-confirm-body">
+                  <div className="market-confirm-emoji">{instantConfirming.emoji}</div>
+                  <h3 className="market-confirm-title">{instantConfirming.name}</h3>
+                  <p className="market-confirm-desc">{instantConfirming.desc}</p>
+                  <div className="market-confirm-cost">
+                    <span>{instantConfirming.cost.toLocaleString()}pt 차감</span>
+                    <span className="market-confirm-remain">잔여 {(spendablePoints - instantConfirming.cost).toLocaleString()}pt</span>
+                  </div>
+                  <p className="market-confirm-hint">그룹장이 승인하면 최종 차감돼요.</p>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                    <button className="btn-secondary" style={{ flex: 1 }}
+                      onClick={() => setInstantConfirming(null)} disabled={instantSubmitting}>취소</button>
+                    <button className="btn-primary" style={{ flex: 1 }}
+                      onClick={submitInstant} disabled={instantSubmitting}>
+                      {instantSubmitting ? <><Loader size={14} className="spin" /> 신청 중...</> : '신청하기'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 신청 내역 / 관리 */}
+          <PointsMarket userId={userId} totalEarnedPoints={myPoints} hideShop />
 
           {/* 포인트 순위 */}
           <div className="family-section-hd" style={{ marginTop: 16 }}>
@@ -380,20 +505,15 @@ export default function FamilyView({
               );
             })}
           </div>
-
-          {/* 보상 신청 */}
-          <div className="family-section-hd" style={{ marginTop: 16 }}>
-            <ShoppingBag size={15} /><span>보상 신청</span>
-          </div>
-          <PointsMarket userId={userId} totalEarnedPoints={myPoints} />
         </div>
       )}
 
       {/* 목표 설정 모달 */}
       {showGoalModal && (
         <GoalSetupModal
-          onClose={() => setShowGoalModal(false)}
-          onCreated={() => { setShowGoalModal(false); loadGoals(); }}
+          preselected={goalPreselect}
+          onClose={() => { setShowGoalModal(false); setGoalPreselect(null); }}
+          onCreated={() => { setShowGoalModal(false); setGoalPreselect(null); loadGoals(); }}
         />
       )}
     </div>

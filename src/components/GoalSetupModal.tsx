@@ -6,13 +6,14 @@ import { createGoal, uploadGoalImage } from '../services/goals';
 interface Props {
   onClose: () => void;
   onCreated: () => void;
+  preselected?: typeof MARKET_ITEMS[0] | null;
 }
 
 type Mode = 'preset' | 'custom';
 
-export default function GoalSetupModal({ onClose, onCreated }: Props) {
+export default function GoalSetupModal({ onClose, onCreated, preselected }: Props) {
   const [mode, setMode]               = useState<Mode>('preset');
-  const [selectedPreset, setSelected] = useState<typeof MARKET_ITEMS[0] | null>(null);
+  const [selectedPreset, setSelected] = useState<typeof MARKET_ITEMS[0] | null>(preselected ?? null);
   const [customName, setCustomName]   = useState('');
   const [customPoints, setCustomPoints] = useState('');
   const [imageFile, setImageFile]     = useState<File | null>(null);

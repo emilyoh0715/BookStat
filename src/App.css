@@ -5097,3 +5097,52 @@ textarea { resize: vertical; }
   padding: 16px 0;
   margin: 0;
 }
+
+/* 리워드 마켓 모드 토글 */
+.reward-mode-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--bg-base);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 4px;
+}
+.reward-mode-tab {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1.3;
+}
+.reward-mode-tab.active {
+  background: var(--bg-surface);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.reward-mode-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  padding: 0 2px;
+  line-height: 1.5;
+}
+
+/* 직접 설정하기 카드 (goal 모드) */
+.goal-preset-custom {
+  border: 2px dashed var(--border) !important;
+  background: transparent !important;
+  color: var(--text-muted);
+}
+.goal-preset-custom:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent);
+}
+.goal-preset-custom .goal-preset-emoji {
+  font-size: 24px;
+}

@@ -3513,42 +3513,57 @@ textarea { resize: vertical; }
 .home-stat-delta--zero { background: var(--bg-base); color: var(--text-muted); }
 .home-stat-delta--fire { background: color-mix(in srgb, #FF9F43 12%, transparent); color: #FF9F43; }
 
-/* ── 60/40 split ── */
-.home-content-split {
+/* ── 콘텐츠 영역 ──
+   모바일:        flex-column, order 값으로 표시 순서 지정
+   1024–1279px:  CSS Grid 2컬럼 (60/40), 미션+책 = 좌, 나머지 = 우
+   1280px+:      단일 컬럼, 우측 패널이 가족·포인트 담당 → 우컬럼 아이템 숨김 */
+.home-content {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+
+/* 모바일 순서: 가족현황 → 포인트 → 목표 → 미션 → 매거진 → 최근책 */
+.home-item { display: block; }
+.home-item--family   { order: 1; }
+.home-item--points   { order: 2; }
+.home-item--goal     { order: 3; }
+.home-item--missions { order: 4; }
+.home-item--magazine { order: 5; }
+.home-item--books    { order: 6; }
+
 @media (min-width: 1024px) and (max-width: 1279px) {
-  /* 우측 패널 없을 때만 60/40 분할 */
-  .home-content-split {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 20px;
+  .home-content {
+    display: grid;
+    grid-template-columns: 60fr 40fr;
+    grid-template-rows: auto auto auto auto;
+    column-gap: 20px;
+    row-gap: 16px;
+    align-items: start;
   }
-  .home-col-main {
-    flex: 6;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .home-col-side {
-    flex: 4;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
+  /* 좌 컬럼 (60%): 미션 + 최근책 */
+  .home-item--missions { grid-column: 1; grid-row: 1; order: unset; }
+  .home-item--books    { grid-column: 1; grid-row: 2; order: unset; }
+  /* 우 컬럼 (40%): 가족 + 포인트 + 목표 + 매거진 */
+  .home-item--family   { grid-column: 2; grid-row: 1; order: unset; }
+  .home-item--points   { grid-column: 2; grid-row: 2; order: unset; }
+  .home-item--goal     { grid-column: 2; grid-row: 3; order: unset; }
+  .home-item--magazine { grid-column: 2; grid-row: 4; order: unset; }
 }
+
 @media (min-width: 1280px) {
-  /* 우측 패널이 가족 정보 담당 → 단일 컬럼, 통계 그리드 강조 */
-  .home-col-side { display: none; }
-  .home-col-main {
+  .home-content {
     display: flex;
     flex-direction: column;
     gap: 16px;
   }
+  /* 우측 패널이 가족·포인트 정보를 담당 → 해당 아이템 숨김 */
+  .home-item--family,
+  .home-item--points,
+  .home-item--goal,
+  .home-item--magazine { display: none; }
+  .home-item--missions,
+  .home-item--books    { order: unset; }
   .home-stats-grid {
     grid-template-columns: repeat(4, 1fr);
   }
@@ -3588,6 +3603,66 @@ textarea { resize: vertical; }
   color: #fff;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* ── 현재 목표 카드 ── */
+.home-goal-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.home-goal-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.home-goal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-goal-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+.home-goal-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-base);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.home-goal-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+.home-goal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.home-goal-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.home-goal-pct {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
 }
 
 /* ── 가족 현황 카드 ── */

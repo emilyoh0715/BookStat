@@ -11,7 +11,7 @@ import {
   type ReadingGoal,
 } from '../services/goals';
 
-type FamilyTab = 'activity' | 'library' | 'points' | 'market';
+type FamilyTab = 'activity' | 'library' | 'market';
 
 interface Props {
   members:          Profile[];
@@ -81,7 +81,6 @@ export default function FamilyView({
   const TABS = [
     { id: 'activity' as const, label: '활동',        icon: <Activity    size={14} /> },
     { id: 'library'  as const, label: '서재',        icon: <BookOpen    size={14} /> },
-    { id: 'points'   as const, label: '포인트',      icon: <Trophy      size={14} /> },
     { id: 'market'   as const, label: '리워드 마켓', icon: <ShoppingBag size={14} /> },
   ];
 
@@ -240,13 +239,16 @@ export default function FamilyView({
         </div>
       )}
 
-      {/* ── 포인트 탭 ── */}
-      {tab === 'points' && (
+      {/* ── 리워드 마켓 탭 (목표 + 순위 + 마켓 통합) ── */}
+      {tab === 'market' && (
         <div className="family-tab-content">
 
           {/* 내 목표 */}
           <div className="family-section-hd">
             <Target size={15} /><span>내 목표</span>
+            {myGoal && (
+              <button className="goal-change-btn" onClick={() => setShowGoalModal(true)}>변경</button>
+            )}
           </div>
           {myGoal ? (
             <GoalCard goal={myGoal} currentPoints={myPoints} />
@@ -261,13 +263,13 @@ export default function FamilyView({
           {/* 승인 요청 */}
           {pendingGoals.length > 0 && (
             <>
-              <div className="family-section-hd" style={{ marginTop: 20 }}>
+              <div className="family-section-hd" style={{ marginTop: 16 }}>
                 <Check size={15} /><span>승인 요청</span>
                 <span className="market-tab-badge" style={{ marginLeft: 4 }}>{pendingGoals.length}</span>
               </div>
               {pendingGoals.map(goal => {
-                const owner  = members.find(m => m.id === goal.user_id);
-                const color  = memberColor(members, goal.user_id);
+                const owner = members.find(m => m.id === goal.user_id);
+                const color = memberColor(members, goal.user_id);
                 return (
                   <div key={goal.id} className="goal-approval-card">
                     <div className="goal-approval-who">
@@ -322,11 +324,10 @@ export default function FamilyView({
             </>
           )}
 
-          {/* 포인트 랭킹 */}
-          <div className="family-section-hd" style={{ marginTop: 20 }}>
+          {/* 포인트 순위 */}
+          <div className="family-section-hd" style={{ marginTop: 16 }}>
             <Trophy size={15} /><span>{year}년 포인트 순위</span>
           </div>
-
           {sortedByPts.length >= 2 && (
             <div className="family-podium">
               {[1, 0, 2].map(ri => {
@@ -350,7 +351,6 @@ export default function FamilyView({
               })}
             </div>
           )}
-
           <div className="family-rank-list">
             {sortedByPts.map((stat, idx) => {
               const member = members.find(m => m.id === stat.user_id);
@@ -371,7 +371,7 @@ export default function FamilyView({
                       {isMe && <span className="family-member-me-badge">나</span>}
                     </span>
                     <div className="family-rank-breakdown">
-                      <span>완독 {stat.book_added_points}pt</span>
+                      <span>책 추가 {stat.book_added_points}pt</span>
                       <span>감상문 {stat.review_approved_points}pt</span>
                     </div>
                   </div>
@@ -380,12 +380,11 @@ export default function FamilyView({
               );
             })}
           </div>
-        </div>
-      )}
 
-      {/* ── 리워드 마켓 탭 ── */}
-      {tab === 'market' && (
-        <div className="family-tab-content">
+          {/* 보상 신청 */}
+          <div className="family-section-hd" style={{ marginTop: 16 }}>
+            <ShoppingBag size={15} /><span>보상 신청</span>
+          </div>
           <PointsMarket userId={userId} totalEarnedPoints={myPoints} />
         </div>
       )}

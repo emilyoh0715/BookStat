@@ -1,4 +1,5 @@
-import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked, FileText, Flame } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked, FileText, Flame, CheckCircle, Target } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
@@ -15,16 +16,46 @@ interface Props {
   onNavigateToFamily: () => void;
   onShowAdd: () => void;
   onShowPoints: () => void;
+  onShowChildComplete?: (bookId?: string) => void;
 }
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 
+type MissionType = 'add' | 'stagnant' | 'check' | 'review';
+interface Mission {
+  id: string;
+  type: MissionType;
+  icon: string;
+  text: string;
+  bookId?: string;
+}
+
+function daysSince(dateStr: string): number {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+}
+
 export default function HomeView({
   profile, books, userId, groupMembers, groupMemberPoints, pointLogs,
-  onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints,
+  onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints, onShowChildComplete,
 }: Props) {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const todayStr = now.toISOString().slice(0, 10);
+  const todayKey = `reading_check_${userId}_${todayStr}`;
+
+  const [checkedToday, setCheckedToday] = useState<Set<string>>(() => {
+    try {
+      const s = localStorage.getItem(todayKey);
+      return s ? new Set(JSON.parse(s) as string[]) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
+
+  const checkBook = (bookId: string) => {
+    const next = new Set(checkedToday);
+    next.add(bookId);
+    setCheckedToday(next);
+    try { localStorage.setItem(todayKey, JSON.stringify([...next])); } catch {}
+  };
 
   const myBooks = books.filter(b => b.userId === userId);
   const myStats = groupMemberPoints.find(m => m.user_id === userId);
@@ -42,7 +73,6 @@ export default function HomeView({
   const familyPagesCount = familyFinishedThisMonth.reduce((s, b) => s + (b.totalPages ?? 0), 0);
   const hasFamilyPages = familyFinishedThisMonth.some(b => (b.totalPages ?? 0) > 0);
 
-  // 가족 연속 완독 스트릭 (완독일 기준 연속 일수)
   const familyStreak = (() => {
     const dates = books
       .filter(b => b.status === 'finished' && b.finishDate)
@@ -77,6 +107,49 @@ export default function HomeView({
   const myColor = MEMBER_COLORS[memberIdx >= 0 ? memberIdx % MEMBER_COLORS.length : 0];
 
   const isFamily = groupMembers.length > 1;
+
+  // ── 오늘의 독서 미션 ──
+  const missions = useMemo<Mission[]>(() => {
+    const list: Mission[] = [];
+    const reading = myBooks.filter(b => b.status === 'reading');
+
+    if (reading.length === 0) {
+      list.push({ id: 'add', type: 'add', icon: '📚', text: '읽을 책을 추가해보세요' });
+    } else {
+      const stagnant = reading.filter(b => b.startDate && daysSince(b.startDate) >= 21);
+      const active = reading.filter(b => !stagnant.find(s => s.id === b.id));
+
+      stagnant.slice(0, 1).forEach(b =>
+        list.push({ id: `stagnant-${b.id}`, type: 'stagnant', icon: '📖', text: `"${b.title}" 다 읽으셨나요?`, bookId: b.id })
+      );
+
+      active
+        .filter(b => !checkedToday.has(b.id))
+        .slice(0, 2)
+        .forEach(b =>
+          list.push({ id: `check-${b.id}`, type: 'check', icon: '✅', text: `오늘 "${b.title}" 읽기 체크!`, bookId: b.id })
+        );
+    }
+
+    if (list.length < 3) {
+      myBooks
+        .filter(b => b.status === 'finished' && !b.review?.trim())
+        .slice(0, 1)
+        .forEach(b =>
+          list.push({ id: `review-${b.id}`, type: 'review', icon: '✍️', text: `"${b.title}" 감상문 써볼까요?`, bookId: b.id })
+        );
+    }
+
+    return list.slice(0, 3);
+  }, [myBooks, checkedToday]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleMission = (m: Mission) => {
+    if (m.type === 'add') { onShowAdd(); return; }
+    if (m.type === 'check') { checkBook(m.bookId!); return; }
+    if ((m.type === 'stagnant' || m.type === 'review') && onShowChildComplete) {
+      onShowChildComplete(m.bookId);
+    }
+  };
 
   return (
     <div className="home-view">
@@ -144,17 +217,14 @@ export default function HomeView({
             </span>
           </div>
           <div className="home-points-right">
-            {/* 이번 달 헤더 — 2열 차지 */}
             <span className="home-points-month-label">이번 달</span>
             <span className="home-points-month-val">
               {thisMonthTotal > 0 ? <strong style={{ color: '#22C55E' }}>+{thisMonthTotal}pt</strong> : '--'}
             </span>
-            {/* 책 추가 */}
             <div className="home-points-month-row">
               <span className="home-points-month-row-label"><Zap size={11} /> 책 추가</span>
             </div>
             <span className="home-points-month-val">+{thisMonthBookPts}pt</span>
-            {/* 후기 승인 */}
             <div className="home-points-month-row">
               <span className="home-points-month-row-label"><Star size={11} /> 후기 승인</span>
             </div>
@@ -166,7 +236,39 @@ export default function HomeView({
         </div>
       </button>
 
-      {/* ④ 오늘의 매거진 (플레이스홀더) */}
+      {/* ④ 오늘의 독서 미션 */}
+      <div className="home-missions-card">
+        <div className="home-missions-header">
+          <span className="home-missions-tag">
+            <Target size={12} /> 오늘의 독서 미션
+          </span>
+        </div>
+        {missions.length === 0 ? (
+          <div className="home-missions-empty">
+            <CheckCircle size={22} style={{ color: '#2ecc71' }} />
+            <p>오늘 할 일을 모두 완료했어요! 🎉</p>
+          </div>
+        ) : (
+          <div className="home-missions-list">
+            {missions.map(m => (
+              <button
+                key={m.id}
+                className={`home-mission-item home-mission-item--${m.type}`}
+                onClick={() => handleMission(m)}
+              >
+                <span className="home-mission-icon">{m.icon}</span>
+                <span className="home-mission-text">{m.text}</span>
+                {m.type === 'check'
+                  ? <CheckCircle size={16} className="home-mission-action-icon home-mission-action-icon--check" />
+                  : <ChevronRight size={15} className="home-mission-action-icon" />
+                }
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ⑤ 오늘의 매거진 (플레이스홀더) */}
       <div className="home-magazine-card">
         <div className="home-magazine-top">
           <span className="home-magazine-tag">오늘의 매거진</span>
@@ -183,7 +285,7 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* ⑤ 최근 읽은 책 */}
+      {/* ⑥ 최근 읽은 책 */}
       <section className="home-section">
         <div className="home-section-hd">
           <BookOpen size={14} />

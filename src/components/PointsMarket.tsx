@@ -8,7 +8,7 @@ export const MARKET_ITEMS = [
     id: 'snack',
     name: '편의점 간식',
     emoji: '🍭',
-    cost: 100,
+    cost: 50,
     desc: '편의점에서 원하는 간식 마음껏',
     color: '#e91e8c',
     bg: 'rgba(233,30,140,0.08)',
@@ -18,7 +18,7 @@ export const MARKET_ITEMS = [
     id: 'stationery',
     name: '문구용품',
     emoji: '✏️',
-    cost: 300,
+    cost: 150,
     desc: '예쁜 노트 · 펜 · 스티커 세트',
     color: '#f5a623',
     bg: 'rgba(245,166,35,0.08)',
@@ -28,7 +28,7 @@ export const MARKET_ITEMS = [
     id: 'craft_kit',
     name: '만들기 세트',
     emoji: '🎨',
-    cost: 500,
+    cost: 300,
     desc: '공예 · 클레이 · DIY 키트 1개',
     color: '#26c6da',
     bg: 'rgba(38,198,218,0.08)',
@@ -38,7 +38,7 @@ export const MARKET_ITEMS = [
     id: 'doll_keyring',
     name: '인형 키링',
     emoji: '🧸',
-    cost: 1000,
+    cost: 600,
     desc: '귀여운 캐릭터 인형 키링 1개',
     color: '#ab47bc',
     bg: 'rgba(171,71,188,0.08)',
@@ -72,6 +72,7 @@ const STATUS_META = {
 };
 
 export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
+  const year = new Date().getFullYear();
   const [tab, setTab] = useState<'shop' | 'history' | 'admin'>('shop');
   const [groupId, setGroupId] = useState<string | null>(null);
   const [myRedemptions, setMyRedemptions]     = useState<Redemption[]>([]);
@@ -101,11 +102,17 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
     if (!membership) return;
     setGroupId(membership.group_id);
 
-    // 내 신청 내역
+    // 현재 연도 기준으로만 신청 내역 집계 (연도별 리셋)
+    const yearStart = `${year}-01-01`;
+    const yearEnd   = `${year + 1}-01-01`;
+
+    // 내 신청 내역 (올해만)
     const { data: mine } = await supabase
       .from('point_redemptions')
       .select('*')
       .eq('user_id', userId)
+      .gte('requested_at', yearStart)
+      .lt('requested_at',  yearEnd)
       .order('requested_at', { ascending: false });
 
     const list = (mine ?? []) as Redemption[];
@@ -113,11 +120,13 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
     setApprovedCost(list.filter(r => r.status === 'approved').reduce((s, r) => s + r.points_cost, 0));
     setPendingCost(list.filter(r => r.status === 'pending').reduce((s, r) => s + r.points_cost, 0));
 
-    // 그룹 전체 신청 내역
+    // 그룹 전체 신청 내역 (올해만)
     const { data: all } = await supabase
       .from('point_redemptions')
       .select('*')
       .eq('group_id', membership.group_id)
+      .gte('requested_at', yearStart)
+      .lt('requested_at',  yearEnd)
       .order('requested_at', { ascending: false });
 
     if (all && all.length > 0) {
@@ -205,6 +214,12 @@ export default function PointsMarket({ userId, totalEarnedPoints }: Props) {
             <div className="market-balance-pending">검토 중 -{pendingCost}pt</div>
           )}
         </div>
+      </div>
+
+      {/* 유효기간 안내 */}
+      <div className="market-expiry-notice">
+        <Clock size={12} />
+        포인트 유효기간: {year}년 12월 31일까지
       </div>
 
       {/* 탭 */}

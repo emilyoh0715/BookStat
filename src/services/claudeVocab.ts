@@ -126,41 +126,63 @@ function buildFallbackReview(
 }
 
 /**
- * 아이의 답변(평점·감정·질문 2개)을 바탕으로 Claude가 독후감 자동 생성
+ * 답변(평점·감정·질문 2개)을 바탕으로 Claude가 독후감 자동 생성
+ * - qualityLevel 0: 답변 없음 → 짧은 기본 fallback (AI 미호출)
+ * - qualityLevel 1: 답변 1개이거나 짧은 경우 → 간단한 리뷰 (2~3문장)
+ * - qualityLevel 2: 둘 다 충분히 답변 (≥30자) → 풍부한 리뷰 (3~5문장)
  */
 export async function generateChildReview(
   bookTitle: string,
   rating: number,
   emotionKey: string,
   answers: { question: string; answer: string }[],
+  isChild: boolean = true,
 ): Promise<string> {
   const emotionLabel = EMOTION_LABELS[emotionKey] ?? emotionKey;
-  const filled = answers.filter(a => a.answer.trim());
+  const filled = answers.filter(a => a.answer.trim().length > 0);
+  const wellAnswered = answers.filter(a => a.answer.trim().length >= 30);
+
+  const qualityLevel: 0 | 1 | 2 =
+    filled.length === 0 ? 0
+    : wellAnswered.length >= 2 ? 2
+    : 1;
 
   const apiKey = getApiKey();
-  if (!apiKey) {
+  if (!apiKey || qualityLevel === 0) {
     return buildFallbackReview(emotionLabel, answers);
   }
 
   const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
-  const answersText = filled.length
-    ? filled.map(a => `Q: ${a.question}\nA: ${a.answer.trim()}`).join('\n\n')
-    : '(답변 없음)';
+  const answersText = filled.map(a => `Q: ${a.question}\nA: ${a.answer.trim()}`).join('\n\n');
+  const writer = isChild ? '아이가' : '독자가';
+  const writerPoss = isChild ? '아이의' : '독자의';
 
-  const prompt = `아이가 책을 읽고 답한 내용을 바탕으로 자연스러운 독후감을 작성해주세요.
+  const toneGuide = isChild
+    ? '초등학생 아이가 직접 쓴 것처럼 솔직하고 자연스러운 말투'
+    : '자연스러운 성인 독후감 문체, 담백하고 진솔하게';
+
+  const lengthGuide = qualityLevel === 2
+    ? '3~5문장, 책의 구체적인 내용과 느낌을 풍부하게'
+    : '2~3문장, 간단하고 솔직하게';
+
+  const contentGuide = qualityLevel === 2
+    ? `${writerPoss} 답변 내용을 충실히 반영해 책의 구체적인 내용이 들어가도록 작성`
+    : `${writerPoss} 답변을 참고해 책에 대한 느낌을 간단히 표현`;
+
+  const prompt = `${writer} 책을 읽고 답한 내용을 바탕으로 자연스러운 독후감을 작성해주세요.
 
 책 제목: "${bookTitle}"
 별점: ${stars} (${rating}/5)
-이 책을 읽은 느낌: ${emotionLabel}
+읽은 느낌: ${emotionLabel}
 
-아이의 답변:
+${writerPoss} 답변:
 ${answersText}
 
 [작성 지침]
-- 초등학생 아이가 직접 쓴 것처럼 솔직하고 자연스러운 말투
-- 아이의 답변 내용을 충실히 반영해 책의 구체적인 내용이 들어가도록 작성
-- 2~4문장, 짧고 진솔하게
-- 과하게 꾸미거나 어른스러운 표현 금지
+- ${toneGuide}
+- ${contentGuide}
+- ${lengthGuide}
+- 과하게 꾸미거나 형식적인 표현 금지
 - 독후감 텍스트만 출력 (JSON·특수 기호 불필요)`;
 
   try {
@@ -174,7 +196,7 @@ ${answersText}
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
-        max_tokens: 300,
+        max_tokens: qualityLevel === 2 ? 400 : 200,
         temperature: 0.7,
         messages: [{ role: 'user', content: prompt }],
       }),

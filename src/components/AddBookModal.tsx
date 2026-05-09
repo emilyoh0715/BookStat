@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import { GENRES } from '../lib/genres';
-import StarRating from './StarRating';
 import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader, Camera, Mic, Square } from 'lucide-react';
 import { recognizeBookFromImage, getApiKey } from '../services/claudeVocab';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -400,6 +399,16 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
               />
             </div>
             <div className="form-group">
+              <label>장르</label>
+              <select value={form.genre} onChange={e => set('genre', e.target.value)}>
+                <option value="">선택 안함</option>
+                {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
               <label>전체 페이지</label>
               <input type="number" value={form.totalPages} onChange={e => set('totalPages', e.target.value)} placeholder="0" min="1" />
             </div>
@@ -478,24 +487,10 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
 
           <div className="form-row">
             <div className="form-group">
-              <label>장르</label>
-              <select value={form.genre} onChange={e => set('genre', e.target.value)}>
-                <option value="">선택 안함</option>
-                {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
               <label>상태</label>
               <select value={form.status} onChange={e => set('status', e.target.value as ReadingStatus)}>
                 {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>현재 페이지</label>
-              <input type="number" value={form.currentPage} onChange={e => set('currentPage', e.target.value)} placeholder="0" min="0" />
             </div>
             <div className="form-group">
               <label>시작일</label>
@@ -509,14 +504,9 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
               <input type="date" value={form.finishDate} onChange={e => set('finishDate', e.target.value)} />
             </div>
             <div className="form-group">
-              <label>별점</label>
-              <StarRating value={form.rating} onChange={v => set('rating', v)} size={22} />
+              <label>현재 페이지</label>
+              <input type="number" value={form.currentPage} onChange={e => set('currentPage', e.target.value)} placeholder="0" min="0" />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label>리뷰</label>
-            <textarea value={form.review} onChange={e => set('review', e.target.value)} placeholder="이 책에 대한 생각을 남겨보세요..." rows={3} />
           </div>
 
           <div className="modal-footer">

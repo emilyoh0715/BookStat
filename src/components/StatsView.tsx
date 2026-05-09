@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, TrendingUp, Clock, RefreshCw, Sparkles } from 'lucide-react';
+import { BookOpen, TrendingUp, Clock, RefreshCw, Sparkles, CheckCircle, PauseCircle, Bookmark, Star, MessageSquare, Award } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
 import { getApiKey } from '../services/claudeVocab';
 
-type Period = 'week' | 'month' | 'year';
+type Period = 'month' | 'year' | 'all';
 type Scope = 'mine' | 'family';
+type ChartMetric = 'count' | 'pages';
 
 interface Props {
   books: Book[];
@@ -18,7 +19,18 @@ interface Props {
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const GENRE_COLORS = ['#7AA7FF', '#7CCEB4', '#FFC857', '#ab47bc', '#e91e8c', '#26c6da', '#f5a623', '#2ecc71', '#e74c3c', '#95a5a6'];
 
-// 점들을 부드러운 베지어 곡선으로 연결
+function fmtPages(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
+}
+
+function fmtVal(n: number, metric: ChartMetric): string {
+  if (metric === 'pages') return fmtPages(n);
+  return `${n}`;
+}
+
 function smoothPath(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return '';
   const d = [`M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`];
@@ -30,7 +42,6 @@ function smoothPath(pts: { x: number; y: number }[]): string {
   return d.join(' ');
 }
 
-// 도넛 차트
 function DonutChart({ data }: { data: { label: string; value: number; color: string }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return <p className="stats-empty">데이터 없음</p>;
@@ -76,9 +87,10 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
   );
 }
 
-export default function StatsView({ books, userId, groupMembers }: Props) {
+export default function StatsView({ books, userId, groupMembers, groupMemberPoints }: Props) {
   const [period, setPeriod] = useState<Period>('month');
   const [scope, setScope] = useState<Scope>('mine');
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('count');
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -86,12 +98,8 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
 
   const inPeriod = (dateStr: string | undefined): boolean => {
     if (!dateStr) return false;
+    if (period === 'all') return true;
     const d = new Date(dateStr);
-    if (period === 'week') {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(now.getDate() - 7);
-      return d >= weekAgo && d <= now;
-    }
     if (period === 'month') {
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     }
@@ -103,6 +111,24 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
     [books, userId, scope]
   );
 
+  // ── 전체 현황 (누적, 기간 무관) ──
+  const overviewStats = useMemo(() => {
+    const finished   = targetBooks.filter(b => b.status === 'finished').length;
+    const reading    = targetBooks.filter(b => b.status === 'reading').length;
+    const paused     = targetBooks.filter(b => b.status === 'paused').length;
+    const wantToRead = targetBooks.filter(b => b.status === 'want-to-read').length;
+    const reviews    = targetBooks.filter(b => b.review?.trim()).length;
+    const ratedBooks = targetBooks.filter(b => (b.rating ?? 0) > 0);
+    const avgRating  = ratedBooks.length > 0
+      ? (ratedBooks.reduce((s, b) => s + (b.rating ?? 0), 0) / ratedBooks.length).toFixed(1)
+      : null;
+    const points = scope === 'mine'
+      ? (groupMemberPoints.find(m => m.user_id === userId)?.total_points ?? 0)
+      : groupMemberPoints.reduce((s, m) => s + (m.total_points ?? 0), 0);
+    return { finished, reading, paused, wantToRead, reviews, avgRating, points };
+  }, [targetBooks, scope, groupMemberPoints, userId]);
+
+  // ── 기간별 분석 ──
   const finishedInPeriod = useMemo(() =>
     targetBooks.filter(b => b.status === 'finished' && inPeriod(b.finishDate)),
     [targetBooks, period] // eslint-disable-line react-hooks/exhaustive-deps
@@ -111,7 +137,6 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
   const totalPages = finishedInPeriod.reduce((s, b) => s + (b.totalPages ?? 0), 0);
   const hasPages = finishedInPeriod.some(b => (b.totalPages ?? 0) > 0);
 
-  // 평균 완독 기간 (startDate → finishDate 일수 평균)
   const avgDaysPerBook = useMemo(() => {
     const withDates = finishedInPeriod.filter(b => b.startDate && b.finishDate);
     if (withDates.length === 0) return null;
@@ -122,7 +147,6 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
     return Math.round(total / withDates.length);
   }, [finishedInPeriod]);
 
-  // 장르 비율
   const genreData = useMemo(() => {
     const counts: Record<string, number> = {};
     finishedInPeriod.forEach(b => {
@@ -135,7 +159,6 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
       .map(([k, v], i) => ({ label: k, value: v, color: GENRE_COLORS[i % GENRE_COLORS.length] }));
   }, [finishedInPeriod]);
 
-  // 요일별 완독 분포
   const dowData = useMemo(() => {
     const counts = Array(7).fill(0);
     finishedInPeriod.forEach(b => {
@@ -145,37 +168,57 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
   }, [finishedInPeriod]);
   const maxDow = Math.max(...dowData, 1);
 
-  // 월별 추이 (최근 6개월)
-  const months6 = useMemo(() => {
-    return Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const mb = targetBooks.filter(b => b.status === 'finished' && b.finishDate?.startsWith(key));
-      return {
-        label: `${d.getMonth() + 1}월`,
-        count: mb.length,
-        pages: mb.reduce((s, b) => s + (b.totalPages ?? 0), 0),
-      };
+  // ── 추이 차트 데이터 (기간에 따라 달라짐) ──
+  const chartData = useMemo(() => {
+    if (period === 'month') {
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const weekBuckets = [
+        { label: '1주', start: 1, end: 7 },
+        { label: '2주', start: 8, end: 14 },
+        { label: '3주', start: 15, end: 21 },
+        { label: '4주', start: 22, end: daysInMonth },
+      ];
+      return weekBuckets.map(w => {
+        const wb = targetBooks.filter(b => {
+          if (b.status !== 'finished' || !b.finishDate) return false;
+          const d = new Date(b.finishDate);
+          return d.getFullYear() === now.getFullYear() &&
+                 d.getMonth() === now.getMonth() &&
+                 d.getDate() >= w.start && d.getDate() <= w.end;
+        });
+        return { label: w.label, count: wb.length, pages: wb.reduce((s, b) => s + (b.totalPages ?? 0), 0) };
+      });
+    }
+    if (period === 'year') {
+      return Array.from({ length: 12 }, (_, i) => {
+        const key = `${now.getFullYear()}-${String(i + 1).padStart(2, '0')}`;
+        const mb = targetBooks.filter(b => b.status === 'finished' && b.finishDate?.startsWith(key));
+        return { label: `${i + 1}월`, count: mb.length, pages: mb.reduce((s, b) => s + (b.totalPages ?? 0), 0) };
+      });
+    }
+    // 'all' — group by year
+    const finished = targetBooks.filter(b => b.status === 'finished' && b.finishDate);
+    if (finished.length === 0) return [{ label: `${now.getFullYear()}`, count: 0, pages: 0 }];
+    const minYear = Math.min(...finished.map(b => new Date(b.finishDate!).getFullYear()));
+    const maxYear = Math.max(...finished.map(b => new Date(b.finishDate!).getFullYear()), now.getFullYear());
+    return Array.from({ length: maxYear - minYear + 1 }, (_, i) => {
+      const year = minYear + i;
+      const yb = finished.filter(b => new Date(b.finishDate!).getFullYear() === year);
+      return { label: `${year}`, count: yb.length, pages: yb.reduce((s, b) => s + (b.totalPages ?? 0), 0) };
     });
-  }, [targetBooks]);
+  }, [targetBooks, period]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // SVG 라인 차트 좌표 계산
   const cW = 300, cH = 110, pL = 28, pR = 12, pT = 14, pB = 22;
   const iW = cW - pL - pR, iH = cH - pT - pB;
-  const maxCnt = Math.max(...months6.map(m => m.count), 1);
-  const maxPgs = Math.max(...months6.map(m => m.pages), 1);
-  const n = months6.length;
-
-  const countPts = months6.map((m, i) => ({
-    x: pL + (i / (n - 1)) * iW,
-    y: pT + iH - (m.count / maxCnt) * iH,
-  }));
-  const pagePts = months6.map((m, i) => ({
-    x: pL + (i / (n - 1)) * iW,
-    y: pT + iH - (m.pages / maxPgs) * iH,
+  const n = chartData.length;
+  const maxVal = Math.max(...chartData.map(d => chartMetric === 'count' ? d.count : d.pages), 1);
+  const pts = chartData.map((d, i) => ({
+    x: pL + (n > 1 ? i / (n - 1) : 0.5) * iW,
+    y: pT + iH - ((chartMetric === 'count' ? d.count : d.pages) / maxVal) * iH,
   }));
 
-  // AI 한줄 요약 생성
+  const chartTitle = period === 'month' ? '주차별 독서 추이' : period === 'year' ? '월별 독서 추이' : '연도별 독서 추이';
+
   const generateAi = async () => {
     const apiKey = getApiKey();
     if (!apiKey) {
@@ -184,12 +227,12 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
     }
     setAiLoading(true);
     setAiSummary(null);
-    const periodLabel = period === 'week' ? '이번 주' : period === 'month' ? '이번 달' : '올해';
+    const pLabel = period === 'month' ? '이번 달' : period === 'year' ? '올해' : '전체 기간';
     const scopeLabel = scope === 'mine' ? '나' : '우리 가족';
     const topGenre = genreData[0]?.label ?? '기록 없음';
     const bestDay = DAYS_KO[dowData.indexOf(Math.max(...dowData))];
     const prompt = `${scopeLabel}의 독서 통계:
-- ${periodLabel} 완독: ${finishedInPeriod.length}권
+- ${pLabel} 완독: ${finishedInPeriod.length}권
 - 총 읽은 페이지: ${hasPages ? totalPages.toLocaleString() + 'p' : '기록 없음'}
 - 평균 완독 기간: ${avgDaysPerBook != null ? avgDaysPerBook + '일/권' : '기록 없음'}
 - 가장 많이 읽은 장르: ${topGenre}
@@ -223,22 +266,13 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
     ? (groupMembers.find(m => m.id === userId)?.display_name ?? '나')
     : '가족 전체';
 
-  const periodLabel = period === 'week' ? '이번 주' : period === 'month' ? '이번 달' : '올해';
+  const periodLabel = period === 'month' ? '이번 달' : period === 'year' ? '올해' : '전체 기간';
 
   return (
     <div className="stats-view">
 
-      {/* 기간 + 범위 선택 */}
+      {/* ① 범위 선택 */}
       <div className="stats-controls">
-        <div className="stats-seg-group">
-          {(['week', 'month', 'year'] as Period[]).map(p => (
-            <button key={p}
-              className={`stats-seg-btn ${period === p ? 'active' : ''}`}
-              onClick={() => setPeriod(p)}>
-              {p === 'week' ? '주간' : p === 'month' ? '월간' : '연간'}
-            </button>
-          ))}
-        </div>
         <div className="stats-seg-group">
           <button className={`stats-seg-btn ${scope === 'mine' ? 'active' : ''}`} onClick={() => setScope('mine')}>
             내 통계
@@ -251,9 +285,66 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
         </div>
       </div>
 
+      {/* ② 전체 현황 (누적) */}
+      <div className="stats-overview">
+        <p className="stats-overview-title">전체 현황</p>
+        <div className="stats-overview-status">
+          <div className="stats-overview-item">
+            <CheckCircle size={14} className="stats-overview-icon" style={{ color: '#2ecc71' }} />
+            <span className="stats-overview-val">{overviewStats.finished}</span>
+            <span className="stats-overview-lbl">완독</span>
+          </div>
+          <div className="stats-overview-item">
+            <BookOpen size={14} className="stats-overview-icon" style={{ color: '#3b7fd4' }} />
+            <span className="stats-overview-val">{overviewStats.reading}</span>
+            <span className="stats-overview-lbl">읽는 중</span>
+          </div>
+          <div className="stats-overview-item">
+            <PauseCircle size={14} className="stats-overview-icon" style={{ color: '#a78bfa' }} />
+            <span className="stats-overview-val">{overviewStats.paused}</span>
+            <span className="stats-overview-lbl">멈춤</span>
+          </div>
+          <div className="stats-overview-item">
+            <Bookmark size={14} className="stats-overview-icon" style={{ color: '#5ba8e5' }} />
+            <span className="stats-overview-val">{overviewStats.wantToRead}</span>
+            <span className="stats-overview-lbl">읽고 싶음</span>
+          </div>
+        </div>
+        <div className="stats-overview-meta">
+          <div className="stats-overview-item">
+            <Star size={14} className="stats-overview-icon" style={{ color: '#f5c518' }} />
+            <span className="stats-overview-val">{overviewStats.avgRating ?? '—'}</span>
+            <span className="stats-overview-lbl">평균 별점</span>
+          </div>
+          <div className="stats-overview-item">
+            <MessageSquare size={14} className="stats-overview-icon" style={{ color: '#e67e22' }} />
+            <span className="stats-overview-val">{overviewStats.reviews}</span>
+            <span className="stats-overview-lbl">후기</span>
+          </div>
+          <div className="stats-overview-item">
+            <Award size={14} className="stats-overview-icon" style={{ color: '#f5a623' }} />
+            <span className="stats-overview-val">{overviewStats.points.toLocaleString()}</span>
+            <span className="stats-overview-lbl">포인트</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ③ 기간 선택 */}
+      <div className="stats-controls">
+        <div className="stats-seg-group">
+          {(['month', 'year', 'all'] as Period[]).map(p => (
+            <button key={p}
+              className={`stats-seg-btn ${period === p ? 'active' : ''}`}
+              onClick={() => setPeriod(p)}>
+              {p === 'month' ? '월간' : p === 'year' ? '연간' : '전체기간'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <p className="stats-scope-label">{scopeName} · {periodLabel}</p>
 
-      {/* 요약 카드 3개 */}
+      {/* ④ 기간별 요약 3카드 */}
       <div className="stats-summary-row">
         <div className="stats-summary-card">
           <BookOpen size={15} className="stats-summary-icon" style={{ color: 'var(--accent)' }} />
@@ -263,8 +354,8 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
         </div>
         <div className="stats-summary-card">
           <TrendingUp size={15} className="stats-summary-icon" style={{ color: 'var(--accent-yellow)' }} />
-          <span className="stats-summary-val" style={{ fontSize: hasPages && totalPages > 999 ? 18 : undefined }}>
-            {hasPages ? totalPages.toLocaleString() : '--'}
+          <span className="stats-summary-val">
+            {hasPages ? fmtPages(totalPages) : '--'}
           </span>
           {hasPages && <span className="stats-summary-unit">p</span>}
           <span className="stats-summary-lbl">읽은 페이지</span>
@@ -277,67 +368,63 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
         </div>
       </div>
 
-      {/* 월별 독서 추이 */}
+      {/* ⑤ 독서 추이 차트 */}
       <div className="stats-card">
         <div className="stats-card-header">
-          <span className="stats-card-title">월별 독서 추이</span>
-          <div className="stats-chart-legend">
-            <span className="stats-legend-item">
-              <span className="stats-legend-dot" style={{ background: 'var(--accent)' }} /> 책 수
-            </span>
-            {months6.some(m => m.pages > 0) && (
-              <span className="stats-legend-item">
-                <span className="stats-legend-dot" style={{ background: 'var(--accent-yellow)' }} /> 페이지
-              </span>
-            )}
+          <span className="stats-card-title">{chartTitle}</span>
+          <div className="stats-metric-toggle">
+            <button
+              className={`stats-metric-btn ${chartMetric === 'count' ? 'active' : ''}`}
+              onClick={() => setChartMetric('count')}>
+              책 수
+            </button>
+            <button
+              className={`stats-metric-btn ${chartMetric === 'pages' ? 'active' : ''}`}
+              onClick={() => setChartMetric('pages')}>
+              페이지
+            </button>
           </div>
         </div>
         <svg viewBox={`0 0 ${cW} ${cH}`} className="stats-line-chart">
-          {/* 수평 그리드 */}
           {[0, 0.5, 1].map(t => (
             <line key={t}
               x1={pL} y1={pT + iH * (1 - t)}
               x2={cW - pR} y2={pT + iH * (1 - t)}
               stroke="var(--border)" strokeWidth="0.5" strokeDasharray="3,3" />
           ))}
-          {/* 페이지 곡선 (노란색) */}
-          {months6.some(m => m.pages > 0) && (
-            <path d={smoothPath(pagePts)} fill="none"
-              stroke="var(--accent-yellow)" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
-          )}
-          {/* 책 수 곡선 아래 영역 */}
           <path
-            d={`${smoothPath(countPts)} L ${countPts[n - 1].x.toFixed(1)} ${(pT + iH).toFixed(1)} L ${countPts[0].x.toFixed(1)} ${(pT + iH).toFixed(1)} Z`}
+            d={`${smoothPath(pts)} L ${pts[n - 1].x.toFixed(1)} ${(pT + iH).toFixed(1)} L ${pts[0].x.toFixed(1)} ${(pT + iH).toFixed(1)} Z`}
             fill="var(--accent)" opacity="0.08" />
-          {/* 책 수 곡선 */}
-          <path d={smoothPath(countPts)} fill="none"
+          <path d={smoothPath(pts)} fill="none"
             stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
-          {/* 점 */}
-          {countPts.map((p, i) => (
-            <g key={i}>
-              <circle cx={p.x} cy={p.y} r="4" fill="var(--bg-surface)" stroke="var(--accent)" strokeWidth="2" />
-              {months6[i].count > 0 && (
-                <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="9" fill="var(--accent)" fontWeight="700">
-                  {months6[i].count}
-                </text>
-              )}
-            </g>
-          ))}
-          {/* X축 레이블 */}
-          {months6.map((m, i) => (
+          {pts.map((p, i) => {
+            const val = chartMetric === 'count' ? chartData[i].count : chartData[i].pages;
+            return (
+              <g key={i}>
+                <circle cx={p.x} cy={p.y} r="4" fill="var(--bg-surface)" stroke="var(--accent)" strokeWidth="2" />
+                {val > 0 && (
+                  <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="9" fill="var(--accent)" fontWeight="700">
+                    {fmtVal(val, chartMetric)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          {chartData.map((d, i) => (period !== 'year' || i % 2 === 0) && (
             <text key={i}
-              x={pL + (i / (n - 1)) * iW} y={cH - 4}
+              x={pL + (n > 1 ? i / (n - 1) : 0.5) * iW} y={cH - 4}
               textAnchor="middle" fontSize="9" fill="var(--text-muted)">
-              {m.label}
+              {d.label}
             </text>
           ))}
-          {/* Y축 최댓값 */}
-          <text x={pL - 4} y={pT + 3} textAnchor="end" fontSize="8" fill="var(--text-muted)">{maxCnt}</text>
+          <text x={pL - 4} y={pT + 3} textAnchor="end" fontSize="8" fill="var(--text-muted)">
+            {fmtVal(maxVal, chartMetric)}
+          </text>
           <text x={pL - 4} y={pT + iH + 3} textAnchor="end" fontSize="8" fill="var(--text-muted)">0</text>
         </svg>
       </div>
 
-      {/* 장르 비율 + 요일별 완독 */}
+      {/* ⑥ 장르 비율 + 요일별 완독 */}
       <div className="stats-two-col">
         <div className="stats-card">
           <span className="stats-card-title">장르 비율</span>
@@ -364,17 +451,13 @@ export default function StatsView({ books, userId, groupMembers }: Props) {
         </div>
       </div>
 
-      {/* AI 한줄 분석 */}
+      {/* ⑦ AI 한줄 분석 */}
       <div className="stats-ai-card">
         <div className="stats-ai-header">
           <span className="stats-ai-tag">
             <Sparkles size={13} /> AI 독서 분석
           </span>
-          <button
-            className="stats-ai-btn"
-            onClick={generateAi}
-            disabled={aiLoading}
-          >
+          <button className="stats-ai-btn" onClick={generateAi} disabled={aiLoading}>
             {aiLoading
               ? <><RefreshCw size={11} className="spin" /> 분석 중</>
               : aiSummary ? '다시 생성' : '분석하기'}

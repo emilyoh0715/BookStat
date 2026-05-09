@@ -11,7 +11,7 @@ const EMOTIONS = [
   { key: 'boring',    emoji: '😴', label: '지루했어' },
 ];
 
-const QUESTION_POOL = [
+const CHILD_QUESTION_POOL = [
   '이 책에서 가장 기억에 남는 장면은 뭐야?',
   '이 책에서 가장 마음에 든 캐릭터는 누구야? 왜 좋았어?',
   '내가 주인공이었다면 어떻게 했을까?',
@@ -22,10 +22,22 @@ const QUESTION_POOL = [
   '이 책을 읽고 나서 하고 싶어진 것이 생겼어?',
 ];
 
+const ADULT_QUESTION_POOL = [
+  '이 책에서 가장 인상적인 장면이나 구절은 무엇이었나요?',
+  '주인공 또는 주요 인물에 대해 어떻게 생각하셨나요?',
+  '이 책을 읽고 새롭게 알게 되거나 생각이 바뀐 것이 있나요?',
+  '이 책이 삶이나 관점에 어떤 영향을 주었나요?',
+  '이 책을 다른 분께 추천한다면 어떤 분께 추천하시겠어요?',
+  '저자가 가장 말하고 싶었던 것은 무엇이라고 생각하시나요?',
+  '이 책에서 가장 공감이 갔던 부분은 무엇인가요?',
+  '이 책을 읽으며 특별히 기억에 남는 것이 있다면요?',
+];
+
 type Step = 'books' | 'rate' | 'emotion' | 'q1' | 'q2' | 'review' | 'done';
 
 interface Props {
   books: Book[];
+  isChild: boolean;
   onComplete: (bookId: string, updates: {
     rating: number;
     childEmotion: string;
@@ -35,7 +47,7 @@ interface Props {
   onClose: () => void;
 }
 
-export default function ChildReadingComplete({ books, onComplete, onClose }: Props) {
+export default function ChildReadingComplete({ books, isChild, onComplete, onClose }: Props) {
   const startStep: Step = books.length === 1 ? 'rate' : 'books';
   const startBook = books.length === 1 ? books[0] : null;
 
@@ -53,9 +65,10 @@ export default function ChildReadingComplete({ books, onComplete, onClose }: Pro
   const isReviewOnly = selectedBook?.status === 'finished';
 
   const [q1, q2] = useMemo(() => {
-    const shuffled = [...QUESTION_POOL].sort(() => Math.random() - 0.5);
+    const pool = isChild ? CHILD_QUESTION_POOL : ADULT_QUESTION_POOL;
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
     return [shuffled[0], shuffled[1]];
-  }, []);
+  }, [isChild]);
 
   const handleSelectBook = (book: Book) => {
     setSelectedBook(book);
@@ -71,6 +84,7 @@ export default function ChildReadingComplete({ books, onComplete, onClose }: Pro
       rating,
       emotion,
       [{ question: q1, answer: answer1 }, { question: q2, answer: answer2 }],
+      isChild,
     );
     setEditedReview(review);
     setGenerating(false);
@@ -129,7 +143,11 @@ export default function ChildReadingComplete({ books, onComplete, onClose }: Pro
         {step === 'rate' && selectedBook && (
           <div className="child-step">
             <div className="child-step-emoji">{isReviewOnly ? '✏️' : '🎉'}</div>
-            <div className="child-step-title">{isReviewOnly ? '후기를 써보자!' : '다 읽었어!'}</div>
+            <div className="child-step-title">
+              {isReviewOnly
+                ? (isChild ? '후기를 써보자!' : '후기를 작성해볼까요?')
+                : (isChild ? '다 읽었어!' : '완독을 축하해요!')}
+            </div>
             <div className="child-book-name">『{selectedBook.title}』</div>
             <div className="child-step-sub">이 책 몇 점짜리야?</div>
             <div className="child-stars">
@@ -155,7 +173,7 @@ export default function ChildReadingComplete({ books, onComplete, onClose }: Pro
         {step === 'emotion' && (
           <div className="child-step">
             <div className="child-step-emoji">💭</div>
-            <div className="child-step-title">이 책 어땠어?</div>
+            <div className="child-step-title">{isChild ? '이 책 어땠어?' : '이 책 어떠셨나요?'}</div>
             <div className="child-emotions">
               {EMOTIONS.map(e => (
                 <button
@@ -183,7 +201,7 @@ export default function ChildReadingComplete({ books, onComplete, onClose }: Pro
             <div className="child-step-title">{q1}</div>
             <textarea
               className="child-answer-input"
-              placeholder="자유롭게 써봐! (짧아도 괜찮아 😊)"
+              placeholder={isChild ? '자유롭게 써봐! (짧아도 괜찮아 😊)' : '자유롭게 작성해주세요. (짧게 써도 괜찮아요)'}
               value={answer1}
               onChange={e => setAnswer1(e.target.value)}
               rows={4}
@@ -202,7 +220,7 @@ export default function ChildReadingComplete({ books, onComplete, onClose }: Pro
             <div className="child-step-title">{q2}</div>
             <textarea
               className="child-answer-input"
-              placeholder="자유롭게 써봐! (짧아도 괜찮아 😊)"
+              placeholder={isChild ? '자유롭게 써봐! (짧아도 괜찮아 😊)' : '자유롭게 작성해주세요. (짧게 써도 괜찮아요)'}
               value={answer2}
               onChange={e => setAnswer2(e.target.value)}
               rows={4}
@@ -242,7 +260,11 @@ export default function ChildReadingComplete({ books, onComplete, onClose }: Pro
           <div className="child-step child-step--done">
             <div className="child-done-trophy">{isReviewOnly ? '⭐' : '🏆'}</div>
             <div className="child-step-title">{isReviewOnly ? '후기 저장 완료!' : '완독 성공!'}</div>
-            <div className="child-step-sub">{isReviewOnly ? '멋진 독후감이야! 👏' : '정말 잘했어! 다음 책도 기대돼 📚'}</div>
+            <div className="child-step-sub">
+              {isReviewOnly
+                ? (isChild ? '멋진 독후감이야! 👏' : '좋은 후기를 남겨주셨어요! 👏')
+                : (isChild ? '정말 잘했어! 다음 책도 기대돼 📚' : '훌륭해요! 다음 책도 기대할게요 📚')}
+            </div>
             <button className="btn-primary child-next-btn" onClick={onClose}>닫기</button>
           </div>
         )}

@@ -1,8 +1,9 @@
-import { Users, BookOpen, Award, ShoppingBag } from 'lucide-react';
+import { Users, BookOpen, Award, ShoppingBag, Activity } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
 import PointsMarket from './PointsMarket';
+import ActivityFeed from './ActivityFeed';
 
 interface Props {
   members: Profile[];
@@ -122,6 +123,17 @@ export default function FamilyView({
           );
         })}
       </div>
+
+      {/* 가족 활동 피드 */}
+      {members.length > 1 && (
+        <section className="family-feed-section">
+          <div className="family-section-hd">
+            <Activity size={15} />
+            <span>가족 활동</span>
+          </div>
+          <ActivityFeed books={books} members={members} userId={userId} />
+        </section>
+      )}
 
       {/* 포인트 마켓 */}
       <section className="family-market-section">

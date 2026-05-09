@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
+import type { Profile } from '../contexts/AuthContext';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
+import BookComments from './BookComments';
 import { lookupVocab, getApiKey, validateReview, saveRejectionReason, clearRejectionReason, getRejectionReason } from '../services/claudeVocab';
 import { awardPoints, calcReviewPoints, syncBookPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
-import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2, Mic, Square } from 'lucide-react';
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
 
 interface BookCandidate {
   cover: string;
@@ -68,8 +69,11 @@ interface Props {
   onAddNote: (note: { content: string; page?: number }) => void;
   onDeleteNote: (id: string) => void;
   onPointsSync?: () => void;
+  onWriteReview?: () => void;
   reviewStatus?: 'approved' | 'pending';
   readOnly?: boolean;
+  currentUserId?: string;
+  groupMembers?: Profile[];
 }
 
 type Tab = 'info' | 'vocab' | 'notes';
@@ -87,14 +91,12 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
   { value: 'other', label: '기타', flag: '🌐' },
 ];
 
-export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, onPointsSync, reviewStatus, readOnly }: Props) {
+export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, onPointsSync, onWriteReview, reviewStatus, readOnly, currentUserId, groupMembers }: Props) {
   const [tab, setTab] = useState<Tab>('info');
   const [editingInfo, setEditingInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
     status: book.status,
     currentPage: book.currentPage?.toString() ?? '',
-    rating: book.rating ?? 0,
-    review: book.review ?? '',
     finishDate: book.finishDate ?? '',
   });
 
@@ -155,19 +157,6 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setMetaAutoFilling(false);
   };
 
-  const [reviewMicLang, setReviewMicLang] = useState<'ko-KR' | 'en-US'>('ko-KR');
-
-  const reviewMic = useSpeechRecognition({
-    lang: reviewMicLang,
-    continuous: true,
-    onResult: (text) => {
-      setInfoForm(f => ({ ...f, review: f.review ? f.review + ' ' + text : text }));
-      setReviewValidationError('');
-    },
-  });
-
-  const [reviewValidating, setReviewValidating] = useState(false);
-  const [reviewValidationError, setReviewValidationError] = useState('');
   const [rejectionReason, setRejectionReason] = useState<string | null>(() => getRejectionReason(book.id));
   const [fetchingReason, setFetchingReason] = useState(false);
   // 'pass': AI가 통과 판정 (포인트 로그만 없는 상태), 'fail': 거절, null: 미확인
@@ -252,61 +241,19 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setInfoForm({
       status: book.status,
       currentPage: book.currentPage?.toString() ?? '',
-      rating: book.rating ?? 0,
-      review: book.review ?? '',
       finishDate: book.finishDate ?? '',
     });
     setEditingInfo(true);
   };
 
   const saveInfo = async () => {
-    setReviewValidationError('');
-
-    const newReview = infoForm.review.trim();
-    const oldReview = (book.review ?? '').trim();
-    // 완독 상태 + 후기 변경 + 별점 있을 때만 AI 검증
-    const isNewReview = newReview && newReview !== oldReview && infoForm.status === 'finished' && infoForm.rating > 0;
-
-    if (infoForm.status === 'finished' && newReview && !infoForm.rating) {
-      setReviewValidationError('별점을 함께 입력해야 포인트가 인정돼요.');
-      return;
-    }
-
-    if (isNewReview) {
-      setReviewValidating(true);
-      const result = await validateReview(newReview, book.title);
-      setReviewValidating(false);
-
-      if (!result.valid) {
-        const reason = result.reason ?? '후기가 기준을 충족하지 않아요. 책에 대한 감상을 완전한 문장으로 작성해주세요.';
-        setReviewValidationError(reason);
-        saveRejectionReason(book.id, reason);
-        setRejectionReason(reason);
-        setReviewCheckResult('fail');
-        return;
-      }
-
-      // 통과 시 거절 이유 삭제
-      clearRejectionReason(book.id);
-      setRejectionReason(null);
-      setReviewCheckResult('pass');
-      // Award points for approved review (idempotent — won't double-award)
-      awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language)).catch(console.error);
-    }
-
-    const newReviewValue = infoForm.review || undefined;
-
-    // 현재 상태 기반으로 포인트 동기화 (후기 삭제·상태 변경 시 포인트 제거)
-    // await로 완료를 기다린 뒤 포인트 화면 즉시 갱신
-    syncBookPoints(book.id, infoForm.status, newReviewValue, book.totalPages, book.language, infoForm.rating)
+    syncBookPoints(book.id, infoForm.status, book.review, book.totalPages, book.language, book.rating)
       .then(() => onPointsSync?.())
       .catch(console.error);
 
     onUpdate({
       status: infoForm.status,
       currentPage: infoForm.currentPage ? Number(infoForm.currentPage) : undefined,
-      rating: infoForm.rating || undefined,
-      review: newReviewValue,
       finishDate: infoForm.finishDate || undefined,
     });
     setEditingInfo(false);
@@ -549,10 +496,8 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                 {!readOnly && (!editingInfo
                   ? <button className="icon-btn" onClick={openInfo}><Edit2 size={16} /></button>
                   : <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="icon-btn success" onClick={saveInfo} disabled={reviewValidating}>
-                      {reviewValidating ? <Loader size={16} className="spin" /> : <Check size={16} />}
-                    </button>
-                    <button className="icon-btn" onClick={() => { setEditingInfo(false); setReviewValidationError(''); }}><X size={16} /></button>
+                    <button className="icon-btn success" onClick={saveInfo}><Check size={16} /></button>
+                    <button className="icon-btn" onClick={() => setEditingInfo(false)}><X size={16} /></button>
                   </div>
                 )}
               </div>
@@ -580,46 +525,16 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                         onChange={e => setInfoForm(f => ({ ...f, finishDate: e.target.value }))} />
                     </div>
                   </div>
-                  <div className="form-group">
-                    <label>별점</label>
-                    <StarRating value={infoForm.rating} onChange={v => setInfoForm(f => ({ ...f, rating: v }))} size={22} />
-                  </div>
-                  <div className="form-group">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <label style={{ margin: 0 }}>리뷰 {infoForm.status === 'finished' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>별점 + 후기 승인 시 +{calcReviewPoints(book.totalPages, book.language)}점</span>}</label>
-                      {reviewMic.supported && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <button
-                            type="button"
-                            onClick={() => { if (!reviewMic.listening) setReviewMicLang(l => l === 'ko-KR' ? 'en-US' : 'ko-KR'); }}
-                            style={{
-                              fontSize: 11, fontWeight: 700, padding: '2px 6px',
-                              borderRadius: 6, border: '1px solid var(--border)',
-                              background: 'var(--bg-surface)', color: 'var(--text-muted)',
-                              cursor: reviewMic.listening ? 'not-allowed' : 'pointer',
-                              opacity: reviewMic.listening ? 0.4 : 1,
-                            }}
-                            title="인식 언어 전환"
-                          >
-                            {reviewMicLang === 'ko-KR' ? '한' : 'EN'}
-                          </button>
-                          <button
-                            type="button"
-                            className={`icon-btn${reviewMic.listening ? ' mic-recording' : ''}`}
-                            onClick={reviewMic.listening ? reviewMic.stop : reviewMic.start}
-                            title={reviewMic.listening ? '음성 입력 중지' : '음성으로 후기 입력'}
-                          >
-                            {reviewMic.listening ? <Square size={15} /> : <Mic size={15} />}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <textarea value={infoForm.review} onChange={e => { setInfoForm(f => ({ ...f, review: e.target.value })); setReviewValidationError(''); }}
-                      placeholder="이 책에 대한 생각을 남겨보세요... (30자 이상, AI가 책 관련 후기인지 확인)" rows={4} />
-                    {reviewValidationError && (
-                      <p style={{ fontSize: 12, color: 'var(--danger)', margin: '4px 0 0' }}>{reviewValidationError}</p>
-                    )}
-                  </div>
+                  {!readOnly && onWriteReview && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 4 }}
+                      onClick={() => { setEditingInfo(false); onWriteReview(); }}
+                    >
+                      ✍️ 감상문 쓰기
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="info-display">
@@ -667,10 +582,29 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                       )}
                     </div>
                   )}
-                  {!book.review && <p className="empty-text">아직 리뷰가 없습니다.</p>}
+                  {!book.review && !readOnly && onWriteReview && (
+                    <button
+                      className="btn-secondary"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}
+                      onClick={onWriteReview}
+                    >
+                      ✍️ 감상문 쓰기
+                    </button>
+                  )}
+                  {!book.review && (readOnly || !onWriteReview) && <p className="empty-text">아직 리뷰가 없습니다.</p>}
                 </div>
               )}
             </div>
+
+            {/* 가족 댓글 */}
+            {currentUserId && groupMembers && groupMembers.length > 1 && (
+              <BookComments
+                bookId={book.id}
+                bookOwnerId={book.userId ?? currentUserId}
+                currentUserId={currentUserId}
+                members={groupMembers}
+              />
+            )}
           </div>
         )}
 

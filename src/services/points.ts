@@ -1,32 +1,44 @@
 import { supabase } from '../lib/supabase';
 
-/**
- * 완독 후기 포인트 계산
- * 페이지 수 기준 × 언어 배율 (외국어 ×1.5), 소수점 올림
- */
-export function calcReviewPoints(totalPages?: number, language?: string): number {
-  const pages = totalPages ?? 0;
-  const base =
-    pages <= 100 ? 3 :
-    pages <= 300 ? 5 :
-    pages <= 500 ? 8 : 12;
-  const multiplier = language === 'korean' ? 1.0 : 1.5;
-  return Math.ceil(base * multiplier);
-}
+export type PointReason = 'book_added' | 'book_finished' | 'review_approved';
 
 export interface PointLog {
   id: string;
   user_id: string;
   book_id: string;
-  reason: 'book_added' | 'review_approved';
+  reason: PointReason;
   points: number;
   created_at: string;
+}
+
+/**
+ * 완독 포인트 — 감상문 포인트보다 낮게 설정해 감상문 작성을 유도
+ */
+export function calcFinishedPoints(totalPages?: number, language?: string): number {
+  const pages = totalPages ?? 0;
+  const base =
+    pages <= 100 ? 5 :
+    pages <= 300 ? 10 :
+    pages <= 500 ? 15 : 20;
+  return Math.ceil(base * (language === 'korean' ? 1.0 : 1.5));
+}
+
+/**
+ * 감상문 포인트 — 완독 포인트보다 높게 설정
+ */
+export function calcReviewPoints(totalPages?: number, language?: string): number {
+  const pages = totalPages ?? 0;
+  const base =
+    pages <= 100 ? 15 :
+    pages <= 300 ? 25 :
+    pages <= 500 ? 40 : 60;
+  return Math.ceil(base * (language === 'korean' ? 1.0 : 1.5));
 }
 
 /** Remove points for a book+reason (e.g. when review is deleted). */
 export async function removePoints(
   bookId: string,
-  reason: 'book_added' | 'review_approved'
+  reason: PointReason
 ): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
@@ -40,10 +52,9 @@ export async function removePoints(
 
 /**
  * 책의 현재 상태를 기반으로 포인트 로그를 동기화.
- * - 후기 삭제 또는 완독 해제 → review_approved 포인트 제거
- * - 읽고 싶음으로 변경 → book_added 포인트 제거
- * - 그 외 상태로 복귀 → book_added 재부여 (idempotent)
- * (review_approved는 AI 검증 통과 시에만 추가, 여기서는 제거만)
+ * - 읽고 싶음으로 변경 → book_added 제거
+ * - 완독 아닌 상태 → book_finished / review_approved 제거
+ * - 그 외 → book_added 재부여 (idempotent)
  */
 export async function syncBookPoints(
   bookId: string,
@@ -63,11 +74,20 @@ export async function syncBookPoints(
       .delete()
       .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'book_added');
   } else {
-    await awardPoints(bookId, 'book_added', 1); // idempotent
+    await awardPoints(bookId, 'book_added', 2); // idempotent
   }
 
-  // review_approved 동기화 — 완독 + 후기 + 별점 모두 있을 때만 유지
-  const hasReview = status === 'finished' && !!review?.trim() && (rating ?? 0) > 0;
+  // book_finished / review_approved — 완독이 아닌 경우 제거
+  if (status !== 'finished') {
+    await supabase.from('point_logs').delete()
+      .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'book_finished');
+    await supabase.from('point_logs').delete()
+      .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'review_approved');
+    return;
+  }
+
+  // review_approved — 완독 + 후기 + 별점 모두 있을 때만 유지
+  const hasReview = !!review?.trim() && (rating ?? 0) > 0;
   if (!hasReview) {
     await supabase.from('point_logs')
       .delete()
@@ -75,17 +95,21 @@ export async function syncBookPoints(
   }
 }
 
-/** Award points for a book action. Idempotent — won't double-award the same book+reason. */
+/**
+ * Award points for a book action. Idempotent — won't double-award the same book+reason.
+ * @param finishDate  책의 완독일 (YYYY-MM-DD). 전달하면 로그 created_at을 완독 연도 기준으로 설정해
+ *                    연도별 포인트 집계가 완독 연도를 따르게 됩니다.
+ */
 export async function awardPoints(
   bookId: string,
-  reason: 'book_added' | 'review_approved',
-  points: number
+  reason: PointReason,
+  points: number,
+  finishDate?: string
 ): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
   const userId = session.user.id;
 
-  // Idempotency check: skip if already awarded for this book+reason
   const { data: existing } = await supabase
     .from('point_logs')
     .select('id')
@@ -95,18 +119,27 @@ export async function awardPoints(
     .maybeSingle();
   if (existing) return;
 
-  await supabase.from('point_logs').insert({ user_id: userId, book_id: bookId, reason, points });
+  // book_finished / review_approved 는 완독일을 created_at 으로 사용해
+  // 연도 필터가 완독 연도 기준으로 동작하게 함
+  const created_at = finishDate
+    ? `${finishDate}T12:00:00.000Z`
+    : new Date().toISOString();
+
+  await supabase.from('point_logs').insert({ user_id: userId, book_id: bookId, reason, points, created_at });
 }
 
-/** Fetch total points and full log for the currently authenticated user. */
+/** Fetch current-year points and log for the authenticated user. Resets each calendar year. */
 export async function getUserPoints(): Promise<{ total: number; logs: PointLog[] }> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return { total: 0, logs: [] };
 
+  const year = new Date().getFullYear();
   const { data } = await supabase
     .from('point_logs')
     .select('*')
     .eq('user_id', session.user.id)
+    .gte('created_at', `${year}-01-01T00:00:00.000Z`)
+    .lt('created_at',  `${year + 1}-01-01T00:00:00.000Z`)
     .order('created_at', { ascending: false });
 
   const logs = (data ?? []) as PointLog[];

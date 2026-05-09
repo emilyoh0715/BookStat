@@ -4,7 +4,6 @@ import type { ReadingStatus, BookLanguage } from './types';
 import BookCard from './components/BookCard';
 import BookDetail from './components/BookDetail';
 import AddBookModal from './components/AddBookModal';
-import Dashboard from './components/Dashboard';
 import SettingsModal from './components/SettingsModal';
 import AuthScreen from './components/AuthScreen';
 import ProfileSetup from './components/ProfileSetup';
@@ -18,9 +17,10 @@ import ProfileSelector from './components/ProfileSelector';
 import BookstatLogo from './components/BookstatLogo';
 import HomeView from './components/HomeView';
 import FamilyView from './components/FamilyView';
+import PointsCelebration from './components/PointsCelebration';
 import ReadingCheckinSection from './components/ReadingCheckinSection';
 import { useAuth } from './contexts/AuthContext';
-import { getUserPoints, awardPoints, removePoints, calcReviewPoints } from './services/points';
+import { getUserPoints, awardPoints, removePoints, calcReviewPoints, calcFinishedPoints } from './services/points';
 import type { PointLog } from './services/points';
 import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/claudeVocab';
 import { supabase } from './lib/supabase';
@@ -54,7 +54,7 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 export default function App() {
   useTheme(); // 테마 초기화 (토글은 SettingsModal에서)
   const { user, profile, loading: authLoading, signOut } = useAuth();
-  const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, getStats, filterBooks, getYears, groupByYear, refetchBooks } = useBooks();
+  const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, filterBooks, getYears, groupByYear, refetchBooks } = useBooks();
 
   const [introVisible, setIntroVisible] = useState(() => {
     if (sessionStorage.getItem('bookstat-intro-shown')) return false;
@@ -93,6 +93,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showChildComplete, setShowChildComplete] = useState(false);
+  const [childCompleteBookId, setChildCompleteBookId] = useState<string | null>(null);
+  const [pointsCelebration, setPointsCelebration] = useState<{ points: number; label: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
@@ -100,7 +102,6 @@ export default function App() {
   const [sortOrder, setSortOrder] = useState<'recent' | 'title'>('recent');
   const [groupByYearEnabled, setGroupByYearEnabled] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState<Set<number>>(new Set());
-  const [reviewFilter, setReviewFilter] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
   const [revalidateToast, setRevalidateToast] = useState<string | null>(null);
 
@@ -156,19 +157,42 @@ export default function App() {
     return data ?? [];
   };
 
-  // ─── 포인트 로드 & 실시간 동기화 ───
+  // ─── 포인트 로드 & 실시간 동기화 (현재 연도만 집계) ───
   const loadGroupPoints = async () => {
-    const { data } = await supabase.rpc('get_group_member_points');
-    if (data) {
-      setGroupMemberPoints(
-        (data as MemberStat[]).map(m => ({
+    // RPC로 멤버 프로필 목록을 가져온 뒤, point_logs를 연도 필터로 직접 집계
+    const { data: rpcData } = await supabase.rpc('get_group_member_points');
+    if (!rpcData || (rpcData as MemberStat[]).length === 0) return;
+
+    const year = new Date().getFullYear();
+    const memberIds = (rpcData as MemberStat[]).map(m => m.user_id);
+
+    const { data: yearLogs } = await supabase
+      .from('point_logs')
+      .select('user_id, reason, points')
+      .in('user_id', memberIds)
+      .gte('created_at', `${year}-01-01T00:00:00.000Z`)
+      .lt('created_at',  `${year + 1}-01-01T00:00:00.000Z`);
+
+    const totals = new Map<string, { total: number; bookAdded: number; reviewApproved: number }>();
+    (yearLogs ?? []).forEach(log => {
+      const cur = totals.get(log.user_id) ?? { total: 0, bookAdded: 0, reviewApproved: 0 };
+      cur.total += log.points;
+      if (log.reason === 'book_added')      cur.bookAdded      += log.points;
+      if (log.reason === 'review_approved') cur.reviewApproved += log.points;
+      totals.set(log.user_id, cur);
+    });
+
+    setGroupMemberPoints(
+      (rpcData as MemberStat[]).map(m => {
+        const yr = totals.get(m.user_id);
+        return {
           ...m,
-          total_points:            Number(m.total_points),
-          book_added_points:       Number(m.book_added_points ?? 0),
-          review_approved_points:  Number(m.review_approved_points ?? 0),
-        }))
-      );
-    }
+          total_points:           yr?.total          ?? 0,
+          book_added_points:      yr?.bookAdded       ?? 0,
+          review_approved_points: yr?.reviewApproved  ?? 0,
+        };
+      })
+    );
   };
 
   const loadMyLogs = async () => {
@@ -268,7 +292,6 @@ export default function App() {
 
   const totalBooksForUser = filterBooks(selectedUserId, 'all', 'all', 'all', '').length;
   const filtered = filterBooks(selectedUserId, statusFilter, langFilter, yearFilter, search)
-    .filter(b => !reviewFilter || !!b.review?.trim())
     .slice().sort((a, b) => {
       if (sortOrder === 'title') return a.title.localeCompare(b.title, 'ko');
       const dateA = a.finishDate ?? a.startDate ?? a.createdAt;
@@ -276,7 +299,6 @@ export default function App() {
       return dateB.localeCompare(dateA);
     });
 
-  const stats = getStats(selectedUserId);
   const years = getYears(selectedUserId);
 
   const handleSelectUser = (userId: string) => {
@@ -287,7 +309,6 @@ export default function App() {
     setYearFilter('all');
     setSearch('');
     setSortOrder('recent');
-    setReviewFilter(false);
     const idx = groupMembers.findIndex(m => m.id === userId);
     applyMemberColor(getMemberColor(idx >= 0 ? idx : 0));
   };
@@ -496,6 +517,7 @@ export default function App() {
               onNavigateToFamily={() => setMainView('family')}
               onShowAdd={() => setShowAdd(true)}
               onShowPoints={() => setShowPoints(true)}
+              onShowChildComplete={(bookId) => { setChildCompleteBookId(bookId ?? null); setShowChildComplete(true); }}
             />
           ) : mainView === 'stats' ? (
             <StatsView
@@ -523,8 +545,11 @@ export default function App() {
               onAddNote={note => addNote(selectedBook.id, note)}
               onDeleteNote={id => deleteNote(selectedBook.id, id)}
               onPointsSync={reloadPoints}
+              onWriteReview={isOwnLibrary ? () => { setChildCompleteBookId(selectedBook.id); setShowChildComplete(true); } : undefined}
               reviewStatus={getReviewStatus(selectedBook.id, selectedBook.userId ?? user.id)}
               readOnly={!isOwnLibrary}
+              currentUserId={user.id}
+              groupMembers={groupMembers}
             />
           ) : (
             <>
@@ -559,7 +584,7 @@ export default function App() {
                     ? <img src={selectedUser.avatar_url} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
                     : selectedUser?.display_name[0].toUpperCase()}
                 </span>
-                <h2>{selectedUser?.display_name}의 서재</h2>
+                <h2>{selectedUser?.display_name}의 서재 <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>· {totalBooksForUser}권</span></h2>
                 {isOwnLibrary && (
                   <button
                     className="icon-btn"
@@ -577,17 +602,7 @@ export default function App() {
                 <ReadingCheckinSection books={books} userId={user.id} />
               )}
 
-              <Dashboard
-                stats={stats}
-                statusFilter={statusFilter}
-                onStatusFilter={v => { setStatusFilter(v); setReviewFilter(false); }}
-                totalPoints={groupMemberPoints.find(m => m.user_id === selectedUserId)?.total_points}
-                onPointsClick={isOwnLibrary ? () => setShowPoints(true) : undefined}
-                reviewFilterActive={reviewFilter}
-                onReviewFilter={() => setReviewFilter(f => !f)}
-              />
-
-              <div className="list-controls">
+<div className="list-controls">
                 <div className="search-wrap">
                   <Search size={16} className="search-icon" />
                   <input
@@ -748,12 +763,24 @@ export default function App() {
         </main>
       </div>
 
-      {/* FAB — 데스크탑 책 추가 플로팅 버튼 */}
-      {isOwnLibrary && mainView === 'library' && !selectedBook && (
-        <button className="fab-add-btn" onClick={() => setShowAdd(true)} title="책 추가">
-          <Plus size={22} />
-        </button>
-      )}
+      {/* 서재 탭 통합 액션 바 */}
+      {isOwnLibrary && mainView === 'library' && !selectedBook && (() => {
+        const hasReading = filterBooks(user.id, 'reading', 'all', 'all', '').length > 0;
+        const hasNoReview = filterBooks(user.id, 'finished', 'all', 'all', '').some(b => !b.review?.trim());
+        const hasCompletable = hasReading || hasNoReview;
+        return (
+          <div className="library-action-bar">
+            <button className="library-action-btn library-action-btn--secondary" onClick={() => setShowAdd(true)}>
+              <Plus size={15} /> 책 추가
+            </button>
+            {hasCompletable && (
+              <button className="library-action-btn library-action-btn--primary" onClick={() => { setChildCompleteBookId(null); setShowChildComplete(true); }}>
+                {hasReading ? '📖 다 읽었어요' : '✏️ 후기 쓰기'}
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 모바일 하단 탭 바 */}
       <nav className="mobile-tab-bar">
@@ -818,8 +845,8 @@ export default function App() {
           onAdd={async book => {
             const bookId = await addBook(book, user.id);
             if (book.status !== 'want-to-read') {
-              awardPoints(bookId, 'book_added', 1)
-                .then(() => reloadPoints())
+              awardPoints(bookId, 'book_added', 2)
+                .then(() => { reloadPoints(); setPointsCelebration({ points: 2, label: '📚 책 추가 완료!' }); })
                 .catch(console.error);
             }
           }}
@@ -846,44 +873,66 @@ export default function App() {
       {showChildComplete && (() => {
         const readingBooks = filterBooks(user.id, 'reading', 'all', 'all', '');
         const noReviewBooks = filterBooks(user.id, 'finished', 'all', 'all', '').filter(b => !b.review?.trim());
-        const completableBooks = [...readingBooks, ...noReviewBooks];
+        const allCompletable = [...readingBooks, ...noReviewBooks];
+        // If triggered from a specific book, show only that book (even if filtered out above)
+        const targetBook = childCompleteBookId ? books.find(b => b.id === childCompleteBookId) : null;
+        const completableBooks = targetBook && !allCompletable.find(b => b.id === targetBook.id)
+          ? [targetBook, ...allCompletable]
+          : allCompletable;
         return (
           <ChildReadingComplete
             books={completableBooks}
+            isChild={profile?.is_child ?? false}
             onComplete={async (bookId, updates) => {
               const book = books.find(b => b.id === bookId);
               const wasReading = book?.status === 'reading';
+              // 완독일: 새로 완독하면 오늘, 이미 완독된 책이면 기존 날짜
+              const finishDate = wasReading
+                ? new Date().toISOString().split('T')[0]
+                : book?.finishDate;
               await updateBook(bookId, {
                 ...(wasReading ? {
                   status: 'finished' as const,
-                  finishDate: new Date().toISOString().split('T')[0],
+                  finishDate,
                 } : {}),
                 rating: updates.rating,
                 childEmotion: updates.childEmotion,
                 childAnswers: updates.childAnswers,
                 review: updates.review || undefined,
               });
+              let totalPts = 0;
+              let celebrationLabel = '';
+              if (wasReading) {
+                const finishedPts = calcFinishedPoints(book?.totalPages, book?.language);
+                // finishDate 전달 → 로그 created_at = 완독일 → 연도 필터가 완독 연도 기준으로 동작
+                await awardPoints(bookId, 'book_finished', finishedPts, finishDate);
+                totalPts += finishedPts;
+                celebrationLabel = '📖 완독 완료!';
+              }
               if (book && updates.review) {
                 clearRejectionReason(bookId);
-                await awardPoints(bookId, 'review_approved', calcReviewPoints(book.totalPages, book.language));
+                const reviewPts = calcReviewPoints(book.totalPages, book.language);
+                await awardPoints(bookId, 'review_approved', reviewPts, finishDate ?? book?.finishDate);
+                totalPts += reviewPts;
+                celebrationLabel = wasReading ? '✨ 완독 + 감상문 완성!' : '✍️ 감상문 완성!';
+              }
+              if (totalPts > 0) {
                 reloadPoints();
+                setPointsCelebration({ points: totalPts, label: celebrationLabel });
               }
               await refetchBooks();
             }}
-            onClose={() => setShowChildComplete(false)}
+            onClose={() => { setShowChildComplete(false); setChildCompleteBookId(null); }}
           />
         );
       })()}
-      {profile?.is_child && isOwnLibrary && !selectedBook && (() => {
-        const hasReading = filterBooks(user.id, 'reading', 'all', 'all', '').length > 0;
-        const hasNoReview = filterBooks(user.id, 'finished', 'all', 'all', '').some(b => !b.review?.trim());
-        if (!hasReading && !hasNoReview) return null;
-        return (
-          <button className="child-complete-fab" onClick={() => setShowChildComplete(true)}>
-            {hasReading ? '📖 다 읽었어요!' : '✏️ 후기 쓰기'}
-          </button>
-        );
-      })()}
+      {pointsCelebration && (
+        <PointsCelebration
+          points={pointsCelebration.points}
+          label={pointsCelebration.label}
+          onDismiss={() => setPointsCelebration(null)}
+        />
+      )}
     </div>
   );
 }

@@ -46,7 +46,7 @@ SELECT
   user_id::uuid,
   id           AS book_id,
   'book_added' AS reason,
-  1            AS points,
+  2            AS points,
   CASE
     WHEN status = 'finished' AND finish_date IS NOT NULL
       THEN (finish_date || 'T12:00:00.000Z')::timestamptz

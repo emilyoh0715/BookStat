@@ -82,9 +82,9 @@ export async function syncBookPoints(
     await supabase.from('point_logs')
       .delete()
       .eq('user_id', userId).eq('book_id', bookId).eq('reason', 'book_added');
-    await awardPoints(bookId, 'book_added', 1, finishDate);
+    await awardPoints(bookId, 'book_added', 2, finishDate);
   } else {
-    await awardPoints(bookId, 'book_added', 1); // idempotent (책 추가일 기준)
+    await awardPoints(bookId, 'book_added', 2); // idempotent (책 추가일 기준)
   }
 
   // book_finished / review_approved — 완독이 아닌 경우 제거

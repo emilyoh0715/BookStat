@@ -36,7 +36,7 @@ async function getMyGroupId(): Promise<string | null> {
 export async function getBookComments(bookId: string): Promise<BookComment[]> {
   const { data } = await supabase
     .from('book_comments')
-    .select('*, profiles(display_name, avatar_url)')
+    .select('*')
     .eq('book_id', bookId)
     .order('created_at', { ascending: true });
   return (data ?? []) as BookComment[];
@@ -67,7 +67,7 @@ export async function deleteBookComment(commentId: string): Promise<void> {
 export async function getGroupActivityComments(limit = 50): Promise<BookComment[]> {
   const { data } = await supabase
     .from('book_comments')
-    .select('*, profiles(display_name, avatar_url)')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
   return (data ?? []) as BookComment[];

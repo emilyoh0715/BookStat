@@ -131,8 +131,8 @@ export default function FamilyView({
   };
 
   const TABS = [
-    { id: 'activity' as const, label: '활동',        icon: <Activity    size={14} /> },
-    { id: 'library'  as const, label: '서재',        icon: <BookOpen    size={14} /> },
+    { id: 'activity' as const, label: '가족 활동',   icon: <Activity    size={14} /> },
+    { id: 'library'  as const, label: '가족 서재',   icon: <BookOpen    size={14} /> },
     { id: 'market'   as const, label: '리워드 마켓', icon: <ShoppingBag size={14} /> },
   ];
 
@@ -198,7 +198,7 @@ export default function FamilyView({
         ))}
       </div>
 
-      {/* ── 활동 ── */}
+      {/* ── 가족 활동 ── */}
       {tab === 'activity' && (
         <div className="family-tab-content">
           {members.length < 2
@@ -208,6 +208,67 @@ export default function FamilyView({
               </div>
             : <ActivityFeed books={books} members={members} userId={userId} />
           }
+
+          {/* 포인트 순위 */}
+          {sortedByPts.length >= 1 && (
+            <>
+              <div className="family-section-hd" style={{ marginTop: 20 }}>
+                <Trophy size={15} /><span>{year}년 포인트 순위</span>
+              </div>
+              {sortedByPts.length >= 2 && (
+                <div className="family-podium">
+                  {[1, 0, 2].map(ri => {
+                    const stat   = sortedByPts[ri];
+                    if (!stat) return <div key={ri} className="family-podium-slot empty" />;
+                    const member = members.find(m => m.id === stat.user_id);
+                    const color  = memberColor(members, stat.user_id);
+                    return (
+                      <div key={ri} className={`family-podium-slot rank-${ri + 1}`}>
+                        <div className="family-podium-emoji">{RANK_EMOJI[ri] ?? ''}</div>
+                        <div className="family-podium-avatar"
+                          style={{ background: color, width: ri === 0 ? 52 : 42, height: ri === 0 ? 52 : 42 }}>
+                          {member?.avatar_url
+                            ? <img src={member.avatar_url} alt="" />
+                            : <span>{(member?.display_name ?? '?')[0].toUpperCase()}</span>}
+                        </div>
+                        <div className="family-podium-name">{member?.display_name ?? '—'}</div>
+                        <div className="family-podium-pts" style={{ color }}>{stat.total_points.toLocaleString()}pt</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="family-rank-list">
+                {sortedByPts.map((stat, idx) => {
+                  const member = members.find(m => m.id === stat.user_id);
+                  const color  = memberColor(members, stat.user_id);
+                  const isMe   = stat.user_id === userId;
+                  const rank   = idx + 1;
+                  return (
+                    <div key={stat.user_id} className={`family-rank-row ${isMe ? 'me' : ''}`}>
+                      <span className="family-rank-no">{rank <= 3 ? RANK_EMOJI[rank - 1] : rank}</span>
+                      <div className="family-rank-avatar" style={{ background: color }}>
+                        {member?.avatar_url
+                          ? <img src={member.avatar_url} alt="" />
+                          : <span>{(member?.display_name ?? '?')[0].toUpperCase()}</span>}
+                      </div>
+                      <div className="family-rank-info">
+                        <span className="family-rank-name">
+                          {member?.display_name ?? '—'}
+                          {isMe && <span className="family-member-me-badge">나</span>}
+                        </span>
+                        <div className="family-rank-breakdown">
+                          <span>책 추가 {stat.book_added_points}pt</span>
+                          <span>감상문 {stat.review_approved_points}pt</span>
+                        </div>
+                      </div>
+                      <span className="family-rank-pts" style={{ color }}>{stat.total_points.toLocaleString()}pt</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -448,63 +509,6 @@ export default function FamilyView({
 
           {/* 신청 내역 / 관리 */}
           <PointsMarket userId={userId} totalEarnedPoints={myPoints} hideShop />
-
-          {/* 포인트 순위 */}
-          <div className="family-section-hd" style={{ marginTop: 16 }}>
-            <Trophy size={15} /><span>{year}년 포인트 순위</span>
-          </div>
-          {sortedByPts.length >= 2 && (
-            <div className="family-podium">
-              {[1, 0, 2].map(ri => {
-                const stat   = sortedByPts[ri];
-                if (!stat) return <div key={ri} className="family-podium-slot empty" />;
-                const member = members.find(m => m.id === stat.user_id);
-                const color  = memberColor(members, stat.user_id);
-                return (
-                  <div key={ri} className={`family-podium-slot rank-${ri + 1}`}>
-                    <div className="family-podium-emoji">{RANK_EMOJI[ri] ?? ''}</div>
-                    <div className="family-podium-avatar"
-                      style={{ background: color, width: ri === 0 ? 52 : 42, height: ri === 0 ? 52 : 42 }}>
-                      {member?.avatar_url
-                        ? <img src={member.avatar_url} alt="" />
-                        : <span>{(member?.display_name ?? '?')[0].toUpperCase()}</span>}
-                    </div>
-                    <div className="family-podium-name">{member?.display_name ?? '—'}</div>
-                    <div className="family-podium-pts" style={{ color }}>{stat.total_points.toLocaleString()}pt</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <div className="family-rank-list">
-            {sortedByPts.map((stat, idx) => {
-              const member = members.find(m => m.id === stat.user_id);
-              const color  = memberColor(members, stat.user_id);
-              const isMe   = stat.user_id === userId;
-              const rank   = idx + 1;
-              return (
-                <div key={stat.user_id} className={`family-rank-row ${isMe ? 'me' : ''}`}>
-                  <span className="family-rank-no">{rank <= 3 ? RANK_EMOJI[rank - 1] : rank}</span>
-                  <div className="family-rank-avatar" style={{ background: color }}>
-                    {member?.avatar_url
-                      ? <img src={member.avatar_url} alt="" />
-                      : <span>{(member?.display_name ?? '?')[0].toUpperCase()}</span>}
-                  </div>
-                  <div className="family-rank-info">
-                    <span className="family-rank-name">
-                      {member?.display_name ?? '—'}
-                      {isMe && <span className="family-member-me-badge">나</span>}
-                    </span>
-                    <div className="family-rank-breakdown">
-                      <span>책 추가 {stat.book_added_points}pt</span>
-                      <span>감상문 {stat.review_approved_points}pt</span>
-                    </div>
-                  </div>
-                  <span className="family-rank-pts" style={{ color }}>{stat.total_points.toLocaleString()}pt</span>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 

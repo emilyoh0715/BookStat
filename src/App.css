@@ -3366,7 +3366,120 @@ textarea { resize: vertical; }
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 560px;        /* 데스크탑에서도 모바일 너비로 집중 */
+  max-width: 560px;
+}
+@media (min-width: 1024px) {
+  .home-view {
+    max-width: 900px;
+  }
+}
+
+/* ── 통계 4칸 그리드 ── */
+.home-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (min-width: 1024px) {
+  .home-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+}
+.home-stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.home-stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.home-stat-card--static { cursor: default; }
+.home-stat-card--static:hover { transform: none; box-shadow: none; }
+.home-stat-icon-wrap {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.home-stat-icon-wrap--blue   { background: color-mix(in srgb, #3b7fd4 15%, transparent); color: #3b7fd4; }
+.home-stat-icon-wrap--yellow { background: color-mix(in srgb, #f5a623 15%, transparent); color: #f5a623; }
+.home-stat-icon-wrap--green  { background: color-mix(in srgb, #2ecc71 15%, transparent); color: #2ecc71; }
+.home-stat-icon-wrap--orange { background: color-mix(in srgb, #FF9F43 18%, transparent); color: #FF9F43; }
+.home-stat-icon-wrap--muted  { background: var(--bg-base); color: var(--text-muted); }
+.home-stat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.home-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.home-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-heading);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+.home-stat-unit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.home-stat-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 6px;
+  width: fit-content;
+}
+.home-stat-delta--up   { background: color-mix(in srgb, #2ecc71 12%, transparent); color: #2ecc71; }
+.home-stat-delta--down { background: color-mix(in srgb, #ef4444 10%, transparent); color: #ef4444; }
+.home-stat-delta--zero { background: var(--bg-base); color: var(--text-muted); }
+.home-stat-delta--fire { background: color-mix(in srgb, #FF9F43 12%, transparent); color: #FF9F43; }
+
+/* ── 60/40 split ── */
+.home-content-split {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+@media (min-width: 1024px) {
+  .home-content-split {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .home-col-main {
+    flex: 6;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .home-col-side {
+    flex: 4;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
 }
 
 /* ── 헤더 ── */

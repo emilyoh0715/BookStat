@@ -884,7 +884,7 @@ export default function App() {
           onAdd={async book => {
             const bookId = await addBook(book, user.id);
             if (book.status !== 'want-to-read') {
-              awardPoints(bookId, 'book_added', 2)
+              awardPoints(bookId, 'book_added', 1)
                 .then(() => { reloadPoints(); setPointsCelebration({ points: 2, label: '📚 책 추가 완료!' }); })
                 .catch(console.error);
             }

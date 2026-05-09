@@ -4043,6 +4043,398 @@ textarea { resize: vertical; }
   gap: 10px;
 }
 
+/* ── 서브탭 ── */
+.family-subtabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 14px;
+}
+.family-subtab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 4px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.family-subtab.active {
+  background: var(--bg-base);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.family-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.family-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ── 포디움 ── */
+.family-podium {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 16px 0 8px;
+}
+.family-podium-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 72px;
+}
+.family-podium-slot.empty { opacity: 0; pointer-events: none; }
+.family-podium-slot.rank-1 { order: 2; }
+.family-podium-slot.rank-2 { order: 1; }
+.family-podium-slot.rank-3 { order: 3; }
+.family-podium-emoji { font-size: 20px; }
+.family-podium-avatar {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  overflow: hidden;
+}
+.family-podium-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.family-podium-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.family-podium-pts  { font-size: 13px; font-weight: 700; }
+
+/* ── 순위 목록 ── */
+.family-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.family-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+.family-rank-row.me {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
+}
+.family-rank-no {
+  font-size: 14px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.family-rank-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.family-rank-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.family-rank-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.family-rank-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.family-rank-breakdown {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.family-rank-pts {
+  font-size: 15px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.family-points-year {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+/* ── 목표 카드 ── */
+.goal-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  position: relative;
+}
+.goal-card-left { flex-shrink: 0; }
+.goal-card-img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.goal-card-emoji {
+  font-size: 36px;
+  display: block;
+  width: 52px;
+  text-align: center;
+}
+.goal-card-body { flex: 1; min-width: 0; }
+.goal-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.goal-card-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.goal-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+.goal-status-badge.pending { background: rgba(245,166,35,0.15); color: #f5a623; }
+.goal-status-badge.active  { background: rgba(46,204,113,0.15); color: #2ecc71; }
+.goal-progress-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.goal-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.goal-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.goal-progress-text { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.goal-card-hint { font-size: 12px; color: var(--text-muted); margin: 0; }
+.goal-card-cancel {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: none; border: none;
+  color: var(--text-muted);
+  cursor: pointer; padding: 4px; border-radius: 4px;
+}
+.goal-card-cancel:hover { color: var(--danger); }
+
+.goal-empty-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 20px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.goal-empty-hint { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+
+/* ── 승인 카드 ── */
+.goal-approval-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+}
+.goal-approval-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.goal-approval-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 12px; font-weight: 700;
+  flex-shrink: 0; overflow: hidden;
+}
+.goal-approval-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.goal-approval-name  { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.goal-approval-label { font-size: 12px; color: var(--text-muted); }
+.goal-approval-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: var(--bg-base);
+  border-radius: 8px;
+}
+.goal-approval-img   { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+.goal-approval-emoji { font-size: 28px; width: 40px; text-align: center; }
+.goal-approval-item-name { font-size: 13px; font-weight: 700; color: var(--text-primary); margin: 0 0 2px; }
+.goal-approval-pts   { font-size: 12px; color: var(--accent); margin: 0; }
+.goal-reject-form { display: flex; flex-direction: column; gap: 6px; }
+
+/* ── 목표 설정 모달 ── */
+.goal-modal {
+  width: calc(100% - 32px);
+  max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+.goal-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.goal-modal-header h3 { margin: 0; font-size: 16px; }
+.goal-mode-tabs {
+  display: flex;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+.goal-mode-tab {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.goal-mode-tab.active {
+  background: var(--bg-base);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.goal-modal-body { flex: 1; }
+.goal-preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.goal-preset-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border-radius: 10px;
+  border: 2px solid var(--item-border, var(--border));
+  background: var(--item-bg, var(--bg-surface));
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.goal-preset-card.selected {
+  border-color: var(--item-color, var(--accent));
+}
+.goal-preset-check {
+  position: absolute;
+  top: 6px; right: 6px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+}
+.goal-preset-emoji { font-size: 28px; }
+.goal-preset-name  { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+.goal-preset-pts   { font-size: 13px; font-weight: 800; }
+.goal-custom-form  { display: flex; flex-direction: column; gap: 12px; }
+.goal-photo-upload {
+  width: 100%;
+  height: 140px;
+  border-radius: 10px;
+  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+.goal-photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.goal-photo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.goal-notice {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+  padding: 8px;
+  background: var(--bg-surface);
+  border-radius: 8px;
+}
+
 /* ── 활동 피드 ── */
 .activity-feed {
   display: flex;

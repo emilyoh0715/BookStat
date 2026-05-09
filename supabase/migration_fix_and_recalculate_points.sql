@@ -8,8 +8,8 @@
 --
 -- 새 적립 규칙:
 --   book_added      : +1pt   (책 추가일 기준)
---   book_finished   : 3/5/8/10pt × 언어배율  (완독일 기준)
---   review_approved : 8/13/20/30pt × 언어배율 (완독일 기준)
+--   book_finished   : 5/10/15/20pt × 언어배율  (완독일 기준)
+--   review_approved : 15/25/40/60pt × 언어배율 (완독일 기준)
 --   외국어 배율     : ×1.5 (소수점 올림)
 --
 -- 주의: 기존 point_logs 를 전부 삭제 후 재삽입합니다.
@@ -72,13 +72,13 @@ SELECT
   'book_finished' AS reason,
   CASE
     WHEN (total_pages IS NULL OR total_pages <= 100) THEN
-      CASE WHEN language IS NULL OR language = 'korean' THEN 3  ELSE 5  END
-    WHEN total_pages <= 300 THEN
       CASE WHEN language IS NULL OR language = 'korean' THEN 5  ELSE 8  END
-    WHEN total_pages <= 500 THEN
-      CASE WHEN language IS NULL OR language = 'korean' THEN 8  ELSE 12 END
-    ELSE
+    WHEN total_pages <= 300 THEN
       CASE WHEN language IS NULL OR language = 'korean' THEN 10 ELSE 15 END
+    WHEN total_pages <= 500 THEN
+      CASE WHEN language IS NULL OR language = 'korean' THEN 15 ELSE 23 END
+    ELSE
+      CASE WHEN language IS NULL OR language = 'korean' THEN 20 ELSE 30 END
   END AS points,
   COALESCE(
     (finish_date || 'T12:00:00.000Z')::timestamptz,
@@ -100,13 +100,13 @@ SELECT
   'review_approved' AS reason,
   CASE
     WHEN (total_pages IS NULL OR total_pages <= 100) THEN
-      CASE WHEN language IS NULL OR language = 'korean' THEN 8  ELSE 12 END
+      CASE WHEN language IS NULL OR language = 'korean' THEN 15 ELSE 23 END
     WHEN total_pages <= 300 THEN
-      CASE WHEN language IS NULL OR language = 'korean' THEN 13 ELSE 20 END
+      CASE WHEN language IS NULL OR language = 'korean' THEN 25 ELSE 38 END
     WHEN total_pages <= 500 THEN
-      CASE WHEN language IS NULL OR language = 'korean' THEN 20 ELSE 30 END
+      CASE WHEN language IS NULL OR language = 'korean' THEN 40 ELSE 60 END
     ELSE
-      CASE WHEN language IS NULL OR language = 'korean' THEN 30 ELSE 45 END
+      CASE WHEN language IS NULL OR language = 'korean' THEN 60 ELSE 90 END
   END AS points,
   COALESCE(
     (finish_date || 'T12:00:00.000Z')::timestamptz,

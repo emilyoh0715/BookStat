@@ -13,27 +13,27 @@ export interface PointLog {
 
 /**
  * 완독 포인트 — 감상문 포인트보다 낮게 설정해 감상문 작성을 유도
- * 한국어: 3/5/8/10pt   외국어: ×1.5 올림
+ * 한국어: 5/10/15/20pt   외국어: ×1.5 올림
  */
 export function calcFinishedPoints(totalPages?: number, language?: string): number {
   const pages = totalPages ?? 0;
   const base =
-    pages <= 100 ? 3 :
-    pages <= 300 ? 5 :
-    pages <= 500 ? 8 : 10;
+    pages <= 100 ?  5 :
+    pages <= 300 ? 10 :
+    pages <= 500 ? 15 : 20;
   return Math.ceil(base * (language === 'korean' ? 1.0 : 1.5));
 }
 
 /**
  * 감상문 포인트 — 완독 포인트보다 높게 설정
- * 한국어: 8/13/20/30pt   외국어: ×1.5 올림
+ * 한국어: 15/25/40/60pt   외국어: ×1.5 올림
  */
 export function calcReviewPoints(totalPages?: number, language?: string): number {
   const pages = totalPages ?? 0;
   const base =
-    pages <= 100 ? 8 :
-    pages <= 300 ? 13 :
-    pages <= 500 ? 20 : 30;
+    pages <= 100 ? 15 :
+    pages <= 300 ? 25 :
+    pages <= 500 ? 40 : 60;
   return Math.ceil(base * (language === 'korean' ? 1.0 : 1.5));
 }
 

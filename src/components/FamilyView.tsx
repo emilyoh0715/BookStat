@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, BookOpen, Award, ShoppingBag, Activity, Trophy, Target, Check, X, Loader, Plus, Bell, Clock, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { Users, BookOpen, Award, ShoppingBag, Activity, Trophy, Target, Check, X, Loader, Plus, Bell, Clock } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
@@ -466,127 +466,128 @@ export default function FamilyView({
             </button>
           </div>
 
-          {/* 승인 요청 */}
-          {pendingGoals.length > 0 && (
-            <>
-              <div className="family-section-hd" style={{ marginTop: 16 }}>
-                <Check size={15} /><span>승인 요청</span>
-                <span className="market-tab-badge" style={{ marginLeft: 4 }}>{pendingGoals.length}</span>
-              </div>
-              {pendingGoals.map(goal => {
-                const owner = members.find(m => m.id === goal.user_id);
-                const color = memberColor(members, goal.user_id);
-                return (
-                  <div key={goal.id} className="goal-approval-card">
-                    <div className="goal-approval-who">
-                      <div className="goal-approval-avatar" style={{ background: color }}>
-                        {owner?.avatar_url
-                          ? <img src={owner.avatar_url} alt="" />
-                          : <span>{(owner?.display_name ?? '?')[0].toUpperCase()}</span>}
-                      </div>
-                      <div>
-                        <span className="goal-approval-name">{owner?.display_name ?? '—'}</span>
-                        <span className="goal-approval-label">의 목표 승인 요청</span>
-                      </div>
-                    </div>
-                    <div className="goal-approval-item">
-                      {goal.item_image_url
-                        ? <img src={goal.item_image_url} alt="" className="goal-approval-img"
-                            onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; }} />
-                        : <span className="goal-approval-emoji">{goal.item_emoji ?? '🎁'}</span>}
-                      <div>
-                        <p className="goal-approval-item-name">{goal.item_name}</p>
-                        <p className="goal-approval-pts">{goal.points_required.toLocaleString()}p 필요</p>
-                      </div>
-                    </div>
-                    {rejectingId === goal.id ? (
-                      <div className="goal-reject-form">
-                        <input className="market-reject-input" placeholder="거절 사유 (선택)"
-                          value={rejectNote} onChange={e => setRejectNote(e.target.value)} />
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)' }}
-                            onClick={() => handleRejectGoal(goal.id)} disabled={resolving === goal.id}>
-                            {resolving === goal.id ? <Loader size={13} className="spin" /> : '거절'}
-                          </button>
-                          <button className="btn-secondary" style={{ flex: 1 }}
-                            onClick={() => { setRejectingId(null); setRejectNote(''); }}>취소</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn-primary" style={{ flex: 1 }}
-                          onClick={() => handleApproveGoal(goal.id)} disabled={resolving === goal.id}>
-                          {resolving === goal.id ? <Loader size={13} className="spin" /> : <><Check size={13} /> 승인</>}
-                        </button>
-                        <button className="btn-secondary" onClick={() => setRejectingId(goal.id)}>거절</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {/* 신청 관리 */}
-          <div className="family-section-hd" style={{ marginTop: 16 }}>
-            <Bell size={15} /><span>신청 관리</span>
-            {adminPending.length > 0 && (
-              <span className="market-tab-badge" style={{ marginLeft: 4 }}>{adminPending.length}</span>
-            )}
-          </div>
-          {adminPending.length === 0 ? (
-            <p className="market-inline-empty">승인 대기 중인 신청이 없어요</p>
-          ) : adminPending.map(r => {
-            const requester = members.find(m => m.id === r.user_id);
-            const color = memberColor(members, r.user_id);
-            const item = MARKET_ITEMS.find(i => i.id === r.item_id);
+          {/* 신청 관리 — 목표 직접 설정 + 보상 신청 통합 */}
+          {(() => {
+            const totalPending = pendingGoals.length + adminPending.length;
             return (
-              <div key={r.id} className="goal-approval-card">
-                <div className="goal-approval-who">
-                  <div className="goal-approval-avatar" style={{ background: color }}>
-                    {requester?.avatar_url
-                      ? <img src={requester.avatar_url} alt="" />
-                      : <span>{(requester?.display_name ?? '?')[0].toUpperCase()}</span>}
-                  </div>
-                  <div>
-                    <span className="goal-approval-name">{requester?.display_name ?? '—'}</span>
-                    <span className="goal-approval-label">의 보상 신청</span>
-                  </div>
+              <>
+                <div className="family-section-hd" style={{ marginTop: 16 }}>
+                  <Bell size={15} /><span>신청 관리</span>
+                  {totalPending > 0 && (
+                    <span className="market-tab-badge" style={{ marginLeft: 4 }}>{totalPending}</span>
+                  )}
                 </div>
-                <div className="goal-approval-item">
-                  <span className="goal-approval-emoji">{item?.emoji ?? '🎁'}</span>
-                  <div>
-                    <p className="goal-approval-item-name">{r.item_name}</p>
-                    <p className="goal-approval-pts">{r.points_cost.toLocaleString()}pt 차감 예정</p>
-                  </div>
-                </div>
-                {rejectingRedId === r.id ? (
-                  <div className="goal-reject-form">
-                    <input className="market-reject-input" placeholder="거절 사유 (선택)"
-                      value={rejectRedNote} onChange={e => setRejectRedNote(e.target.value)} />
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)' }}
-                        onClick={() => rejectRedemption(r.id)} disabled={resolvingRed === r.id}>
-                        {resolvingRed === r.id ? <Loader size={13} className="spin" /> : '거절'}
-                      </button>
-                      <button className="btn-secondary" style={{ flex: 1 }}
-                        onClick={() => { setRejectingRedId(null); setRejectRedNote(''); }}>취소</button>
-                    </div>
-                  </div>
+                {totalPending === 0 ? (
+                  <p className="market-inline-empty">승인 대기 중인 신청이 없어요</p>
                 ) : (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn-primary" style={{ flex: 1 }}
-                      onClick={() => approveRedemption(r.id)} disabled={resolvingRed === r.id}>
-                      {resolvingRed === r.id ? <Loader size={13} className="spin" /> : <><Check size={13} /> 승인</>}
-                    </button>
-                    <button className="btn-secondary" onClick={() => setRejectingRedId(r.id)}>거절</button>
-                  </div>
+                  <>
+                    {pendingGoals.map(goal => {
+                      const owner = members.find(m => m.id === goal.user_id);
+                      const color = memberColor(members, goal.user_id);
+                      return (
+                        <div key={`goal-${goal.id}`} className="goal-approval-card">
+                          <div className="goal-approval-who">
+                            <div className="goal-approval-avatar" style={{ background: color }}>
+                              {owner?.avatar_url
+                                ? <img src={owner.avatar_url} alt="" />
+                                : <span>{(owner?.display_name ?? '?')[0].toUpperCase()}</span>}
+                            </div>
+                            <div>
+                              <span className="goal-approval-name">{owner?.display_name ?? '—'}</span>
+                              <span className="goal-approval-label">의 직접 설정 목표</span>
+                            </div>
+                          </div>
+                          <div className="goal-approval-item">
+                            {goal.item_image_url
+                              ? <img src={goal.item_image_url} alt="" className="goal-approval-img"
+                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; }} />
+                              : <span className="goal-approval-emoji">{goal.item_emoji ?? '🎁'}</span>}
+                            <div>
+                              <p className="goal-approval-item-name">{goal.item_name}</p>
+                              <p className="goal-approval-pts">{goal.points_required.toLocaleString()}p 필요</p>
+                            </div>
+                          </div>
+                          {rejectingId === goal.id ? (
+                            <div className="goal-reject-form">
+                              <input className="market-reject-input" placeholder="거절 사유 (선택)"
+                                value={rejectNote} onChange={e => setRejectNote(e.target.value)} />
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)' }}
+                                  onClick={() => handleRejectGoal(goal.id)} disabled={resolving === goal.id}>
+                                  {resolving === goal.id ? <Loader size={13} className="spin" /> : '거절'}
+                                </button>
+                                <button className="btn-secondary" style={{ flex: 1 }}
+                                  onClick={() => { setRejectingId(null); setRejectNote(''); }}>취소</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button className="btn-primary" style={{ flex: 1 }}
+                                onClick={() => handleApproveGoal(goal.id)} disabled={resolving === goal.id}>
+                                {resolving === goal.id ? <Loader size={13} className="spin" /> : <><Check size={13} /> 승인</>}
+                              </button>
+                              <button className="btn-secondary" onClick={() => setRejectingId(goal.id)}>거절</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {adminPending.map(r => {
+                      const requester = members.find(m => m.id === r.user_id);
+                      const color = memberColor(members, r.user_id);
+                      const item = MARKET_ITEMS.find(i => i.id === r.item_id);
+                      return (
+                        <div key={`red-${r.id}`} className="goal-approval-card">
+                          <div className="goal-approval-who">
+                            <div className="goal-approval-avatar" style={{ background: color }}>
+                              {requester?.avatar_url
+                                ? <img src={requester.avatar_url} alt="" />
+                                : <span>{(requester?.display_name ?? '?')[0].toUpperCase()}</span>}
+                            </div>
+                            <div>
+                              <span className="goal-approval-name">{requester?.display_name ?? '—'}</span>
+                              <span className="goal-approval-label">의 보상 신청</span>
+                            </div>
+                          </div>
+                          <div className="goal-approval-item">
+                            <span className="goal-approval-emoji">{item?.emoji ?? '🎁'}</span>
+                            <div>
+                              <p className="goal-approval-item-name">{r.item_name}</p>
+                              <p className="goal-approval-pts">{r.points_cost.toLocaleString()}pt 차감 예정</p>
+                            </div>
+                          </div>
+                          {rejectingRedId === r.id ? (
+                            <div className="goal-reject-form">
+                              <input className="market-reject-input" placeholder="거절 사유 (선택)"
+                                value={rejectRedNote} onChange={e => setRejectRedNote(e.target.value)} />
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)' }}
+                                  onClick={() => rejectRedemption(r.id)} disabled={resolvingRed === r.id}>
+                                  {resolvingRed === r.id ? <Loader size={13} className="spin" /> : '거절'}
+                                </button>
+                                <button className="btn-secondary" style={{ flex: 1 }}
+                                  onClick={() => { setRejectingRedId(null); setRejectRedNote(''); }}>취소</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button className="btn-primary" style={{ flex: 1 }}
+                                onClick={() => approveRedemption(r.id)} disabled={resolvingRed === r.id}>
+                                {resolvingRed === r.id ? <Loader size={13} className="spin" /> : <><Check size={13} /> 승인</>}
+                              </button>
+                              <button className="btn-secondary" onClick={() => setRejectingRedId(r.id)}>거절</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
-              </div>
+              </>
             );
-          })}
+          })()}
 
-          {/* 내 사용 내역 */}
+          {/* 내 사용 내역 — 컴팩트 */}
           <div className="family-section-hd" style={{ marginTop: 16 }}>
             <Clock size={15} /><span>내 사용 내역</span>
           </div>
@@ -594,39 +595,33 @@ export default function FamilyView({
             <p className="market-inline-empty">아직 신청 내역이 없어요</p>
           ) : (
             <>
-              {(historyExpanded ? myRedemptions : myRedemptions.slice(0, 5)).map(r => {
-                const item = MARKET_ITEMS.find(i => i.id === r.item_id);
-                const isPending = r.status === 'pending';
-                return (
-                  <div key={r.id} className="market-history-row">
-                    <div className="market-history-emoji">{item?.emoji ?? '🎁'}</div>
-                    <div className="market-history-info">
-                      <span className="market-history-name">{r.item_name}</span>
-                      <span className="market-history-date">{r.requested_at.split('T')[0]}</span>
-                      {r.note && <span className="market-history-note">{r.note}</span>}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                      <span className="market-history-pts">-{r.points_cost}pt</span>
+              <div className="market-hc-list">
+                {(historyExpanded ? myRedemptions : myRedemptions.slice(0, 5)).map(r => {
+                  const item = MARKET_ITEMS.find(i => i.id === r.item_id);
+                  const isPending = r.status === 'pending';
+                  return (
+                    <div key={r.id} className="market-hc-row">
+                      <span className="market-hc-emoji">{item?.emoji ?? '🎁'}</span>
+                      <div className="market-hc-main">
+                        <span className="market-hc-name">{r.item_name}</span>
+                        <span className="market-hc-date">{r.requested_at.slice(0, 10)}</span>
+                      </div>
+                      <span className="market-hc-pts">-{r.points_cost}pt</span>
                       {isPending ? (
-                        <button className="market-cancel-btn"
-                          onClick={() => cancelRedemption(r.id)}
+                        <button className="market-hc-cancel" onClick={() => cancelRedemption(r.id)}
                           disabled={cancellingRed === r.id}>
-                          {cancellingRed === r.id
-                            ? <Loader size={11} className="spin" />
-                            : <><Trash2 size={11} /> 취소</>}
+                          {cancellingRed === r.id ? <Loader size={10} className="spin" /> : '취소'}
                         </button>
                       ) : (
-                        <span className="market-status-badge"
+                        <span className="market-hc-status"
                           style={{ color: r.status === 'approved' ? '#2ecc71' : 'var(--danger)' }}>
-                          {r.status === 'approved'
-                            ? <><CheckCircle size={12} /> 승인됨</>
-                            : <><XCircle size={12} /> 거절됨</>}
+                          {r.status === 'approved' ? '승인' : '거절'}
                         </span>
                       )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
               {myRedemptions.length > 5 && (
                 <button className="feed-more-btn" onClick={() => setHistoryExpanded(e => !e)}>
                   {historyExpanded ? '접기' : `더보기 (${myRedemptions.length - 5}개)`}

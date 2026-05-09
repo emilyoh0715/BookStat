@@ -5374,6 +5374,69 @@ textarea { resize: vertical; }
 .market-detail-actions .btn-primary,
 .market-detail-actions .btn-secondary { width: 100%; }
 
+/* 내 사용 내역 컴팩트 리스트 */
+.market-hc-list {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.market-hc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.market-hc-row:last-child { border-bottom: none; }
+.market-hc-emoji { font-size: 17px; flex-shrink: 0; }
+.market-hc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.market-hc-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.market-hc-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.market-hc-pts {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.market-hc-status {
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
+}
+.market-hc-cancel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.market-hc-cancel:hover { background: color-mix(in srgb, var(--danger) 18%, transparent); }
+.market-hc-cancel:disabled { opacity: 0.5; cursor: default; }
+
 /* 인라인 빈 상태 */
 .market-inline-empty {
   font-size: 13px;

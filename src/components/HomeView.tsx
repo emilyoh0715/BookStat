@@ -89,7 +89,9 @@ export default function HomeView({
 
   // 리워드 마켓 목표
   const [currentGoal, setCurrentGoal] = useState<ReadingGoal | null | undefined>(undefined);
+  const [goalImgError, setGoalImgError] = useState(false);
   useEffect(() => {
+    setGoalImgError(false);
     getMyCurrentGoal().then(setCurrentGoal).catch(() => setCurrentGoal(null));
   }, [userId]);
   const goalPct = currentGoal
@@ -352,8 +354,13 @@ export default function HomeView({
             {currentGoal != null && (
               <div className="home-goal-body">
                 <div className="home-goal-reward">
-                  {currentGoal.item_image_url
-                    ? <img src={currentGoal.item_image_url} alt="" className="home-goal-reward-img" />
+                  {currentGoal.item_image_url && !goalImgError
+                    ? <img
+                        src={currentGoal.item_image_url}
+                        alt=""
+                        className="home-goal-reward-img"
+                        onError={() => setGoalImgError(true)}
+                      />
                     : <span className="home-goal-reward-emoji">{currentGoal.item_emoji ?? '🎁'}</span>
                   }
                   <div className="home-goal-reward-info">

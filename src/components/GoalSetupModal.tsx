@@ -16,10 +16,11 @@ export default function GoalSetupModal({ onClose, onCreated, preselected }: Prop
   const [selectedPreset, setSelected] = useState<typeof MARKET_ITEMS[0] | null>(preselected ?? null);
   const [customName, setCustomName]   = useState('');
   const [customPoints, setCustomPoints] = useState('');
-  const [imageFile, setImageFile]     = useState<File | null>(null);
+  const [imageFile, setImageFile]       = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploading, setUploading]     = useState(false);
-  const [submitting, setSubmitting]   = useState(false);
+  const [uploading, setUploading]       = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [uploadError, setUploadError]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,6 +52,11 @@ export default function GoalSetupModal({ onClose, onCreated, preselected }: Prop
         setUploading(true);
         imageUrl = await uploadGoalImage(imageFile);
         setUploading(false);
+        if (!imageUrl) {
+          setUploadError(true);
+          setSubmitting(false);
+          return;
+        }
       }
       await createGoal({
         itemName:       customName.trim(),
@@ -151,6 +157,13 @@ export default function GoalSetupModal({ onClose, onCreated, preselected }: Prop
             </div>
           )}
         </div>
+
+        {/* 업로드 오류 */}
+        {uploadError && (
+          <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 4px', textAlign: 'center' }}>
+            사진 업로드에 실패했어요. Supabase Storage에서 <strong>goal-images</strong> 버킷이 Public으로 설정되어 있는지 확인해주세요.
+          </p>
+        )}
 
         {/* 안내 문구 */}
         <p className="goal-notice">

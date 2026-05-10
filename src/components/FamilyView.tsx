@@ -187,12 +187,13 @@ export default function FamilyView({
     const isPending  = goal.status === 'pending_approval';
     const progress   = isPending ? 0 : Math.min(100, Math.round((myPoints / goal.points_required) * 100));
     const remaining  = Math.max(0, goal.points_required - myPoints);
+    const [imgErr, setImgErr] = useState(false);
     return (
       <div className="goal-card">
         <div className="goal-card-left">
-          {goal.item_image_url
+          {goal.item_image_url && !imgErr
             ? <img src={goal.item_image_url} alt="" className="goal-card-img"
-                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                onError={() => setImgErr(true)} />
             : <span className="goal-card-emoji">{goal.item_emoji ?? '🎁'}</span>
           }
         </div>

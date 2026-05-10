@@ -90,7 +90,7 @@ export default function HomeView({
   // 리워드 마켓 목표
   const [currentGoal, setCurrentGoal] = useState<ReadingGoal | null | undefined>(undefined);
   useEffect(() => {
-    getMyCurrentGoal().then(setCurrentGoal);
+    getMyCurrentGoal().then(setCurrentGoal).catch(() => setCurrentGoal(null));
   }, [userId]);
   const goalPct = currentGoal
     ? Math.min(100, Math.round((myPoints / currentGoal.points_required) * 100))

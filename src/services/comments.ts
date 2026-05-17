@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { sendGroupPush } from './pushNotifications';
 
 export interface BookComment {
   id: string;
@@ -21,16 +22,20 @@ export interface ActivityLogItem {
 }
 
 async function getMyGroupId(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
-  const { data } = await supabase
-    .from('group_members')
-    .select('group_id')
-    .eq('user_id', session.user.id)
-    .eq('status', 'accepted')
-    .limit(1)
-    .maybeSingle();
-  return data?.group_id ?? null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    const { data } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .eq('user_id', session.user.id)
+      .in('status', ['accepted', 'pending'])
+      .limit(1)
+      .maybeSingle();
+    return data?.group_id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getBookComments(bookId: string): Promise<BookComment[]> {
@@ -47,25 +52,39 @@ export async function addBookComment(
   bookOwnerId: string,
   content: string
 ): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return '로그인이 필요해요.';
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return '로그인이 필요해요.';
 
-  const groupId = await getMyGroupId();
-  if (!groupId) return '그룹에 가입되어 있지 않아요.';
+    const groupId = await getMyGroupId();
+    if (!groupId) return '그룹에 가입되어 있지 않아요.';
 
-  const { error } = await supabase.from('book_comments').insert({
-    group_id: groupId,
-    book_id: bookId,
-    book_owner_id: bookOwnerId,
-    user_id: session.user.id,
-    content: content.trim(),
-  });
+    const { error } = await supabase.from('book_comments').insert({
+      group_id: groupId,
+      book_id: bookId,
+      book_owner_id: bookOwnerId,
+      user_id: session.user.id,
+      content: content.trim(),
+    });
 
-  if (error) {
-    console.error('[addBookComment]', error);
-    return error.message;
+    if (error) {
+      console.error('[addBookComment]', error);
+      return error.message;
+    }
+
+    // 같은 그룹 다른 멤버에게 푸시 알림 발송 (실패해도 댓글 작성은 성공)
+    sendGroupPush({
+      groupId:  groupId,
+      senderId: session.user.id,
+      title:    '📖 가족 한마디',
+      body:     content.trim().slice(0, 80),
+    });
+
+    return null;
+  } catch (e) {
+    console.error('[addBookComment] unexpected error', e);
+    return '댓글 작성 중 오류가 발생했어요.';
   }
-  return null;
 }
 
 export async function deleteBookComment(commentId: string): Promise<void> {

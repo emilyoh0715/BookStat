@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-import { MessageCircle, BookPlus, Award } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { MessageCircle, BookPlus, Award, Send, Loader } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
-import { getGroupActivityComments, type BookComment } from '../services/comments';
+import { getGroupActivityComments, addBookComment, type BookComment } from '../services/comments';
 import { supabase } from '../lib/supabase';
 
 type FeedItem =
@@ -33,6 +33,14 @@ export default function ActivityFeed({ books, members, userId }: Props) {
   const [loading, setLoading]   = useState(true);
   const [expanded, setExpanded] = useState(false);
 
+  // 인라인 댓글 상태
+  const [commentingBookId, setCommentingBookId]   = useState<string | null>(null);
+  const [commentingOwnerId, setCommentingOwnerId] = useState<string>('');
+  const [commentText, setCommentText]             = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentError, setCommentError]           = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const load = async () => {
     const data = await getGroupActivityComments(100);
     setComments(data);
@@ -51,18 +59,15 @@ export default function ActivityFeed({ books, members, userId }: Props) {
   const feed = useMemo(() => {
     const cutoff = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
 
-    // 다른 가족의 책 활동 (books prop은 RLS 없이 전체 로드됨)
     const bookItems: FeedItem[] = books
       .filter(b => b.userId !== userId)
       .flatMap(b => {
         const items: FeedItem[] = [];
 
-        // 책 추가: 7일 이내
         if (b.status !== 'want-to-read' && b.createdAt >= cutoff) {
           items.push({ kind: 'activity', type: 'book_added', book: b, sortKey: b.createdAt });
         }
 
-        // 완독: finishDate 기준 7일 이내
         if (b.status === 'finished' && b.finishDate) {
           const finishISO = `${b.finishDate}T12:00:00.000Z`;
           if (finishISO >= cutoff) {
@@ -73,7 +78,6 @@ export default function ActivityFeed({ books, members, userId }: Props) {
         return items;
       });
 
-    // 다른 가족의 댓글 (7일 이내)
     const commentItems: FeedItem[] = comments
       .filter(c => c.user_id !== userId && c.created_at >= cutoff)
       .map(c => ({ kind: 'comment', data: c, sortKey: c.created_at }));
@@ -82,6 +86,39 @@ export default function ActivityFeed({ books, members, userId }: Props) {
   }, [books, comments, userId]);
 
   const getMember = (uid: string) => members.find(m => m.id === uid);
+
+  const openComment = (bookId: string, ownerId: string) => {
+    if (commentingBookId === bookId) {
+      setCommentingBookId(null);
+      return;
+    }
+    setCommentingBookId(bookId);
+    setCommentingOwnerId(ownerId);
+    setCommentText('');
+    setCommentError(null);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentText.trim() || !commentingBookId || commentSubmitting) return;
+    setCommentSubmitting(true);
+    setCommentError(null);
+    try {
+      const err = await addBookComment(commentingBookId, commentingOwnerId, commentText.trim());
+      if (err) {
+        setCommentError(err);
+      } else {
+        setCommentText('');
+        setCommentingBookId(null);
+        await load();
+      }
+    } catch {
+      setCommentError('댓글 작성 중 오류가 발생했어요.');
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
 
   if (loading) return (
     <div className="feed-loading"><span className="feed-spinner" /></div>
@@ -130,9 +167,10 @@ export default function ActivityFeed({ books, members, userId }: Props) {
         const name       = member?.display_name ?? '—';
         const avatar     = member?.avatar_url   ?? null;
         const isFinished = type === 'book_finished';
+        const isOpen     = commentingBookId === book.id;
 
         return (
-          <div key={`a-${book.id}-${type}`} className="feed-item">
+          <div key={`a-${book.id}-${type}`} className="feed-item feed-item-activity">
             <div className="feed-avatar">
               {avatar ? <img src={avatar} alt="" /> : <span>{name[0].toUpperCase()}</span>}
             </div>
@@ -149,6 +187,38 @@ export default function ActivityFeed({ books, members, userId }: Props) {
               </p>
               {isFinished && book.cover && (
                 <img src={book.cover} alt="" className="feed-book-cover" />
+              )}
+              <button
+                className={`feed-comment-btn ${isOpen ? 'active' : ''}`}
+                onClick={() => openComment(book.id, book.userId ?? '')}
+              >
+                <MessageCircle size={12} />
+                한마디
+              </button>
+
+              {isOpen && (
+                <form onSubmit={handleCommentSubmit} className="feed-inline-comment">
+                  <input
+                    ref={inputRef}
+                    value={commentText}
+                    onChange={e => { setCommentText(e.target.value); setCommentError(null); }}
+                    placeholder="가족 한마디 남기기..."
+                    maxLength={500}
+                    className="feed-inline-input"
+                    disabled={commentSubmitting}
+                  />
+                  <button
+                    type="submit"
+                    className="feed-inline-send"
+                    disabled={commentSubmitting || !commentText.trim()}
+                  >
+                    {commentSubmitting
+                      ? <Loader size={13} className="spin" />
+                      : <Send size={13} />
+                    }
+                  </button>
+                  {commentError && <p className="feed-inline-error">{commentError}</p>}
+                </form>
               )}
             </div>
             {isFinished

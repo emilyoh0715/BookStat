@@ -7,7 +7,14 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
+      injectManifest: {
+        injectionPoint: '__WB_MANIFEST',
+        globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2}'],
+      },
       includeAssets: ['logo.png', 'icons/*.png'],
       manifest: {
         name: '북스탯',
@@ -31,23 +38,6 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
-          },
-        ],
-      },
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2}'],
-        runtimeCaching: [
-          {
-            // Supabase API 요청은 캐시하지 않음
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkOnly',
-          },
-          {
-            // Anthropic API
-            urlPattern: /^https:\/\/api\.anthropic\.com\/.*/i,
-            handler: 'NetworkOnly',
           },
         ],
       },

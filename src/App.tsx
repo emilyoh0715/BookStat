@@ -28,6 +28,7 @@ import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
 import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, BookOpen, RefreshCw, HelpCircle, Home } from 'lucide-react';
 import { useTheme } from './useTheme';
+import { subscribeToPush, clearBadge } from './services/pushNotifications';
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 function getMemberColor(idx: number) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
@@ -141,10 +142,22 @@ export default function App() {
   useEffect(() => {
     if (user && profile) {
       loadGroupMembers();
+      // 로그인 후 푸시 알림 구독 (이미 구독된 경우 재구독 없이 skip)
+      subscribeToPush().catch(() => {});
     } else if (user && !profile) {
       setSelectedUserId(user.id);
     }
   }, [user, profile]);
+
+  // 앱이 포커스될 때 배지 초기화
+  useEffect(() => {
+    const handleFocus = () => clearBadge();
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') clearBadge();
+    });
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   // 그룹 멤버 변경 실시간 감지
   // 초대 카운트 로드

@@ -185,8 +185,8 @@ export default function FamilyView({
   // 내 목표 카드 컴포넌트
   const GoalCard = ({ goal }: { goal: ReadingGoal }) => {
     const isPending  = goal.status === 'pending_approval';
-    const progress   = isPending ? 0 : Math.min(100, Math.round((myPoints / goal.points_required) * 100));
-    const remaining  = Math.max(0, goal.points_required - myPoints);
+    const progress   = isPending ? 0 : Math.min(100, Math.round((spendablePoints / goal.points_required) * 100));
+    const remaining  = Math.max(0, goal.points_required - spendablePoints);
     const [imgErr, setImgErr] = useState(false);
     return (
       <div className="goal-card">
@@ -212,7 +212,7 @@ export default function FamilyView({
                 <div className="goal-progress-bar">
                   <div className="goal-progress-fill" style={{ width: `${progress}%` }} />
                 </div>
-                <span className="goal-progress-text">{myPoints}/{goal.points_required}p</span>
+                <span className="goal-progress-text">{spendablePoints}/{goal.points_required}p</span>
               </div>
               <p className="goal-card-hint">
                 {remaining === 0 ? '🎉 목표 달성!' : `목표까지 ${remaining.toLocaleString()}p 남았어요`}

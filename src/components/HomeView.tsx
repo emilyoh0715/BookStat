@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Plus, ChevronRight, BookOpen, Award, Zap, Star, BookMarked, FileText, Flame, CheckCircle, Target, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Plus, ChevronRight, BookOpen, Award, Zap, Star, FileText, Flame, Target, CheckCircle } from 'lucide-react';
+import MagazineArticle from './MagazineArticle';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
 import type { PointLog } from '../services/points';
-import { getMyCurrentGoal, type ReadingGoal } from '../services/goals';
+import { getMyCurrentGoal, redeemGoal, type ReadingGoal } from '../services/goals';
 
 interface Props {
   profile: Profile;
@@ -35,22 +36,12 @@ function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
 }
 
-function DeltaBadge({ delta, unit = '' }: { delta: number; unit?: string }) {
-  if (delta === 0) return <span className="home-stat-delta home-stat-delta--zero"><Minus size={9} />0{unit}</span>;
-  if (delta > 0)   return <span className="home-stat-delta home-stat-delta--up"><TrendingUp size={9} />+{delta}{unit}</span>;
-  return               <span className="home-stat-delta home-stat-delta--down"><TrendingDown size={9} />{delta}{unit}</span>;
-}
-
 export default function HomeView({
   profile, books, userId, groupMembers, groupMemberPoints, pointLogs,
   onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints, onShowChildComplete,
 }: Props) {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const lastMonth = (() => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  })();
   const todayStr = now.toISOString().slice(0, 10);
   const todayKey = `reading_check_${userId}_${todayStr}`;
 
@@ -72,40 +63,64 @@ export default function HomeView({
   const myStats = groupMemberPoints.find(m => m.user_id === userId);
   const myPoints = myStats?.total_points ?? 0;
 
-  // This month
   const thisMonthLogs      = pointLogs.filter(l => l.created_at.startsWith(thisMonth));
   const thisMonthBookPts   = thisMonthLogs.filter(l => l.reason === 'book_added').reduce((s, l) => s + l.points, 0);
   const thisMonthReviewPts = thisMonthLogs.filter(l => l.reason === 'review_approved').reduce((s, l) => s + l.points, 0);
   const thisMonthTotal     = thisMonthLogs.reduce((s, l) => s + l.points, 0);
 
-  // Last month (for deltas)
-  const lastMonthLogs  = pointLogs.filter(l => l.created_at.startsWith(lastMonth));
-  const lastMonthTotal = lastMonthLogs.reduce((s, l) => s + l.points, 0);
-
-  // My finished books
-  const myFinishedThis  = myBooks.filter(b => b.status === 'finished' && b.finishDate?.startsWith(thisMonth)).length;
-  const myFinishedLast  = myBooks.filter(b => b.status === 'finished' && b.finishDate?.startsWith(lastMonth)).length;
-  const myFinishedDelta = myFinishedThis - myFinishedLast;
-
-  // 리워드 마켓 목표
   const [currentGoal, setCurrentGoal] = useState<ReadingGoal | null | undefined>(undefined);
   const [goalImgError, setGoalImgError] = useState(false);
+  const [usedPoints, setUsedPoints]     = useState(0);
+  const [redeemError, setRedeemError]   = useState<string | null>(null);
+  const [redeeming, setRedeeming]       = useState(false);
+  const [showMagazine, setShowMagazine] = useState(false);
+
   useEffect(() => {
     setGoalImgError(false);
     getMyCurrentGoal().then(setCurrentGoal).catch(() => setCurrentGoal(null));
   }, [userId]);
-  const goalPct = currentGoal
-    ? Math.min(100, Math.round((myPoints / currentGoal.points_required) * 100))
-    : 0;
 
-  // Family finished books
+  // 사용한 포인트(승인+대기) fetch → 사용 가능 포인트 계산에 사용
+  useEffect(() => {
+    const year = new Date().getFullYear();
+    import('../lib/supabase').then(({ supabase }) => {
+      supabase
+        .from('point_redemptions')
+        .select('points_cost, status')
+        .eq('user_id', userId)
+        .in('status', ['approved', 'pending'])
+        .gte('requested_at', `${year}-01-01`)
+        .lt('requested_at',  `${year + 1}-01-01`)
+        .then(({ data }) => {
+          const total = (data ?? []).reduce((s, r) => s + (r.points_cost ?? 0), 0);
+          setUsedPoints(total);
+        });
+    });
+  }, [userId]);
+
+  const spendablePoints = Math.max(0, myPoints - usedPoints);
+  const goalPct = currentGoal
+    ? Math.min(100, Math.round((spendablePoints / currentGoal.points_required) * 100))
+    : 0;
+  const goalAchieved = !!(currentGoal?.status === 'active' && spendablePoints >= currentGoal.points_required);
+
+  const handleRedeem = async () => {
+    if (!currentGoal || redeeming) return;
+    setRedeeming(true);
+    setRedeemError(null);
+    const err = await redeemGoal(currentGoal);
+    if (err) {
+      setRedeemError(err);
+      setRedeeming(false);
+    } else {
+      setCurrentGoal(null);
+    }
+  };
+
   const familyFinishedThisMonth = books.filter(b => b.status === 'finished' && b.finishDate?.startsWith(thisMonth));
   const familyBooksCount  = familyFinishedThisMonth.length;
   const familyPagesCount  = familyFinishedThisMonth.reduce((s, b) => s + (b.totalPages ?? 0), 0);
   const hasFamilyPages    = familyFinishedThisMonth.some(b => (b.totalPages ?? 0) > 0);
-  const familyLastCount   = books.filter(b => b.status === 'finished' && b.finishDate?.startsWith(lastMonth)).length;
-  const familyDelta       = familyBooksCount - familyLastCount;
-  const pointsDelta       = thisMonthTotal - lastMonthTotal;
 
   const familyStreak = (() => {
     const dates = books
@@ -128,19 +143,6 @@ export default function HomeView({
     }
     return streak;
   })();
-
-  const recentBooks = [...myBooks]
-    .sort((a, b) => {
-      const da = a.finishDate ?? a.startDate ?? a.createdAt;
-      const db = b.finishDate ?? b.startDate ?? b.createdAt;
-      return db.localeCompare(da);
-    })
-    .slice(0, 8);
-
-  const memberIdx = groupMembers.findIndex(m => m.id === userId);
-  const myColor = MEMBER_COLORS[memberIdx >= 0 ? memberIdx % MEMBER_COLORS.length : 0];
-
-  const isFamily = groupMembers.length > 1;
 
   const missions = useMemo<Mission[]>(() => {
     const list: Mission[] = [];
@@ -183,6 +185,19 @@ export default function HomeView({
     }
   };
 
+  const recentBooks = [...myBooks]
+    .sort((a, b) => {
+      const da = a.finishDate ?? a.startDate ?? a.createdAt;
+      const db = b.finishDate ?? b.startDate ?? b.createdAt;
+      return db.localeCompare(da);
+    })
+    .slice(0, 8);
+
+  const memberIdx = groupMembers.findIndex(m => m.id === userId);
+  const myColor = MEMBER_COLORS[memberIdx >= 0 ? memberIdx % MEMBER_COLORS.length : 0];
+
+  const isFamily = groupMembers.length > 1;
+
   return (
     <div className="home-view">
 
@@ -199,63 +214,9 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* ② 통계 4칸 그리드 */}
-      <div className="home-stats-grid">
-        <button className="home-stat-card" onClick={onNavigateToLibrary}>
-          <div className="home-stat-icon-wrap home-stat-icon-wrap--blue">
-            <BookOpen size={15} />
-          </div>
-          <div className="home-stat-body">
-            <span className="home-stat-label">이번 달 완독</span>
-            <span className="home-stat-value">{myFinishedThis}<span className="home-stat-unit">권</span></span>
-          </div>
-          <DeltaBadge delta={myFinishedDelta} unit="권" />
-        </button>
-
-        <button className="home-stat-card" onClick={onShowPoints}>
-          <div className="home-stat-icon-wrap home-stat-icon-wrap--yellow">
-            <Award size={15} />
-          </div>
-          <div className="home-stat-body">
-            <span className="home-stat-label">누적 포인트</span>
-            <span className="home-stat-value">{myPoints.toLocaleString()}<span className="home-stat-unit">pt</span></span>
-          </div>
-          <DeltaBadge delta={pointsDelta} unit="pt" />
-        </button>
-
-        <button className="home-stat-card" onClick={isFamily ? onNavigateToFamily : undefined}>
-          <div className="home-stat-icon-wrap home-stat-icon-wrap--green">
-            <FileText size={15} />
-          </div>
-          <div className="home-stat-body">
-            <span className="home-stat-label">가족 완독</span>
-            <span className="home-stat-value">{familyBooksCount}<span className="home-stat-unit">권</span></span>
-          </div>
-          <DeltaBadge delta={familyDelta} unit="권" />
-        </button>
-
-        <div className="home-stat-card home-stat-card--static">
-          <div className={`home-stat-icon-wrap ${familyStreak > 0 ? 'home-stat-icon-wrap--orange' : 'home-stat-icon-wrap--muted'}`}>
-            <Flame size={15} />
-          </div>
-          <div className="home-stat-body">
-            <span className="home-stat-label">독서 스트릭</span>
-            <span className="home-stat-value">
-              {familyStreak > 0 ? familyStreak : '--'}
-              {familyStreak > 0 && <span className="home-stat-unit">일</span>}
-            </span>
-          </div>
-          {familyStreak > 0
-            ? <span className="home-stat-delta home-stat-delta--fire">🔥 연속 중</span>
-            : <span className="home-stat-delta home-stat-delta--zero">-</span>
-          }
-        </div>
-      </div>
-
-      {/* ③ 콘텐츠 영역
-          모바일:         가족현황 → 내포인트 → 목표 → 미션 → 매거진 → 최근책
-          데스크탑(~1279): 좌(미션+책) / 우(가족+포인트+목표+매거진)
-          데스크탑(1280+): 좌 단일 컬럼(미션+책), 우측패널이 가족 정보 담당 → 우컬럼 숨김 */}
+      {/* ② 콘텐츠 영역
+          모바일:      flex-column, order 값으로 순서 지정
+          데스크탑:    CSS Grid 2컬럼, 가족현황+내포인트 상단 행 */}
       <div className="home-content">
 
         {/* 우리 가족 독서 현황 */}
@@ -327,61 +288,6 @@ export default function HomeView({
           </button>
         </div>
 
-        {/* 현재 목표 */}
-        <div className="home-item home-item--goal">
-          <div className="home-goal-card">
-            <div className="home-goal-header">
-              <Target size={13} />
-              <span>현재 목표</span>
-            </div>
-
-            {/* 목표 없음 */}
-            {currentGoal === null && (
-              <div className="home-goal-empty">
-                <p>설정된 목표가 없어요</p>
-                <button className="home-goal-set-btn" onClick={onNavigateToFamily}>
-                  목표 설정하기 <ChevronRight size={13} />
-                </button>
-              </div>
-            )}
-
-            {/* 목표 로딩 중 */}
-            {currentGoal === undefined && (
-              <div className="home-goal-loading" />
-            )}
-
-            {/* 목표 있음 */}
-            {currentGoal != null && (
-              <div className="home-goal-body">
-                <div className="home-goal-reward">
-                  {currentGoal.item_image_url && !goalImgError
-                    ? <img
-                        src={currentGoal.item_image_url}
-                        alt=""
-                        className="home-goal-reward-img"
-                        onError={() => setGoalImgError(true)}
-                      />
-                    : <span className="home-goal-reward-emoji">{currentGoal.item_emoji ?? '🎁'}</span>
-                  }
-                  <div className="home-goal-reward-info">
-                    <div className="home-goal-label">{currentGoal.item_name}</div>
-                    {currentGoal.status === 'pending_approval' && (
-                      <span className="home-goal-pending-badge">승인 대기 중</span>
-                    )}
-                  </div>
-                </div>
-                <div className="home-goal-bar-track">
-                  <div className="home-goal-bar-fill" style={{ width: `${goalPct}%` }} />
-                </div>
-                <div className="home-goal-foot">
-                  <span className="home-goal-count">{myPoints.toLocaleString()}pt</span>
-                  <span className="home-goal-pct">{goalPct}% · 목표 {currentGoal.points_required.toLocaleString()}pt</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* 오늘의 독서 미션 */}
         <div className="home-item home-item--missions">
           <div className="home-missions-card">
@@ -416,24 +322,97 @@ export default function HomeView({
           </div>
         </div>
 
-        {/* 오늘의 매거진 */}
-        <div className="home-item home-item--magazine">
-          <div className="home-magazine-card">
-            <div className="home-magazine-top">
-              <span className="home-magazine-tag">오늘의 매거진</span>
-              <span className="home-magazine-coming">준비 중</span>
+        {/* 현재 목표 */}
+        <div className="home-item home-item--goal">
+          <div className="home-goal-card">
+            <div className="home-goal-header">
+              <Target size={13} />
+              <span>현재 목표</span>
             </div>
-            <div className="home-magazine-body">
-              <div className="home-magazine-thumb">
-                <BookMarked size={26} style={{ opacity: 0.25 }} />
+
+            {currentGoal === null && (
+              <div className="home-goal-empty">
+                <p>설정된 목표가 없어요</p>
+                <button className="home-goal-set-btn" onClick={onNavigateToFamily}>
+                  목표 설정하기 <ChevronRight size={13} />
+                </button>
               </div>
-              <div className="home-magazine-text">
-                <p className="home-magazine-title">독서 습관을 만드는 법</p>
-                <p className="home-magazine-sub">매일 10분, 작은 시작이 큰 변화를 만들어요</p>
+            )}
+
+            {currentGoal === undefined && (
+              <div className="home-goal-loading" />
+            )}
+
+            {currentGoal != null && (
+              <div className="home-goal-body">
+                <div className="home-goal-reward">
+                  {currentGoal.item_image_url && !goalImgError
+                    ? <img
+                        src={currentGoal.item_image_url}
+                        alt=""
+                        className="home-goal-reward-img"
+                        onError={() => setGoalImgError(true)}
+                      />
+                    : <span className="home-goal-reward-emoji">{currentGoal.item_emoji ?? '🎁'}</span>
+                  }
+                  <div className="home-goal-reward-info">
+                    <div className="home-goal-label">{currentGoal.item_name}</div>
+                    {currentGoal.status === 'pending_approval' && (
+                      <span className="home-goal-pending-badge">승인 대기 중</span>
+                    )}
+                    {goalAchieved && (
+                      <span className="home-goal-achieved-badge">🎉 목표 달성!</span>
+                    )}
+                  </div>
+                </div>
+                <div className="home-goal-bar-track">
+                  <div className="home-goal-bar-fill" style={{ width: `${goalPct}%` }} />
+                </div>
+                <div className="home-goal-foot">
+                  <span className="home-goal-count">{spendablePoints.toLocaleString()}pt</span>
+                  <span className="home-goal-pct">{goalPct}% · 목표 {currentGoal.points_required.toLocaleString()}pt</span>
+                </div>
+                {goalAchieved && (
+                  <div className="home-goal-redeem-wrap">
+                    {redeemError && <p className="home-goal-redeem-error">{redeemError}</p>}
+                    <button
+                      className="home-goal-redeem-btn"
+                      onClick={handleRedeem}
+                      disabled={redeeming}
+                    >
+                      {redeeming ? '요청 중...' : '🎁 보상 받기'}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         </div>
+
+        {/* 오늘의 매거진 */}
+        <div className="home-item home-item--magazine">
+          <button className="home-magazine-card home-magazine-btn" onClick={() => setShowMagazine(true)}>
+            <div className="home-magazine-inner">
+              <div className="home-magazine-text-col">
+                <div className="home-magazine-badge-row">
+                  <span className="home-magazine-tag">📚 BOOK LIST</span>
+                  <span className="home-magazine-new">NEW</span>
+                </div>
+                <p className="home-magazine-title">초3~초4가<br />읽기 좋은<br /><em className="home-magazine-accent">책 10권</em></p>
+                <p className="home-magazine-sub">재밌어서 읽다 보면<br />생각이 자라는 책들</p>
+              </div>
+              <div className="home-magazine-visual-col" aria-hidden="true">
+                <span className="home-mag-star">⭐</span>
+                <span className="home-mag-deco-circle" />
+                <span className="home-mag-char">🧒</span>
+                <span className="home-mag-books">📚</span>
+                <span className="home-mag-sparkle">✦</span>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {showMagazine && <MagazineArticle onClose={() => setShowMagazine(false)} />}
 
         {/* 최근 읽은 책 */}
         <div className="home-item home-item--books">

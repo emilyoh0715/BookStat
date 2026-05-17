@@ -40,21 +40,32 @@ export default function BookComments({ bookId, bookOwnerId, currentUserId, membe
     if (!text.trim()) return;
     setSubmitting(true);
     setSubmitError(null);
-    const err = await addBookComment(bookId, bookOwnerId, text.trim());
-    if (err) {
-      setSubmitError(err);
-    } else {
-      setText('');
-      await load();
+    try {
+      const err = await addBookComment(bookId, bookOwnerId, text.trim());
+      if (err) {
+        setSubmitError(err);
+      } else {
+        setText('');
+        await load();
+      }
+    } catch {
+      setSubmitError('댓글을 작성하는 중 오류가 발생했어요.');
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
     setDeleting(id);
-    await deleteBookComment(id);
-    await load();
-    setDeleting(null);
+    try {
+      await deleteBookComment(id);
+      await load();
+    } catch {
+      // 삭제 실패 시 목록 재로드
+      await load();
+    } finally {
+      setDeleting(null);
+    }
   };
 
   const getDisplayName = (userId: string, fallback?: { display_name: string; avatar_url: string | null } | null) => {

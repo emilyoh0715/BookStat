@@ -119,16 +119,33 @@ export async function cancelGoal(goalId: string): Promise<void> {
     .eq('id', goalId);
 }
 
-export async function checkAndCompleteGoal(
-  goalId: string,
-  currentPoints: number,
-  pointsRequired: number
-): Promise<void> {
-  if (currentPoints >= pointsRequired) {
+export async function redeemGoal(goal: ReadingGoal): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return '로그인이 필요해요.';
+
+    const groupId = await getMyGroupId();
+    if (!groupId) return '그룹 정보를 찾을 수 없어요.';
+
+    // point_redemptions에 보상 요청 삽입
+    const { error } = await supabase.from('point_redemptions').insert({
+      user_id:      session.user.id,
+      group_id:     groupId,
+      item_id:      `goal:${goal.id}`,
+      item_name:    goal.item_name,
+      points_cost:  goal.points_required,
+    });
+    if (error) return error.message;
+
+    // 목표 상태를 completed로 변경
     await supabase
       .from('reading_goals')
       .update({ status: 'completed' })
-      .eq('id', goalId)
-      .eq('status', 'active');
+      .eq('id', goal.id);
+
+    return null;
+  } catch (e) {
+    console.error('[redeemGoal]', e);
+    return '보상 요청 중 오류가 발생했어요.';
   }
 }

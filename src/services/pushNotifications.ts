@@ -73,6 +73,35 @@ export async function unsubscribeFromPush(): Promise<void> {
   await sub.unsubscribe();
 }
 
+/** Convenience wrapper — looks up the caller's group and fires a push to everyone else. */
+export async function notifyGroupActivity(params: {
+  title: string;
+  body:  string;
+}): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data: membership } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .eq('user_id', session.user.id)
+      .eq('status', 'accepted')
+      .limit(1)
+      .maybeSingle();
+    if (!membership) return;
+
+    sendGroupPush({
+      groupId:  membership.group_id,
+      senderId: session.user.id,
+      title:    params.title,
+      body:     params.body,
+    });
+  } catch {
+    // non-critical
+  }
+}
+
 export async function sendGroupPush(params: {
   groupId:  string;
   senderId: string;

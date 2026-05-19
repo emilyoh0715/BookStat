@@ -28,7 +28,7 @@ import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
 import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, BookOpen, RefreshCw, HelpCircle, Home } from 'lucide-react';
 import { useTheme } from './useTheme';
-import { subscribeToPush, clearBadge } from './services/pushNotifications';
+import { subscribeToPush, clearBadge, notifyGroupActivity } from './services/pushNotifications';
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
 function getMemberColor(idx: number) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
@@ -900,6 +900,10 @@ export default function App() {
               awardPoints(bookId, 'book_added', 2)
                 .then(() => { reloadPoints(); setPointsCelebration({ points: 2, label: '📚 책 추가 완료!' }); })
                 .catch(console.error);
+              notifyGroupActivity({
+                title: '📚 새 책 추가!',
+                body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}"을(를) 추가했어요.`,
+              });
             }
           }}
           onClose={() => setShowAdd(false)}
@@ -960,6 +964,10 @@ export default function App() {
                 await awardPoints(bookId, 'book_finished', finishedPts, finishDate);
                 totalPts += finishedPts;
                 celebrationLabel = '📖 완독 완료!';
+                notifyGroupActivity({
+                  title: '📖 완독했어요!',
+                  body:  `${profile?.display_name ?? '가족'}이(가) "${book?.title}"을(를) 다 읽었어요!`,
+                });
               }
               if (book && updates.review) {
                 clearRejectionReason(bookId);
@@ -967,6 +975,10 @@ export default function App() {
                 await awardPoints(bookId, 'review_approved', reviewPts, finishDate ?? book?.finishDate);
                 totalPts += reviewPts;
                 celebrationLabel = wasReading ? '✨ 완독 + 감상문 완성!' : '✍️ 감상문 완성!';
+                notifyGroupActivity({
+                  title: '✍️ 감상문 작성!',
+                  body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}" 감상문을 남겼어요.`,
+                });
               }
               if (totalPts > 0) {
                 reloadPoints();

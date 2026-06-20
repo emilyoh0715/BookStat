@@ -135,6 +135,10 @@ function hasRepetitivePadding(text: string): boolean {
   return unique.size <= Math.ceil(normalized.length / 2);
 }
 
+function splitReviewSentences(text: string): string[] {
+  return text.split(/[.!?。！？\n]+/).map(s => s.trim()).filter(Boolean);
+}
+
 function getTitleTokens(bookTitle?: string): string[] {
   if (!bookTitle) return [];
   const stopWords = new Set(['의', '편', '권', '책', '시리즈', '대모험']);
@@ -168,24 +172,53 @@ function getTitleTokens(bookTitle?: string): string[] {
   return [...expanded];
 }
 
-function looksSubstantiveReview(text: string, bookTitle?: string, answers?: ReviewAnswer[]): boolean {
-  if (text.length < 140 || hasRepetitivePadding(text)) return false;
-
-  const sentences = text.split(/[.!?。！？\n]+/).map(s => s.trim()).filter(Boolean);
-  if (sentences.length < 2) return false;
-
+function getReviewEvidence(text: string, bookTitle?: string, answers?: ReviewAnswer[]) {
+  const sentences = splitReviewSentences(text);
   const titleTokens = getTitleTokens(bookTitle);
   const hasTitleSignal = titleTokens.some(token => text.includes(token));
   const answerQuality = answers && answers.length > 0 ? calcAnswerQuality(answers) : null;
   const hasGuidedSubstance = answerQuality === 2;
-  const hasConcreteLanguage = /(장면|인물|사건|내용|이야기|알게|배웠|느꼈|생각|이유|부분|역사|한국사|시대|왕|나라|전쟁|독립|문화|모험|설명|소개|기억)/.test(text);
+  const concreteMatches = text.match(/장면|인물|사건|내용|이야기|알게|배웠|느꼈|생각|이유|부분|역사|한국사|시대|왕|나라|전쟁|독립|문화|모험|설명|소개|기억|작가|주인공|등장|배경|정보|사실/g) ?? [];
+  const reactionMatches = text.match(/재미있|재밌|신기|놀라|인상|좋았|슬펐|감동|어려웠|복잡|흥미|처음 알|기억에 남/g) ?? [];
 
-  return hasGuidedSubstance || (hasConcreteLanguage && (hasTitleSignal || text.length >= 140));
+  return {
+    sentences,
+    hasTitleSignal,
+    hasGuidedSubstance,
+    concreteCount: new Set(concreteMatches).size,
+    reactionCount: new Set(reactionMatches).size,
+  };
+}
+
+function hasEnoughReviewEvidence(text: string, bookTitle?: string, answers?: ReviewAnswer[]): boolean {
+  if (text.length < 60 || hasRepetitivePadding(text)) return false;
+  const evidence = getReviewEvidence(text, bookTitle, answers);
+  if (evidence.hasGuidedSubstance) return true;
+  if (evidence.sentences.length >= 2 && evidence.hasTitleSignal && evidence.concreteCount >= 1) return true;
+  if (text.length >= 90 && evidence.concreteCount >= 2 && evidence.reactionCount >= 1) return true;
+  return false;
+}
+
+function looksSubstantiveReview(text: string, bookTitle?: string, answers?: ReviewAnswer[]): boolean {
+  if (text.length < 90 || hasRepetitivePadding(text)) return false;
+
+  const evidence = getReviewEvidence(text, bookTitle, answers);
+  if (evidence.sentences.length < 2) return false;
+  return evidence.hasGuidedSubstance || (
+    evidence.concreteCount >= 1 &&
+    (evidence.hasTitleSignal || text.length >= 120 || evidence.concreteCount >= 2)
+  );
 }
 
 function describeValidationError(error: unknown): string {
   const detail = error instanceof Error && error.message ? ` (${error.message})` : '';
   return `AI가 판정 결과를 돌려주지 못해 보류되었어요${detail}. 후기 내용이 부족하다는 뜻은 아니며, 잠시 후 다시 검증해주세요.`;
+}
+
+function parseValidationJson(text: string): { valid?: boolean; reason?: string } {
+  const cleaned = cleanJsonText(text);
+  const objectText = cleaned.match(/\{[\s\S]*\}/)?.[0] ?? cleaned;
+  return JSON.parse(objectText) as { valid?: boolean; reason?: string };
 }
 
 /**
@@ -270,15 +303,17 @@ ${strictExtra}
     const raw = await generateGeminiText([{ text: prompt }], { maxOutputTokens: 128, temperature: 0, json: true });
     const cleaned = cleanJsonText(raw);
     if (!cleaned) {
+      if (hasEnoughReviewEvidence(text, bookTitle, answers)) return { valid: true };
       return { valid: false, uncertain: true, reason: 'AI가 빈 판정 결과를 보내 검증을 보류했어요. 후기 내용이 부족하다는 뜻은 아니며, 잠시 후 다시 검증해주세요.' };
     }
-    const parsed = JSON.parse(cleaned) as { valid?: boolean; reason?: string };
+    const parsed = parseValidationJson(cleaned);
     if (parsed.valid === true) return { valid: true };
     return {
       valid: false,
       reason: parsed.reason ?? '책의 구체적인 내용과 나의 생각이 충분히 드러나야 해요.',
     };
   } catch (error) {
+    if (hasEnoughReviewEvidence(text, bookTitle, answers)) return { valid: true };
     return { valid: false, uncertain: true, reason: describeValidationError(error) };
   }
 }

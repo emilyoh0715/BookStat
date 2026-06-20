@@ -452,9 +452,12 @@ export default function App() {
     let removed = 0;
     let awarded = 0;
     let kept = 0;
+    let skipped = 0;
     for (const book of reviewBooks) {
       const result = await validateReview(book.review!, book.title, book.childAnswers);
-      if (!result.valid) {
+      if (result.uncertain) {
+        skipped++;
+      } else if (!result.valid) {
         await removePoints(book.id, 'review_approved');
         saveRejectionReason(book.id, result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.');
         removed++;
@@ -471,7 +474,7 @@ export default function App() {
     }
     await reloadPoints();
     setRevalidating(false);
-    const msg = `재검증 완료 — 승인 ${kept + awarded}건 (신규 ${awarded}건) / 취소 ${removed}건`;
+    const msg = `재검증 완료 — 승인 ${kept + awarded}건 (신규 ${awarded}건) / 취소 ${removed}건${skipped ? ` / 보류 ${skipped}건` : ''}`;
     setRevalidateToast(msg);
     setTimeout(() => setRevalidateToast(null), 6000);
   };

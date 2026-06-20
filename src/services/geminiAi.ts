@@ -75,6 +75,7 @@ function cleanJsonText(text: string): string {
 export interface ReviewValidationResult {
   valid: boolean;
   reason?: string;
+  uncertain?: boolean;
 }
 
 export type ReviewAnswer = { question: string; answer: string };
@@ -107,8 +108,6 @@ function hasObviousLowSignal(text: string): string | null {
   const suspiciousFragments = [
     '응 없어',
     '응없어',
-    '몰라',
-    '잘 모르',
     '아무거나',
     '대충',
   ];
@@ -133,7 +132,7 @@ function hasObviousLowSignal(text: string): string | null {
  *  - Must be ≥ 30 characters
  *  - If answers provided (guided flow): quality 0 → auto-fail, quality 1 → strict AI check
  *  - If a Gemini API key is set, AI checks for personal content + book-relevance + no spam
- *  - Fails closed when AI validation cannot run
+ *  - Returns uncertain when AI validation cannot run, so bulk revalidation does not revoke old approvals
  */
 export async function validateReview(
   review: string,
@@ -157,7 +156,7 @@ export async function validateReview(
 
   const apiKey = getApiKey();
   if (!apiKey) {
-    return { valid: false, reason: 'AI 검증을 위해 Gemini API 키가 필요해요.' };
+    return { valid: false, uncertain: true, reason: 'AI 검증을 위해 Gemini API 키가 필요해요.' };
   }
 
   const bookCtx = bookTitle ? `책 제목: "${bookTitle}"\n` : '';
@@ -166,13 +165,10 @@ export async function validateReview(
   const strictMode = quality === 1;
 
   const strictExtra = strictMode ? `
-[추가 엄격 기준 — 답변이 부족한 상태에서 AI가 작성한 독후감일 가능성이 높습니다]
-- 1인칭 주어(나, 저, 내가, 제가)로 본인의 직접 경험이나 느낌을 표현한 문장이 최소 1개 이상 있어야 합니다.
-- 글의 전체 흐름이 AI가 책 제목만 보고 생성했을 법한 전형적·공식적 독후감 문체이면 거절하세요.
-  예: "이 책은 ~에 대해 이야기합니다. ~을 통해 우리는 ~을 배울 수 있습니다."와 같이
-      구체적인 1인칭 감상 없이 요약·설명만 나열된 경우 거절.
-- 책의 특정 장면·인물·사건에 대해 독자 본인의 반응(좋았던 이유, 놀랐던 이유, 슬펐던 이유 등)을
-  설명한 문장이 없으면 거절하세요.` : '';
+[추가 확인 기준 — 답변이 짧은 독후감입니다]
+- 문장이 초등학생답게 단순하거나 서툴러도 책과 연결된 구체 단서가 있으면 통과하세요.
+- 책의 특정 장면·인물·사건·정보 또는 독자 본인의 반응이 전혀 없고,
+  책 제목만으로 만들 수 있는 일반적인 칭찬/교훈만 있으면 거절하세요.` : '';
 
   const prompt = `${bookCtx}후기: "${text}"
 
@@ -205,6 +201,9 @@ ${strictExtra}
   try {
     const raw = await generateGeminiText([{ text: prompt }], { maxOutputTokens: 128, temperature: 0, json: true });
     const cleaned = cleanJsonText(raw);
+    if (!cleaned) {
+      return { valid: false, uncertain: true, reason: 'AI 검증 응답이 비어 있어요. 잠시 후 다시 시도해주세요.' };
+    }
     const parsed = JSON.parse(cleaned) as { valid?: boolean; reason?: string };
     if (parsed.valid === true) return { valid: true };
     return {
@@ -212,7 +211,7 @@ ${strictExtra}
       reason: parsed.reason ?? '책의 구체적인 내용과 나의 생각이 충분히 드러나야 해요.',
     };
   } catch {
-    return { valid: false, reason: 'AI 검증에 실패했어요. 잠시 후 다시 저장해주세요.' };
+    return { valid: false, uncertain: true, reason: 'AI 검증에 실패했어요. 잠시 후 다시 저장해주세요.' };
   }
 }
 

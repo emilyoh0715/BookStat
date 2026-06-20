@@ -170,7 +170,10 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     if (readOnly || reviewStatus !== 'pending' || !book.review?.trim() || reviewCheckResult || fetchingReason || !getApiKey()) return;
     setFetchingReason(true);
     validateReview(book.review, book.title, book.childAnswers).then(result => {
-      if (!result.valid) {
+      if (result.uncertain) {
+        setRejectionReason(result.reason ?? null);
+        setReviewCheckResult(null);
+      } else if (!result.valid) {
         const reason = result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.';
         saveRejectionReason(book.id, reason);
         setRejectionReason(reason);

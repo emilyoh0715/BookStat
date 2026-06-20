@@ -17,6 +17,7 @@ interface ValidationResult {
   bookId: string;
   title: string;
   valid: boolean;
+  uncertain?: boolean;
   reason?: string;
   alreadyHadPoints: boolean;
   pts: number;
@@ -67,7 +68,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
       if (result.valid && !alreadyHad) {
         await awardPoints(book.id, 'review_approved', pts).catch(console.error);
       }
-      out.push({ bookId: book.id, title: book.title, valid: result.valid, reason: result.reason, alreadyHadPoints: alreadyHad, pts });
+      out.push({ bookId: book.id, title: book.title, valid: result.valid, uncertain: result.uncertain, reason: result.reason, alreadyHadPoints: alreadyHad, pts });
       setProgress(p => ({ ...p, done: p.done + 1 }));
     }
 
@@ -77,7 +78,8 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
   };
 
   const passed  = results?.filter(r => r.valid)  ?? [];
-  const failed  = results?.filter(r => !r.valid) ?? [];
+  const failed  = results?.filter(r => !r.valid && !r.uncertain) ?? [];
+  const pending = results?.filter(r => r.uncertain) ?? [];
   const newPts  = passed.filter(r => !r.alreadyHadPoints).reduce((acc, r) => acc + r.pts, 0);
 
   return (
@@ -162,7 +164,9 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
                   )}
                   {results.map(r => (
                     <div key={r.bookId} className="points-validate-row">
-                      {r.valid
+                      {r.uncertain
+                        ? <Loader size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        : r.valid
                         ? <CheckCircle size={14} style={{ color: '#2ecc71', flexShrink: 0 }} />
                         : <XCircle    size={14} style={{ color: 'var(--danger)', flexShrink: 0 }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -175,12 +179,12 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
                         )}
                       </div>
                       <span style={{ fontSize: 12, fontWeight: 700, color: r.valid ? '#f5a623' : 'var(--text-muted)', flexShrink: 0 }}>
-                        {r.valid ? (r.alreadyHadPoints ? '✓' : `+${r.pts}`) : '—'}
+                        {r.uncertain ? '보류' : r.valid ? (r.alreadyHadPoints ? '✓' : `+${r.pts}`) : '—'}
                       </span>
                     </div>
                   ))}
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0', textAlign: 'center' }}>
-                    통과 {passed.length} / 탈락 {failed.length}
+                    통과 {passed.length} / 탈락 {failed.length}{pending.length > 0 ? ` / 보류 ${pending.length}` : ''}
                   </p>
                 </div>
               )}

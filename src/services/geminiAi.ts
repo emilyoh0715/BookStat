@@ -172,7 +172,7 @@ function looksSubstantiveReview(text: string, bookTitle?: string, answers?: Revi
   if (text.length < 140 || hasRepetitivePadding(text)) return false;
 
   const sentences = text.split(/[.!?。！？\n]+/).map(s => s.trim()).filter(Boolean);
-  if (sentences.length < 3 && text.length < 220) return false;
+  if (sentences.length < 2) return false;
 
   const titleTokens = getTitleTokens(bookTitle);
   const hasTitleSignal = titleTokens.some(token => text.includes(token));
@@ -180,7 +180,12 @@ function looksSubstantiveReview(text: string, bookTitle?: string, answers?: Revi
   const hasGuidedSubstance = answerQuality === 2;
   const hasConcreteLanguage = /(장면|인물|사건|내용|이야기|알게|배웠|느꼈|생각|이유|부분|역사|한국사|시대|왕|나라|전쟁|독립|문화|모험|설명|소개|기억)/.test(text);
 
-  return hasGuidedSubstance || (hasConcreteLanguage && (hasTitleSignal || text.length >= 220));
+  return hasGuidedSubstance || (hasConcreteLanguage && (hasTitleSignal || text.length >= 140));
+}
+
+function describeValidationError(error: unknown): string {
+  const detail = error instanceof Error && error.message ? ` (${error.message})` : '';
+  return `AI가 판정 결과를 돌려주지 못해 보류되었어요${detail}. 후기 내용이 부족하다는 뜻은 아니며, 잠시 후 다시 검증해주세요.`;
 }
 
 /**
@@ -216,7 +221,7 @@ export async function validateReview(
 
   const apiKey = getApiKey();
   if (!apiKey) {
-    return { valid: false, uncertain: true, reason: 'AI 검증을 위해 Gemini API 키가 필요해요.' };
+    return { valid: false, uncertain: true, reason: 'Gemini API 키가 없어 검증을 보류했어요. 후기 내용 문제가 아니라 설정 문제예요.' };
   }
 
   const bookCtx = bookTitle ? `책 제목: "${bookTitle}"\n` : '';
@@ -265,7 +270,7 @@ ${strictExtra}
     const raw = await generateGeminiText([{ text: prompt }], { maxOutputTokens: 128, temperature: 0, json: true });
     const cleaned = cleanJsonText(raw);
     if (!cleaned) {
-      return { valid: false, uncertain: true, reason: 'AI 검증 응답이 비어 있어요. 잠시 후 다시 시도해주세요.' };
+      return { valid: false, uncertain: true, reason: 'AI가 빈 판정 결과를 보내 검증을 보류했어요. 후기 내용이 부족하다는 뜻은 아니며, 잠시 후 다시 검증해주세요.' };
     }
     const parsed = JSON.parse(cleaned) as { valid?: boolean; reason?: string };
     if (parsed.valid === true) return { valid: true };
@@ -273,8 +278,8 @@ ${strictExtra}
       valid: false,
       reason: parsed.reason ?? '책의 구체적인 내용과 나의 생각이 충분히 드러나야 해요.',
     };
-  } catch {
-    return { valid: false, uncertain: true, reason: 'AI 검증에 실패했어요. 잠시 후 다시 저장해주세요.' };
+  } catch (error) {
+    return { valid: false, uncertain: true, reason: describeValidationError(error) };
   }
 }
 

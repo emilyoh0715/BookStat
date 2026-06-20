@@ -456,6 +456,7 @@ export default function App() {
     for (const book of reviewBooks) {
       const result = await validateReview(book.review!, book.title, book.childAnswers);
       if (result.uncertain) {
+        saveRejectionReason(book.id, result.reason ?? 'AI 검증이 보류되었어요. 후기 내용 문제가 아니라 AI 응답/설정 문제일 수 있어요.');
         skipped++;
       } else if (!result.valid) {
         await removePoints(book.id, 'review_approved');
@@ -474,7 +475,7 @@ export default function App() {
     }
     await reloadPoints();
     setRevalidating(false);
-    const msg = `재검증 완료 — 승인 ${kept + awarded}건 (신규 ${awarded}건) / 취소 ${removed}건${skipped ? ` / 보류 ${skipped}건` : ''}`;
+    const msg = `재검증 완료 — 승인 ${kept + awarded}건 (신규 ${awarded}건) / 취소 ${removed}건${skipped ? ` / 보류 ${skipped}건 (AI 응답/설정 문제)` : ''}`;
     setRevalidateToast(msg);
     setTimeout(() => setRevalidateToast(null), 6000);
   };
@@ -1304,8 +1305,8 @@ export default function App() {
                     type:  'review_added',
                   });
                 } else if (result.uncertain) {
-                  saveRejectionReason(bookId, result.reason ?? 'AI 검증이 잠시 보류되었어요. 나중에 다시 시도해주세요.');
-                  setRevalidateToast(result.reason ?? 'AI 검증이 잠시 보류되었어요. 기존 승인 상태는 유지됩니다.');
+                  saveRejectionReason(bookId, result.reason ?? 'AI 검증이 보류되었어요. 후기 내용 문제가 아니라 AI 응답/설정 문제일 수 있어요.');
+                  setRevalidateToast(result.reason ?? 'AI 검증이 보류되었어요. 기존 승인 상태는 유지됩니다.');
                   setTimeout(() => setRevalidateToast(null), 5000);
                 } else {
                   await removePoints(bookId, 'review_approved');

@@ -250,16 +250,21 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
           <div className="child-step">
             <div className="child-step-emoji">✨</div>
             <div className="child-step-title">독후감이 완성됐어!</div>
-            <div className="child-step-sub">내용을 확인하고 수정할 수 있어</div>
+            <div className="child-step-sub">
+              30자 이상, 책의 인물·사건·새로 알게 된 점·내 생각 중 하나가 들어가면 좋아
+            </div>
             <textarea
               className="child-answer-input child-review-textarea"
               value={editedReview}
               onChange={e => setEditedReview(e.target.value)}
               rows={7}
             />
+            <div className="child-step-sub">
+              현재 {editedReview.trim().length}자
+            </div>
             <button
               className="btn-primary child-next-btn"
-              disabled={saving || !editedReview.trim()}
+              disabled={saving || editedReview.trim().length < 30}
               onClick={handleComplete}
             >{saving ? '저장 중...' : '저장하기 🎊'}</button>
           </div>

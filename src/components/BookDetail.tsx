@@ -9,6 +9,9 @@ import { awardPoints, calcReviewPoints, syncBookPoints } from '../services/point
 import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2, Quote, MessageSquare, CalendarDays, Info } from 'lucide-react';
 
+const isValidationHoldReason = (reason: string | null) =>
+  !!reason && /(보류|Gemini API 키|AI가 판정|AI가 빈 판정)/.test(reason);
+
 interface BookCandidate {
   cover: string;
   title: string;
@@ -160,9 +163,13 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
   const [rejectionReason, setRejectionReason] = useState<string | null>(() => getRejectionReason(book.id));
   const [fetchingReason, setFetchingReason] = useState(false);
-  // 'pass': AI가 통과 판정 (포인트 로그만 없는 상태), 'fail': 거절, null: 미확인
-  const [reviewCheckResult, setReviewCheckResult] = useState<'pass' | 'fail' | null>(
-    () => getRejectionReason(book.id) ? 'fail' : null
+  // 'pass': AI가 통과 판정, 'fail': 내용 기준 미달, 'hold': AI 응답/설정 문제, null: 미확인
+  const [reviewCheckResult, setReviewCheckResult] = useState<'pass' | 'fail' | 'hold' | null>(
+    () => {
+      const reason = getRejectionReason(book.id);
+      if (!reason) return null;
+      return isValidationHoldReason(reason) ? 'hold' : 'fail';
+    }
   );
 
   // pending 상태인데 저장된 이유가 없으면 AI로 자동 조회
@@ -171,8 +178,8 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setFetchingReason(true);
     validateReview(book.review, book.title, book.childAnswers).then(result => {
       if (result.uncertain) {
-        setRejectionReason(result.reason ?? null);
-        setReviewCheckResult(null);
+        setRejectionReason(result.reason ?? 'AI 검증이 보류되었어요.');
+        setReviewCheckResult('hold');
       } else if (!result.valid) {
         const reason = result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.';
         saveRejectionReason(book.id, reason);
@@ -730,7 +737,9 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                       <div className={`review-rejection-reason ${reviewCheckResult === 'pass' ? 'pass' : ''}`}>
                         {fetchingReason
                           ? <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>후기 상태 확인 중...</span>
-                          : reviewCheckResult === 'fail'
+                          : reviewCheckResult === 'hold'
+                            ? <><strong>검증 보류:</strong> {rejectionReason}</>
+                            : reviewCheckResult === 'fail'
                             ? <><strong>거절 이유:</strong> {rejectionReason}</>
                             : reviewCheckResult === 'pass'
                               ? <>후기 내용은 기준을 충족해요. 편집 모드에서 저장하면 포인트가 지급됩니다.</>

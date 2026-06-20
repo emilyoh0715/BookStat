@@ -138,10 +138,34 @@ function hasRepetitivePadding(text: string): boolean {
 function getTitleTokens(bookTitle?: string): string[] {
   if (!bookTitle) return [];
   const stopWords = new Set(['의', '편', '권', '책', '시리즈', '대모험']);
-  return bookTitle
+  const compoundHints = [
+    '조선', '왕조', '기록', '실록', '한국사', '역사', '세계사',
+    '인물', '사건', '모험',
+  ];
+
+  const tokens = bookTitle
     .split(/[^0-9A-Za-z가-힣]+/)
     .map(token => token.trim())
-    .filter(token => token.length >= 2 && !stopWords.has(token));
+    .filter(token => token.length >= 2 && !/^\d+$/.test(token));
+
+  const expanded = new Set<string>();
+  for (const token of tokens) {
+    const variants = [
+      token,
+      token.replace(/의$/, ''),
+      token.replace(/실록$/, ''),
+      token.replace(/편$/, ''),
+      token.replace(/권$/, ''),
+    ];
+    for (const variant of variants) {
+      if (variant.length >= 2 && !stopWords.has(variant)) expanded.add(variant);
+    }
+    for (const hint of compoundHints) {
+      if (token.includes(hint)) expanded.add(hint);
+    }
+  }
+
+  return [...expanded];
 }
 
 function looksSubstantiveReview(text: string, bookTitle?: string, answers?: ReviewAnswer[]): boolean {

@@ -221,6 +221,27 @@ function parseValidationJson(text: string): { valid?: boolean; reason?: string }
   return JSON.parse(objectText) as { valid?: boolean; reason?: string };
 }
 
+async function validateReviewOnServer(
+  review: string,
+  bookTitle?: string,
+  answers?: ReviewAnswer[],
+): Promise<ReviewValidationResult> {
+  const response = await fetch('/api/validate-review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ review, bookTitle, answers }),
+  });
+  const data = await response.json().catch(() => ({})) as ReviewValidationResult;
+  if (!response.ok) {
+    throw new Error(data.reason ?? `서버 검증 API 오류 (${response.status})`);
+  }
+  return data;
+}
+
+function canUseDirectGeminiFallback(): boolean {
+  return typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+}
+
 /**
  * Validate a book review:
  *  - Must be ≥ 30 characters
@@ -250,6 +271,19 @@ export async function validateReview(
 
   if (looksSubstantiveReview(text, bookTitle, answers)) {
     return { valid: true };
+  }
+
+  try {
+    return await validateReviewOnServer(text, bookTitle, answers);
+  } catch (error) {
+    if (!canUseDirectGeminiFallback()) {
+      const detail = error instanceof Error && error.message ? ` (${error.message})` : '';
+      return {
+        valid: false,
+        uncertain: true,
+        reason: `서버 검증 API 호출에 실패해 보류되었어요${detail}. 후기 내용이 부족하다는 뜻은 아니에요.`,
+      };
+    }
   }
 
   const apiKey = getApiKey();

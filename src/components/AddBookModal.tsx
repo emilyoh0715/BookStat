@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import { GENRES } from '../lib/genres';
 import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader, Camera, Mic, Square } from 'lucide-react';
-import { recognizeBookFromImage, getApiKey } from '../services/claudeVocab';
+import { recognizeBookFromImage, getApiKey } from '../services/geminiAi';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface Props {
@@ -184,7 +184,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     setCameraRecognizing(true);
     setCameraError('');
 
-    // 표지 저장용 (600px), Claude API용 (1400px) 두 가지 크기로 준비
+    // 표지 저장용 (600px), Gemini API용 (1400px) 두 가지 크기로 준비
     const [coverDataUrl, apiDataUrl] = await Promise.all([
       resizeImageToDataUrl(file, 600, 0.82),
       resizeImageToDataUrl(file, 1400, 0.85),
@@ -193,7 +193,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     if (!getApiKey()) {
       // API 키 없으면 촬영 사진을 표지로만 저장
       if (coverDataUrl) useCapturedAsCover(coverDataUrl);
-      setCameraError('Claude API 키가 없어 텍스트 인식은 건너뜁니다. 사진은 표지로 저장했으니 제목을 직접 입력해주세요.');
+      setCameraError('Gemini API 키가 없어 텍스트 인식은 건너뜁니다. 사진은 표지로 저장했으니 제목을 직접 입력해주세요.');
       setTimeout(() => setCameraError(''), 6000);
       setCameraRecognizing(false);
       return;
@@ -295,6 +295,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
       status: form.status,
       rating: form.rating || undefined,
       review: form.review || undefined,
+      reviewCreatedAt: undefined,
       startDate: form.startDate || undefined,
       finishDate: form.finishDate || undefined,
       cover: currentCover || undefined,

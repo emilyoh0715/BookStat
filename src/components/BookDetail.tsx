@@ -4,10 +4,10 @@ import type { Profile } from '../contexts/AuthContext';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import BookComments from './BookComments';
-import { lookupVocab, getApiKey, validateReview, saveRejectionReason, clearRejectionReason, getRejectionReason } from '../services/claudeVocab';
+import { lookupVocab, getApiKey, validateReview, saveRejectionReason, clearRejectionReason, getRejectionReason } from '../services/geminiAi';
 import { awardPoints, calcReviewPoints, syncBookPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
-import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2, Quote, MessageSquare, CalendarDays, Info } from 'lucide-react';
 
 interface BookCandidate {
   cover: string;
@@ -66,7 +66,7 @@ interface Props {
   onUpdate: (updates: Partial<Book>) => void;
   onAddVocab: (entry: { word: string; meaning: string; sentence?: string; page?: number }) => void;
   onDeleteVocab: (id: string) => void;
-  onAddNote: (note: { content: string; page?: number }) => void;
+  onAddNote: (note: { type?: 'reading_log' | 'reflection' | 'quote'; content: string; page?: number }) => void;
   onDeleteNote: (id: string) => void;
   onPointsSync?: () => void;
   onWriteReview?: () => void;
@@ -76,7 +76,8 @@ interface Props {
   groupMembers?: Profile[];
 }
 
-type Tab = 'info' | 'vocab' | 'notes';
+type Tab = 'notes' | 'vocab' | 'info';
+type NoteType = 'reading_log' | 'reflection' | 'quote';
 
 const STATUS_OPTIONS: { value: ReadingStatus; label: string }[] = [
   { value: 'reading', label: '읽는 중' },
@@ -92,7 +93,7 @@ const LANG_OPTIONS: { value: BookLanguage; label: string; flag: string }[] = [
 ];
 
 export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDeleteVocab, onAddNote, onDeleteNote, onPointsSync, onWriteReview, reviewStatus, readOnly, currentUserId, groupMembers }: Props) {
-  const [tab, setTab] = useState<Tab>('info');
+  const [tab, setTab] = useState<Tab>('notes');
   const [editingInfo, setEditingInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
     status: book.status,
@@ -188,7 +189,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   }, [reviewStatus, book.id]);
 
   const [vocabForm, setVocabForm] = useState({ word: '', meaning: '', sentence: '', page: '' });
-  const [noteForm, setNoteForm] = useState({ content: '', page: '' });
+  const [noteForm, setNoteForm] = useState({ type: 'reflection' as NoteType, content: '', page: '' });
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState('');
 
@@ -262,7 +263,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   const handleAutoLookup = async () => {
     if (!vocabForm.word.trim()) return;
     if (!getApiKey()) {
-      setLookupError('설정에서 Claude API 키를 먼저 입력해주세요.');
+      setLookupError('설정에서 Gemini API 키를 먼저 입력해주세요.');
       return;
     }
     setLookupLoading(true);
@@ -291,12 +292,35 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteForm.content.trim()) return;
-    onAddNote({ content: noteForm.content.trim(), page: noteForm.page ? Number(noteForm.page) : undefined });
-    setNoteForm({ content: '', page: '' });
+    onAddNote({ type: noteForm.type, content: noteForm.content.trim(), page: noteForm.page ? Number(noteForm.page) : undefined });
+    setNoteForm(f => ({ ...f, content: '', page: '' }));
   };
 
   const coverColors = ['#8B5E3C', '#4A6741', '#3D5A80', '#7B4E7E', '#8B6914', '#2E6E8E'];
   const colorIdx = book.title.charCodeAt(0) % coverColors.length;
+  const noteTypeMeta: Record<NoteType | 'legacy', { label: string; icon: React.ReactNode; placeholder: string }> = {
+    reading_log: {
+      label: '읽기 기록',
+      icon: <CalendarDays size={14} />,
+      placeholder: '오늘 읽은 분량을 남겨보세요. 예: 84쪽까지 읽음, 20분 읽음',
+    },
+    reflection: {
+      label: '한 줄 감상',
+      icon: <MessageSquare size={14} />,
+      placeholder: '읽는 중 떠오른 생각을 한 줄로 남겨보세요.',
+    },
+    quote: {
+      label: '책속 문장 저장',
+      icon: <Quote size={14} />,
+      placeholder: '마음에 남은 책속 문장을 저장해보세요.',
+    },
+    legacy: {
+      label: '메모',
+      icon: <StickyNote size={14} />,
+      placeholder: '메모를 입력하세요.',
+    },
+  };
+  const noteCount = book.notes.length + (book.review?.trim() ? 1 : 0);
 
   return (
     <div className="book-detail">
@@ -320,9 +344,15 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
         </div>
         <div className="detail-hero-info">
           <h1>{book.title}</h1>
-          <p className="detail-author">{book.author}</p>
-          {book.genre && <span className="book-genre">{book.genre}</span>}
-          <StatusBadge status={book.status} />
+          <p className="detail-author">
+            {[book.author, book.publisher].filter(Boolean).join(' · ') || '저자 정보 없음'}
+          </p>
+          <div className="detail-hero-chips">
+            <StatusBadge status={book.status} />
+            <span className="detail-chip">{book.totalPages ? `${book.totalPages}쪽` : '페이지 미입력'}</span>
+            <span className="detail-chip">{LANG_OPTIONS.find(o => o.value === book.language)?.label ?? '언어 미입력'}</span>
+            {book.genre && <span className="book-genre">{book.genre}</span>}
+          </div>
           {book.rating && <StarRating value={book.rating} size={18} />}
           {progress !== null && (
             <div className="progress-wrap large">
@@ -332,6 +362,12 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
               <span className="progress-text">{progress}% ({book.currentPage}/{book.totalPages}p)</span>
             </div>
           )}
+          <div className="detail-hero-stats">
+            <span>시작일 {book.startDate ?? '—'}</span>
+            <span>완독일 {book.finishDate ?? '—'}</span>
+            <span>노트 {noteCount}개</span>
+            <span>단어 {book.vocab.length}개</span>
+          </div>
         </div>
       </div>
 
@@ -390,14 +426,14 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       )}
 
       <div className="detail-tabs">
-        <button className={`tab-btn ${tab === 'info' ? 'active' : ''}`} onClick={() => setTab('info')}>
-          <BookMarked size={16} /> 정보 & 리뷰
+        <button className={`tab-btn ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')}>
+          <StickyNote size={16} /> 독서노트 <span className="tab-count">{noteCount}</span>
         </button>
         <button className={`tab-btn ${tab === 'vocab' ? 'active' : ''}`} onClick={() => setTab('vocab')}>
           <BookOpen size={16} /> 단어장 <span className="tab-count">{book.vocab.length}</span>
         </button>
-        <button className={`tab-btn ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')}>
-          <StickyNote size={16} /> 메모 <span className="tab-count">{book.notes.length}</span>
+        <button className={`tab-btn ${tab === 'info' ? 'active' : ''}`} onClick={() => setTab('info')}>
+          <Info size={16} /> 상세정보
         </button>
       </div>
 
@@ -556,42 +592,6 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                       <span>{book.currentPage ?? '—'}</span>
                     </div>
                   </div>
-                  {book.review && (
-                    <div className="review-box">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <span className="info-label" style={{ margin: 0 }}>리뷰</span>
-                        {reviewStatus === 'approved' && (
-                          <span className="review-status-badge approved">✓ 승인됨</span>
-                        )}
-                        {reviewStatus === 'pending' && (
-                          <span className="review-status-badge pending">! 미승인</span>
-                        )}
-                      </div>
-                      <p>{book.review}</p>
-                      {reviewStatus === 'pending' && (
-                        <div className={`review-rejection-reason ${reviewCheckResult === 'pass' ? 'pass' : ''}`}>
-                          {fetchingReason
-                            ? <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>후기 상태 확인 중...</span>
-                            : reviewCheckResult === 'fail'
-                              ? <><strong>거절 이유:</strong> {rejectionReason}</>
-                              : reviewCheckResult === 'pass'
-                                ? <>후기 내용은 기준을 충족해요. 편집 모드에서 저장하면 포인트가 지급됩니다.</>
-                                : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>API 키를 설정하면 거절 이유를 확인할 수 있어요.</span>
-                          }
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {!book.review && !readOnly && onWriteReview && (
-                    <button
-                      className="btn-secondary"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}
-                      onClick={onWriteReview}
-                    >
-                      ✍️ 감상문 쓰기
-                    </button>
-                  )}
-                  {!book.review && (readOnly || !onWriteReview) && <p className="empty-text">아직 리뷰가 없습니다.</p>}
                 </div>
               )}
             </div>
@@ -610,6 +610,10 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
 
         {tab === 'vocab' && (
           <div className="vocab-tab">
+            <div className="tab-intro">
+              <h3>책별 단어장</h3>
+              <p>읽다가 모르는 단어와 표현을 책 속 문장과 함께 모아두세요. 원서 읽을 때는 작은 사전처럼 쓸 수 있어요.</p>
+            </div>
             {!readOnly && (
               <form onSubmit={handleAddVocab} className="add-form">
                 <div className="vocab-input-row">
@@ -621,7 +625,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                       className={`btn-ai ${lookupLoading ? 'loading' : ''}`}
                       onClick={handleAutoLookup}
                       disabled={lookupLoading || !vocabForm.word.trim()}
-                      title="Claude AI로 뜻 자동 검색"
+                      title="Gemini AI로 뜻 자동 검색"
                     >
                       {lookupLoading ? <Loader size={15} className="spin" /> : <Sparkles size={15} />}
                       {lookupLoading ? '검색 중...' : 'AI 검색'}
@@ -668,9 +672,22 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
           <div className="notes-tab">
             {!readOnly && (
               <form onSubmit={handleAddNote} className="add-form">
+                <div className="note-type-row">
+                  {(Object.keys(noteTypeMeta).filter(t => t !== 'legacy') as NoteType[]).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={`note-type-btn ${noteForm.type === type ? 'active' : ''}`}
+                      onClick={() => setNoteForm(f => ({ ...f, type }))}
+                    >
+                      {noteTypeMeta[type].icon}
+                      {noteTypeMeta[type].label}
+                    </button>
+                  ))}
+                </div>
                 <div className="note-input-row">
                   <textarea value={noteForm.content} onChange={e => setNoteForm(f => ({ ...f, content: e.target.value }))}
-                    placeholder="메모를 입력하세요..." rows={2} required />
+                    placeholder={noteTypeMeta[noteForm.type].placeholder} rows={2} required />
                   <div className="note-actions">
                     <input type="number" value={noteForm.page} onChange={e => setNoteForm(f => ({ ...f, page: e.target.value }))}
                       placeholder="p." className="page-input" min="1" />
@@ -680,11 +697,15 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
               </form>
             )}
 
-            {book.notes.length === 0
-              ? <p className="empty-text">아직 메모가 없습니다.{!readOnly && ' 위에서 추가해보세요!'}</p>
+            {book.notes.length === 0 && !book.review
+              ? <p className="empty-text">아직 독서노트가 없습니다.{!readOnly && ' 위에서 첫 기록을 남겨보세요!'}</p>
               : <div className="notes-list">
                 {book.notes.map(n => (
                   <div key={n.id} className="note-item">
+                    <div className="note-kind">
+                      {noteTypeMeta[n.type ?? 'legacy'].icon}
+                      <span>{noteTypeMeta[n.type ?? 'legacy'].label}</span>
+                    </div>
                     <p>{n.content}</p>
                     <div className="note-footer">
                       <span className="note-date">{n.createdAt}</span>
@@ -693,6 +714,37 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     </div>
                   </div>
                 ))}
+                {book.review && (
+                  <div className="note-item review-note-item">
+                    <div className="note-kind">
+                      <BookMarked size={14} />
+                      <span>완독 감상문</span>
+                      {reviewStatus === 'approved' && <span className="review-status-badge approved">승인됨</span>}
+                      {reviewStatus === 'pending' && <span className="review-status-badge pending">미승인</span>}
+                    </div>
+                    <p>{book.review}</p>
+                    {reviewStatus === 'pending' && (
+                      <div className={`review-rejection-reason ${reviewCheckResult === 'pass' ? 'pass' : ''}`}>
+                        {fetchingReason
+                          ? <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>후기 상태 확인 중...</span>
+                          : reviewCheckResult === 'fail'
+                            ? <><strong>거절 이유:</strong> {rejectionReason}</>
+                            : reviewCheckResult === 'pass'
+                              ? <>후기 내용은 기준을 충족해요. 편집 모드에서 저장하면 포인트가 지급됩니다.</>
+                              : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>API 키를 설정하면 거절 이유를 확인할 수 있어요.</span>
+                        }
+                      </div>
+                    )}
+                    <div className="note-footer">
+                      <span className="note-date">{book.finishDate ?? book.createdAt}</span>
+                    </div>
+                  </div>
+                )}
+                {!book.review && !readOnly && onWriteReview && (
+                  <button className="btn-secondary note-review-btn" onClick={onWriteReview}>
+                    <BookMarked size={15} /> 완독 감상문 쓰기
+                  </button>
+                )}
               </div>
             }
           </div>

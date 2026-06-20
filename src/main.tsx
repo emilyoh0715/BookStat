@@ -43,6 +43,21 @@ window.addEventListener('unhandledrejection', (e) => {
   }
 });
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.getRegistration().then((registration) => {
+      registration?.update().catch(() => {});
+    }).catch(() => {});
+  });
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!sessionStorage.getItem('_sw_controller_reload')) {
+      sessionStorage.setItem('_sw_controller_reload', '1');
+      window.location.reload();
+    }
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>

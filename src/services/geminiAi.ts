@@ -1,8 +1,9 @@
-const API_KEY_STORAGE = 'book-recorder-api-key';
+const API_KEY_STORAGE = 'book-recorder-gemini-api-key';
 const ALADIN_KEY_STORAGE = 'book-recorder-aladin-key';
+const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
 
 export function getApiKey(): string {
-  return localStorage.getItem(API_KEY_STORAGE) || import.meta.env.VITE_ANTHROPIC_API_KEY || '';
+  return localStorage.getItem(API_KEY_STORAGE) || import.meta.env.VITE_GEMINI_API_KEY || '';
 }
 
 export function setApiKey(key: string) {
@@ -15,6 +16,60 @@ export function getAladinKey(): string {
 
 export function setAladinKey(key: string) {
   localStorage.setItem(ALADIN_KEY_STORAGE, key);
+}
+
+type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
+}
+
+function geminiEndpoint(apiKey: string) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+}
+
+function extractGeminiText(data: GeminiResponse): string {
+  return data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('').trim() ?? '';
+}
+
+async function generateGeminiText(
+  parts: GeminiPart[],
+  options: { maxOutputTokens?: number; temperature?: number; json?: boolean } = {},
+): Promise<string> {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('API 키가 설정되지 않았습니다.');
+
+  const response = await fetch(geminiEndpoint(apiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        maxOutputTokens: options.maxOutputTokens,
+        temperature: options.temperature,
+        thinkingConfig: { thinkingBudget: 0 },
+        responseMimeType: options.json ? 'application/json' : undefined,
+      },
+    }),
+  });
+
+  const data = await response.json().catch(() => ({})) as GeminiResponse;
+  if (!response.ok) {
+    throw new Error(data.error?.message ?? `API 오류 (${response.status})`);
+  }
+
+  return extractGeminiText(data);
+}
+
+function cleanJsonText(text: string): string {
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 }
 
 export interface ReviewValidationResult {
@@ -45,12 +100,40 @@ export function getRejectionReason(bookId: string): string | null {
   return localStorage.getItem(rejectionKey(bookId));
 }
 
+function hasObviousLowSignal(text: string): string | null {
+  const compact = text.replace(/\s+/g, '');
+  const vaguePhrases = /(재미있었|재밌었|신기했|흥미로웠|좋았|또읽고싶|감동받았|슬펐|어려웠|지루했)/g;
+  const vagueCount = text.match(vaguePhrases)?.length ?? 0;
+  const suspiciousFragments = [
+    '응 없어',
+    '응없어',
+    '몰라',
+    '잘 모르',
+    '아무거나',
+    '대충',
+  ];
+
+  if (
+    compact.includes('응없어') ||
+    (text.length < 80 && suspiciousFragments.some(fragment => compact.includes(fragment.replace(/\s+/g, ''))))
+  ) {
+    return '질문에 대한 답이 없거나 장난성 문장이 포함되어 있어요.';
+  }
+
+  const sentences = text.split(/[.!?。！？\n]+/).map(s => s.trim()).filter(Boolean);
+  if (vagueCount > 0 && sentences.length <= 2 && text.length < 45) {
+    return '막연한 감상만 있고 책의 구체적인 내용이 부족해요.';
+  }
+
+  return null;
+}
+
 /**
  * Validate a book review:
  *  - Must be ≥ 30 characters
  *  - If answers provided (guided flow): quality 0 → auto-fail, quality 1 → strict AI check
- *  - If a Claude API key is set, AI checks for personal content + book-relevance + no spam
- *  - Falls back to length-only check when no API key
+ *  - If a Gemini API key is set, AI checks for personal content + book-relevance + no spam
+ *  - Fails closed when AI validation cannot run
  */
 export async function validateReview(
   review: string,
@@ -61,6 +144,10 @@ export async function validateReview(
   if (text.length < 30) {
     return { valid: false, reason: '후기는 30자 이상 작성해주세요.' };
   }
+  const lowSignalReason = hasObviousLowSignal(text);
+  if (lowSignalReason) {
+    return { valid: false, reason: lowSignalReason };
+  }
 
   // 가이드 흐름(질문 답변)을 통해 작성된 경우 품질 사전 검사
   const quality = answers && answers.length > 0 ? calcAnswerQuality(answers) : null;
@@ -70,7 +157,7 @@ export async function validateReview(
 
   const apiKey = getApiKey();
   if (!apiKey) {
-    return { valid: true };
+    return { valid: false, reason: 'AI 검증을 위해 Gemini API 키가 필요해요.' };
   }
 
   const bookCtx = bookTitle ? `책 제목: "${bookTitle}"\n` : '';
@@ -97,10 +184,15 @@ export async function validateReview(
 - 책을 통해 새롭게 알게 된 사실이나 정보
 - 책의 특정 부분이 왜 좋았는지 또는 왜 인상적이었는지에 대한 설명
 - 책이 자신의 생각이나 행동에 어떤 영향을 줬는지
+
+단, 위 요건은 반드시 책 제목/질문 답변/후기 안의 단서와 연결되어야 합니다.
+책과 연결되지 않는 일반 상식, 갑작스러운 무관한 문장, 앞뒤가 맞지 않는 문장은 요건으로 인정하지 마세요.
 ${strictExtra}
 [반드시 거절 (valid: false)]
 - "재미있었다", "신기했다", "흥미로웠다", "또 읽고 싶다" 등 막연한 감정/평가만 나열한 경우
   → 설령 이런 문장이 여러 개여도 책의 구체적 내용이 없으면 거절
+- "응 없어", "몰라", "없어요"처럼 질문 답변을 회피하는 문장이 포함된 경우
+- 책과 무관한 일반 상식이나 뜬금없는 문장으로 30자를 채운 경우
 - 해시태그(#), 이모지, 광고성 문구가 포함된 경우
 - 책 제목이나 저자 이름만 언급하고 실제 내용이 없는 경우
 - 의미 없는 글자 반복이나 장난성 내용
@@ -111,31 +203,16 @@ ${strictExtra}
 거절: {"valid": false, "reason": "거절 이유 (한 문장, 한국어)"}`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 128,
-        temperature: 0,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!response.ok) return { valid: true }; // fail open on API error
-
-    const data = await response.json() as { content: Array<{ type: string; text: string }> };
-    const raw = data.content.find(b => b.type === 'text')?.text ?? '';
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    const raw = await generateGeminiText([{ text: prompt }], { maxOutputTokens: 128, temperature: 0, json: true });
+    const cleaned = cleanJsonText(raw);
     const parsed = JSON.parse(cleaned) as { valid?: boolean; reason?: string };
-    return { valid: parsed.valid ?? true, reason: parsed.reason };
+    if (parsed.valid === true) return { valid: true };
+    return {
+      valid: false,
+      reason: parsed.reason ?? '책의 구체적인 내용과 나의 생각이 충분히 드러나야 해요.',
+    };
   } catch {
-    return { valid: true }; // fail open on parse/network error
+    return { valid: false, reason: 'AI 검증에 실패했어요. 잠시 후 다시 저장해주세요.' };
   }
 }
 
@@ -160,7 +237,7 @@ function buildFallbackReview(
 }
 
 /**
- * 답변(평점·감정·질문 2개)을 바탕으로 Claude가 독후감 자동 생성
+ * 답변(평점·감정·질문 2개)을 바탕으로 Gemini가 독후감 자동 생성
  * - qualityLevel 0: 답변 없음 → 짧은 기본 fallback (AI 미호출)
  * - qualityLevel 1: 답변 1개이거나 짧은 경우 → 간단한 리뷰 (2~3문장)
  * - qualityLevel 2: 둘 다 충분히 답변 (≥30자) → 풍부한 리뷰 (3~5문장)
@@ -211,30 +288,17 @@ ${answersText}
 - ${toneGuide}
 - ${contentGuide}
 - ${lengthGuide}
+- ${writerPoss} 답변에 없는 책 내용, 인물, 사건, 교훈을 지어내지 말 것
+- 답변이 부족하면 부족한 만큼 짧고 솔직하게 쓰되, 책과 무관한 문장은 넣지 말 것
+- "재미있었다" 같은 감정만 반복하지 말고 답변에 나온 구체 단서를 반드시 반영
 - 과하게 꾸미거나 형식적인 표현 금지
 - 독후감 텍스트만 출력 (JSON·특수 기호 불필요)`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: qualityLevel === 2 ? 400 : 200,
-        temperature: 0.7,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!response.ok) return buildFallbackReview(emotionLabel, answers);
-
-    const data = await response.json() as { content: Array<{ type: string; text: string }> };
-    const text = data.content.find(b => b.type === 'text')?.text?.trim() ?? '';
+    const text = await generateGeminiText(
+      [{ text: prompt }],
+      { maxOutputTokens: qualityLevel === 2 ? 400 : 200, temperature: 0.7 },
+    );
     return text || buildFallbackReview(emotionLabel, answers);
   } catch {
     return buildFallbackReview(emotionLabel, answers);
@@ -247,7 +311,7 @@ export interface BookRecognitionResult {
 }
 
 /**
- * 책 표지 이미지를 Claude Vision으로 분석해 제목과 저자를 추출
+ * 책 표지 이미지를 Gemini Vision으로 분석해 제목과 저자를 추출
  */
 export async function recognizeBookFromImage(
   imageBase64: string,
@@ -256,27 +320,11 @@ export async function recognizeBookFromImage(
   const apiKey = getApiKey();
   if (!apiKey) throw new Error('API 키가 설정되지 않았습니다.');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 256,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mimeType, data: imageBase64 },
-          },
-          {
-            type: 'text',
-            text: `책 표지 이미지에서 텍스트를 분석하세요.
+  const text = await generateGeminiText(
+    [
+      { inlineData: { mimeType, data: imageBase64 } },
+      {
+        text: `책 표지 이미지에서 텍스트를 분석하세요.
 
 중요: 제목은 반드시 글자 크기(font size)가 가장 큰 텍스트입니다. 위치(위/아래/왼쪽/오른쪽)는 전혀 관계없습니다.
 
@@ -289,20 +337,11 @@ export async function recognizeBookFromImage(
 다음 JSON 형식으로만 최종 응답하세요 (다른 텍스트 없이):
 {"title": "글자 크기가 가장 큰 텍스트 원문", "author": "저자명 원문"}
 확인할 수 없는 항목은 ""로 두세요.`,
-          },
-        ],
-      }],
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error((err as { error?: { message?: string } }).error?.message ?? `API 오류 (${response.status})`);
-  }
-
-  const data = await response.json() as { content: Array<{ type: string; text: string }> };
-  const text = data.content.find(b => b.type === 'text')?.text ?? '';
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      },
+    ],
+    { maxOutputTokens: 256, temperature: 0, json: true },
+  );
+  const cleaned = cleanJsonText(text);
   const parsed = JSON.parse(cleaned) as { title?: string; author?: string };
   return { title: parsed.title ?? '', author: parsed.author ?? '' };
 }
@@ -337,33 +376,10 @@ ${langHint}${sentence ? ' 위 문장의 문맥을 참고해서 이 단어의 정
 다음 JSON 형식으로만 응답해주세요 (다른 텍스트 없이):
 {"meaning": "간결한 뜻풀이 (1~2문장)", "example": "짧은 예문 (선택사항)"}`;
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5',
-      max_tokens: 256,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error((err as { error?: { message?: string } }).error?.message ?? `API 오류 (${response.status})`);
-  }
-
-  const data = await response.json() as {
-    content: Array<{ type: string; text: string }>;
-  };
-  const text = data.content.find(b => b.type === 'text')?.text ?? '';
+  const text = await generateGeminiText([{ text: prompt }], { maxOutputTokens: 256, temperature: 0.2, json: true });
 
   try {
-    const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    const cleaned = cleanJsonText(text);
     const parsed = JSON.parse(cleaned) as { meaning?: string; example?: string };
     return {
       meaning: parsed.meaning ?? cleaned,
@@ -372,4 +388,8 @@ ${langHint}${sentence ? ' 위 문장의 문맥을 참고해서 이 단어의 정
   } catch {
     return { meaning: text };
   }
+}
+
+export async function generateStatsSummary(prompt: string): Promise<string> {
+  return generateGeminiText([{ text: prompt }], { maxOutputTokens: 150, temperature: 0.7 });
 }

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, BookOpen, CalendarDays, MessageSquare, Quote, Star, Trophy, Languages, Plus } from 'lucide-react';
+
+export type MagazineArticleType = 'points' | 'books';
 
 const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  as string;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_KEY  as string;
@@ -15,6 +17,74 @@ async function fetchAladinCover(title: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+interface PointMission {
+  title: string;
+  points: string;
+  desc: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+const MISSIONS: PointMission[] = [
+  {
+    title: '책 추가',
+    points: '+2',
+    desc: '읽고 싶은 책을 서재에 담으면 독서 출발!',
+    icon: <Plus size={19} />,
+    color: '#3b82f6',
+  },
+  {
+    title: '읽기 기록',
+    points: '+2',
+    desc: '오늘 읽은 쪽수나 시간을 짧게 남겨요.',
+    icon: <CalendarDays size={19} />,
+    color: '#10b981',
+  },
+  {
+    title: '한 줄 감상',
+    points: '+4',
+    desc: '읽는 중 떠오른 생각 하나면 충분해요.',
+    icon: <MessageSquare size={19} />,
+    color: '#f97316',
+  },
+  {
+    title: '책속 문장 저장',
+    points: '+5',
+    desc: '마음에 남은 문장은 나만의 보물 문장으로.',
+    icon: <Quote size={19} />,
+    color: '#8b5cf6',
+  },
+  {
+    title: '완독',
+    points: '+10~25',
+    desc: '마지막 장까지 도착하면 페이지 수만큼 쑥!',
+    icon: <Trophy size={19} />,
+    color: '#f59e0b',
+  },
+  {
+    title: '완독 감상문',
+    points: '+15~40',
+    desc: '다 읽은 뒤 생각을 정리하면 가장 큰 기록 완성.',
+    icon: <Star size={19} />,
+    color: '#ec4899',
+  },
+];
+
+function MissionCard({ mission }: { mission: PointMission }) {
+  return (
+    <div className="mag-point-card">
+      <div className="mag-point-icon" style={{ color: mission.color, background: `${mission.color}16` }}>
+        {mission.icon}
+      </div>
+      <div className="mag-point-copy">
+        <h4>{mission.title}</h4>
+        <p>{mission.desc}</p>
+      </div>
+      <strong className="mag-point-value" style={{ color: mission.color }}>{mission.points}</strong>
+    </div>
+  );
 }
 
 interface BookEntry {
@@ -61,7 +131,7 @@ const BOOKS: BookEntry[] = [
   {
     num: 6, title: '샬롯의 거미줄', author: 'E.B. 화이트',
     emoji: '🕸️', color: '#6366f1',
-    desc: '돼지 윌버의 목숨을 구하기 위해 거미 샬롯이 선택한 방법은… 거미줄에 글씨를 쓰는 거야! 우정이 뭔지 진짜로 보여 주는 이야기, 마지막엔 울 수도 있어.',
+    desc: '돼지 윌버의 목숨을 구하기 위해 거미 샬롯이 선택한 방법은... 거미줄에 글씨를 쓰는 거야! 우정이 뭔지 진짜로 보여 주는 이야기, 마지막엔 울 수도 있어.',
     tags: ['우정', '감동'],
   },
   {
@@ -123,36 +193,110 @@ function BookCard({ book, coverUrl }: { book: BookEntry; coverUrl?: string | nul
   );
 }
 
-interface Props { onClose: () => void; }
+interface Props {
+  article: MagazineArticleType;
+  onClose: () => void;
+}
 
-export default function MagazineArticle({ onClose }: Props) {
+export default function MagazineArticle({ article, onClose }: Props) {
   const [covers, setCovers] = useState<Record<number, string>>({});
 
   useEffect(() => {
+    if (article !== 'books') return;
     BOOKS.forEach(book => {
       fetchAladinCover(book.title).then(url => {
         if (url) setCovers(prev => ({ ...prev, [book.num]: url }));
       });
     });
-  }, []);
+  }, [article]);
 
   return (
     <div className="mag-overlay">
-      {/* Sticky topbar */}
       <div className="mag-topbar">
         <button className="mag-back-btn" onClick={onClose}>
           <ArrowLeft size={17} /> 뒤로
         </button>
-        <span className="mag-topbar-label">오늘의 매거진</span>
+        <span className="mag-topbar-label">북스탯 매거진</span>
         <div style={{ width: 64 }} />
       </div>
 
-      <div className="mag-body">
-        {/* Hero */}
-        <div className="mag-hero">
+      {article === 'points' ? (
+      <article className="mag-body">
+        <section className="mag-hero mag-hero--points">
           <div className="mag-hero-content">
             <div className="mag-hero-text">
-              <span className="mag-hero-badge">📚 BOOK LIST</span>
+              <span className="mag-hero-badge">POINT GUIDE</span>
+              <h1 className="mag-hero-title">
+                북스탯 포인트<br />
+                <em className="mag-hero-accent">모으는 법</em>
+              </h1>
+              <p className="mag-hero-sub">읽고, 남기고, 도전하면<br />포인트가 차곡차곡 쌓여요.</p>
+            </div>
+            <div className="mag-point-visual" aria-hidden="true">
+              <div className="mag-point-coin mag-point-coin--big">P</div>
+              <div className="mag-point-book"><BookOpen size={34} /></div>
+              <span className="mag-point-spark mag-point-spark--one">+2</span>
+              <span className="mag-point-spark mag-point-spark--two">+5</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="mag-greeting mag-greeting--points">
+          <p className="mag-greeting-hi">책을 다 읽은 날만 특별한 건 아니에요.</p>
+          <div className="mag-greeting-body">
+            <p>오늘 조금 읽은 기록, 갑자기 떠오른 생각, 다시 보고 싶은 문장도 전부 독서의 일부예요.</p>
+            <p>북스탯에서는 그런 작은 순간들이 포인트로 쌓입니다.</p>
+          </div>
+        </section>
+
+        <section className="mag-point-section">
+          <div className="mag-list-hd">
+            <span>⭐</span>
+            <span>포인트 미션</span>
+          </div>
+          <div className="mag-point-list">
+            {MISSIONS.map(mission => <MissionCard key={mission.title} mission={mission} />)}
+          </div>
+        </section>
+
+        <section className="mag-bonus-card">
+          <div className="mag-bonus-icon">
+            <Languages size={24} />
+          </div>
+          <div className="mag-bonus-copy">
+            <span className="mag-bonus-label">도전 보너스</span>
+            <h3>원서나 다른 언어 책은 1.5배</h3>
+            <p>영어 원서처럼 다른 언어로 읽는 책은 더 큰 도전이에요. 그래서 완독 포인트와 완독 감상문 포인트가 1.5배로 쌓입니다.</p>
+          </div>
+        </section>
+
+        <section className="mag-example-card">
+          <p className="mag-example-kicker">예를 들면</p>
+          <p className="mag-example-main">완독 포인트가 20점인 책을 원서로 읽으면</p>
+          <div className="mag-example-equation">
+            <span>20점</span>
+            <span>×</span>
+            <span>1.5</span>
+            <span>=</span>
+            <strong>30점</strong>
+          </div>
+        </section>
+
+        <section className="mag-closing">
+          <h3>포인트는 점수보다 기록에 가까워요.</h3>
+          <p>내가 읽은 책, 붙잡은 문장, 남긴 생각이 독서노트에 쌓이고 포인트가 됩니다. 오늘은 어떤 기록을 남겨볼까요?</p>
+        </section>
+
+        <div className="mag-footer">
+          <p>북스탯 매거진 · 포인트 가이드</p>
+        </div>
+      </article>
+      ) : (
+      <article className="mag-body">
+        <section className="mag-hero mag-hero--books">
+          <div className="mag-hero-content">
+            <div className="mag-hero-text">
+              <span className="mag-hero-badge">BOOK LIST</span>
               <h1 className="mag-hero-title">
                 초3~초4가 읽기 좋은<br />
                 <em className="mag-hero-accent">책 10권</em>
@@ -170,33 +314,33 @@ export default function MagazineArticle({ onClose }: Props) {
               <span className="mag-hero-deco-sparkle">✦</span>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Greeting */}
-        <div className="mag-greeting">
-          <p className="mag-greeting-hi">👋 안녕하세요, Bookstat 친구들!</p>
+        <section className="mag-greeting">
+          <p className="mag-greeting-hi">안녕하세요, Bookstat 친구들!</p>
           <div className="mag-greeting-body">
-            <p>책 읽는 걸 좋아하는 친구도 있고,<br />"음… 아직은 게임이 더 재밌는데?" 하는 친구도 있을 거예요.</p>
+            <p>책 읽는 걸 좋아하는 친구도 있고, "음... 아직은 게임이 더 재밌는데?" 하는 친구도 있을 거예요.</p>
             <p>근데 신기하게도, 딱 맞는 책을 만나면 시간이 훅 지나가요.</p>
-            <p>오늘은 Bookstat이 웃기고, 신기하고, 생각할 거리도 있는<br /><strong>"10살 친구들이 읽기 좋은 책 10권"</strong>을 골라봤어요!</p>
+            <p>오늘은 Bookstat이 웃기고, 신기하고, 생각할 거리도 있는 <strong>"10살 친구들이 읽기 좋은 책 10권"</strong>을 골라봤어요!</p>
           </div>
-          <span className="mag-greeting-heart" aria-hidden="true">🩵</span>
-        </div>
+          <span className="mag-greeting-heart" aria-hidden="true">♡</span>
+        </section>
 
-        {/* Book list */}
-        <div className="mag-list-hd">
-          <span>⭐</span>
-          <span>추천 도서 10권</span>
-        </div>
-        <div className="mag-book-list">
-          {BOOKS.map(b => <BookCard key={b.num} book={b} coverUrl={covers[b.num]} />)}
-        </div>
+        <section>
+          <div className="mag-list-hd">
+            <span>⭐</span>
+            <span>추천 도서 10권</span>
+          </div>
+          <div className="mag-book-list">
+            {BOOKS.map(b => <BookCard key={b.num} book={b} coverUrl={covers[b.num]} />)}
+          </div>
+        </section>
 
-        {/* Footer */}
         <div className="mag-footer">
-          <p>북스탯 매거진 · 2026년 5월호</p>
+          <p>북스탯 매거진 · 추천 도서</p>
         </div>
-      </div>
+      </article>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Book, VocabEntry, Note, ReadingStatus, BookLanguage } from './types';
 import { supabase } from './lib/supabase';
 
@@ -18,6 +18,7 @@ function dbToBook(row: Record<string, unknown>): Book {
     status: row.status as ReadingStatus,
     rating: row.rating as number | undefined,
     review: row.review as string | undefined,
+    reviewCreatedAt: row.review_created_at as string | undefined,
     startDate: row.start_date as string | undefined,
     finishDate: row.finish_date as string | undefined,
     createdAt: row.created_at as string,
@@ -44,6 +45,7 @@ function bookToDb(book: Book) {
     status: book.status,
     rating: book.rating ?? null,
     review: book.review ?? null,
+    review_created_at: book.reviewCreatedAt ?? null,
     start_date: book.startDate ?? null,
     finish_date: book.finishDate ?? null,
     created_at: book.createdAt,
@@ -54,9 +56,51 @@ function bookToDb(book: Book) {
   };
 }
 
+function bookUpdatesToDb(updates: Partial<Book>) {
+  const dbUpdates: Record<string, unknown> = {};
+
+  if ('userId' in updates) dbUpdates.user_id = updates.userId;
+  if ('title' in updates) dbUpdates.title = updates.title;
+  if ('author' in updates) dbUpdates.author = updates.author;
+  if ('publisher' in updates) dbUpdates.publisher = updates.publisher ?? null;
+  if ('cover' in updates) dbUpdates.cover = updates.cover ?? null;
+  if ('genre' in updates) dbUpdates.genre = updates.genre ?? null;
+  if ('language' in updates) dbUpdates.language = updates.language;
+  if ('totalPages' in updates) dbUpdates.total_pages = updates.totalPages ?? null;
+  if ('currentPage' in updates) dbUpdates.current_page = updates.currentPage ?? null;
+  if ('status' in updates) dbUpdates.status = updates.status;
+  if ('rating' in updates) dbUpdates.rating = updates.rating ?? null;
+  if ('review' in updates) dbUpdates.review = updates.review ?? null;
+  if ('reviewCreatedAt' in updates) dbUpdates.review_created_at = updates.reviewCreatedAt ?? null;
+  if ('startDate' in updates) dbUpdates.start_date = updates.startDate ?? null;
+  if ('finishDate' in updates) dbUpdates.finish_date = updates.finishDate ?? null;
+  if ('createdAt' in updates) dbUpdates.created_at = updates.createdAt;
+  if ('vocab' in updates) dbUpdates.vocab = updates.vocab ?? [];
+  if ('notes' in updates) dbUpdates.notes = updates.notes ?? [];
+  if ('childEmotion' in updates) dbUpdates.child_emotion = updates.childEmotion ?? null;
+  if ('childAnswers' in updates) dbUpdates.child_answers = updates.childAnswers ?? null;
+
+  return dbUpdates;
+}
+
 export function useBooks() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  const booksRef = useRef<Book[]>([]);
+
+  useEffect(() => {
+    booksRef.current = books;
+  }, [books]);
+
+  const setBooksAndRef = (updater: Book[] | ((prev: Book[]) => Book[])) => {
+    setBooks(prev => {
+      const next = typeof updater === 'function'
+        ? (updater as (prev: Book[]) => Book[])(prev)
+        : updater;
+      booksRef.current = next;
+      return next;
+    });
+  };
 
   // 초기 로드 — 세션 준비 후 실행
   useEffect(() => {
@@ -64,7 +108,7 @@ export function useBooks() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setLoading(false); return; }
       const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
-      if (data) setBooks(data.map(dbToBook));
+      if (data) setBooksAndRef(data.map(dbToBook));
       setLoading(false);
     };
     load();
@@ -72,7 +116,7 @@ export function useBooks() {
     // 로그인/로그아웃 시 재로드
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) load();
-      else setBooks([]);
+      else setBooksAndRef([]);
     });
 
     // 실시간 동기화 — 다른 가족이 추가/수정/삭제하면 자동 반영
@@ -95,24 +139,54 @@ export function useBooks() {
       id: Date.now().toString(),
       userId,
       createdAt: new Date().toISOString().split('T')[0],
+      reviewCreatedAt: undefined,
       vocab: [],
       notes: [],
     };
-    setBooks(prev => [newBook, ...prev]);
-    await supabase.from('books').insert(bookToDb(newBook));
+    const previous = booksRef.current;
+    setBooksAndRef(prev => [newBook, ...prev]);
+    const { error } = await supabase.from('books').insert(bookToDb(newBook));
+    if (error) {
+      setBooksAndRef(previous);
+      console.error('[addBook] failed:', error);
+    }
     return newBook.id;
   };
 
   const updateBook = async (id: string, updates: Partial<Book>) => {
-    setBooks(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
-    const book = books.find(b => b.id === id);
-    if (!book) return;
-    await supabase.from('books').update(bookToDb({ ...book, ...updates })).eq('id', id);
+    const previous = booksRef.current;
+    const current = previous.find(b => b.id === id);
+    const normalizedUpdates = { ...updates };
+
+    if ('review' in normalizedUpdates) {
+      const prevReview = current?.review?.trim() ?? '';
+      const nextReview = normalizedUpdates.review?.trim() ?? '';
+      if (nextReview && nextReview !== prevReview && !normalizedUpdates.reviewCreatedAt) {
+        normalizedUpdates.reviewCreatedAt = new Date().toISOString();
+      }
+      if (!nextReview) normalizedUpdates.reviewCreatedAt = undefined;
+    }
+
+    setBooksAndRef(prev => prev.map(b => b.id === id ? { ...b, ...normalizedUpdates } : b));
+
+    const dbUpdates = bookUpdatesToDb(normalizedUpdates);
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    const { error } = await supabase.from('books').update(dbUpdates).eq('id', id);
+    if (error) {
+      setBooksAndRef(previous);
+      console.error('[updateBook] failed:', error);
+    }
   };
 
   const deleteBook = async (id: string) => {
-    setBooks(prev => prev.filter(b => b.id !== id));
-    await supabase.from('books').delete().eq('id', id);
+    const previous = booksRef.current;
+    setBooksAndRef(prev => prev.filter(b => b.id !== id));
+    const { error } = await supabase.from('books').delete().eq('id', id);
+    if (error) {
+      setBooksAndRef(previous);
+      console.error('[deleteBook] failed:', error);
+    }
   };
 
   const addVocab = async (bookId: string, entry: Omit<VocabEntry, 'id' | 'createdAt'>) => {  // sentence is optional in VocabEntry
@@ -121,21 +195,33 @@ export function useBooks() {
       id: Date.now().toString(),
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setBooks(prev => prev.map(b => {
-      if (b.id !== bookId) return b;
-      const updated = { ...b, vocab: [...b.vocab, newEntry] };
-      supabase.from('books').update({ vocab: updated.vocab }).eq('id', bookId);
-      return updated;
-    }));
+    const previous = booksRef.current;
+    const book = previous.find(b => b.id === bookId);
+    if (!book) return;
+
+    const nextVocab = [...book.vocab, newEntry];
+    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, vocab: nextVocab } : b));
+
+    const { error } = await supabase.from('books').update({ vocab: nextVocab }).eq('id', bookId);
+    if (error) {
+      setBooksAndRef(previous);
+      console.error('[addVocab] failed:', error);
+    }
   };
 
   const deleteVocab = async (bookId: string, vocabId: string) => {
-    setBooks(prev => prev.map(b => {
-      if (b.id !== bookId) return b;
-      const updated = { ...b, vocab: b.vocab.filter(v => v.id !== vocabId) };
-      supabase.from('books').update({ vocab: updated.vocab }).eq('id', bookId);
-      return updated;
-    }));
+    const previous = booksRef.current;
+    const book = previous.find(b => b.id === bookId);
+    if (!book) return;
+
+    const nextVocab = book.vocab.filter(v => v.id !== vocabId);
+    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, vocab: nextVocab } : b));
+
+    const { error } = await supabase.from('books').update({ vocab: nextVocab }).eq('id', bookId);
+    if (error) {
+      setBooksAndRef(previous);
+      console.error('[deleteVocab] failed:', error);
+    }
   };
 
   const addNote = async (bookId: string, note: Omit<Note, 'id' | 'createdAt'>) => {
@@ -144,21 +230,33 @@ export function useBooks() {
       id: Date.now().toString(),
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setBooks(prev => prev.map(b => {
-      if (b.id !== bookId) return b;
-      const updated = { ...b, notes: [...b.notes, newNote] };
-      supabase.from('books').update({ notes: updated.notes }).eq('id', bookId);
-      return updated;
-    }));
+    const previous = booksRef.current;
+    const book = previous.find(b => b.id === bookId);
+    if (!book) return;
+
+    const nextNotes = [...book.notes, newNote];
+    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, notes: nextNotes } : b));
+
+    const { error } = await supabase.from('books').update({ notes: nextNotes }).eq('id', bookId);
+    if (error) {
+      setBooksAndRef(previous);
+      console.error('[addNote] failed:', error);
+    }
   };
 
   const deleteNote = async (bookId: string, noteId: string) => {
-    setBooks(prev => prev.map(b => {
-      if (b.id !== bookId) return b;
-      const updated = { ...b, notes: b.notes.filter(n => n.id !== noteId) };
-      supabase.from('books').update({ notes: updated.notes }).eq('id', bookId);
-      return updated;
-    }));
+    const previous = booksRef.current;
+    const book = previous.find(b => b.id === bookId);
+    if (!book) return;
+
+    const nextNotes = book.notes.filter(n => n.id !== noteId);
+    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, notes: nextNotes } : b));
+
+    const { error } = await supabase.from('books').update({ notes: nextNotes }).eq('id', bookId);
+    if (error) {
+      setBooksAndRef(previous);
+      console.error('[deleteNote] failed:', error);
+    }
   };
 
   const getStats = (userId: string) => {
@@ -221,7 +319,7 @@ export function useBooks() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
-    if (data) setBooks(data.map(dbToBook));
+    if (data) setBooksAndRef(data.map(dbToBook));
   };
 
   return {

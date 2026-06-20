@@ -3,7 +3,7 @@ import { X, Award, BookPlus, Star, BookOpen, Sparkles, CheckCircle, XCircle, Loa
 import type { Book } from '../types';
 import type { PointLog } from '../services/points';
 import { awardPoints, calcReviewPoints } from '../services/points';
-import { validateReview, getApiKey } from '../services/claudeVocab';
+import { validateReview, getApiKey } from '../services/geminiAi';
 
 interface Props {
   total: number;
@@ -133,7 +133,7 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
 
               {noApiKey && (
                 <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>
-                  설정에서 Claude API 키를 먼저 입력해주세요.
+                  설정에서 Gemini API 키를 먼저 입력해주세요.
                 </p>
               )}
 

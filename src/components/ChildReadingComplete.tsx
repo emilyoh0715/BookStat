@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Book } from '../types';
-import { generateChildReview } from '../services/claudeVocab';
+import { generateChildReview } from '../services/geminiAi';
 
 const EMOTIONS = [
   { key: 'fun',       emoji: '😄', label: '재밌었어!' },
@@ -33,6 +33,8 @@ const ADULT_QUESTION_POOL = [
   '이 책을 읽으며 특별히 기억에 남는 것이 있다면요?',
 ];
 
+const MIN_MEANINGFUL_ANSWER_LENGTH = 15;
+
 type Step = 'books' | 'rate' | 'emotion' | 'q1' | 'q2' | 'review' | 'done';
 
 interface Props {
@@ -63,6 +65,9 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
   const [saving, setSaving] = useState(false);
 
   const isReviewOnly = selectedBook?.status === 'finished';
+  const hasMeaningfulAnswer =
+    answer1.trim().length >= MIN_MEANINGFUL_ANSWER_LENGTH ||
+    answer2.trim().length >= MIN_MEANINGFUL_ANSWER_LENGTH;
 
   const [q1, q2] = useMemo(() => {
     const pool = isChild ? CHILD_QUESTION_POOL : ADULT_QUESTION_POOL;
@@ -201,7 +206,7 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
             <div className="child-step-title">{q1}</div>
             <textarea
               className="child-answer-input"
-              placeholder={isChild ? '자유롭게 써봐! (짧아도 괜찮아 😊)' : '자유롭게 작성해주세요. (짧게 써도 괜찮아요)'}
+              placeholder={isChild ? '기억나는 장면이나 이유를 한 문장 이상 써봐.' : '기억나는 장면이나 이유를 한 문장 이상 작성해주세요.'}
               value={answer1}
               onChange={e => setAnswer1(e.target.value)}
               rows={4}
@@ -220,17 +225,22 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
             <div className="child-step-title">{q2}</div>
             <textarea
               className="child-answer-input"
-              placeholder={isChild ? '자유롭게 써봐! (짧아도 괜찮아 😊)' : '자유롭게 작성해주세요. (짧게 써도 괜찮아요)'}
+              placeholder={isChild ? '책 내용과 내 생각이 드러나게 써봐.' : '책 내용과 내 생각이 드러나게 작성해주세요.'}
               value={answer2}
               onChange={e => setAnswer2(e.target.value)}
               rows={4}
             />
+            {!hasMeaningfulAnswer && (
+              <div className="child-step-sub">
+                질문 중 하나에는 {MIN_MEANINGFUL_ANSWER_LENGTH}자 이상 답해야 독후감을 만들 수 있어요.
+              </div>
+            )}
             <button
               className="btn-primary child-next-btn"
-              disabled={generating}
+              disabled={generating || !hasMeaningfulAnswer}
               onClick={handleGenerateReview}
             >
-              {generating ? '독후감 만드는 중... ✍️' : answer2.trim() ? '다음 →' : '건너뛰기 →'}
+              {generating ? '독후감 만드는 중... ✍️' : '다음 →'}
             </button>
           </div>
         )}

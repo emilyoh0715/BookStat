@@ -1,7 +1,7 @@
 import type { Book } from '../types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
-import { BookOpen, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { BookOpen, Trash2, AlertCircle, CheckCircle, StickyNote } from 'lucide-react';
 
 interface Props {
   book: Book;
@@ -10,9 +10,11 @@ interface Props {
   onDelete: (e: React.MouseEvent) => void;
   reviewStatus?: 'approved' | 'pending';
   readOnly?: boolean;
+  isNew?: boolean;
+  onQuickNote?: (e: React.MouseEvent) => void;
 }
 
-export default function BookCard({ book, number, onClick, onDelete, reviewStatus, readOnly }: Props) {
+export default function BookCard({ book, number, onClick, onDelete, reviewStatus, readOnly, isNew, onQuickNote }: Props) {
   const progress = book.totalPages && book.currentPage
     ? Math.round((book.currentPage / book.totalPages) * 100)
     : null;
@@ -23,6 +25,7 @@ export default function BookCard({ book, number, onClick, onDelete, reviewStatus
   return (
     <div className="book-card" onClick={onClick}>
       {number !== undefined && <span className="book-number">{number}</span>}
+      {isNew && <span className="book-new-badge">NEW</span>}
       <div className="book-cover" style={{ backgroundColor: book.cover ? undefined : coverColors[colorIdx] }}>
         {book.cover
           ? <img src={book.cover} alt={book.title} />
@@ -76,9 +79,15 @@ export default function BookCard({ book, number, onClick, onDelete, reviewStatus
           </div>
         )}
 
+        {!readOnly && book.status === 'reading' && onQuickNote && (
+          <button className="book-quick-note-btn" onClick={onQuickNote}>
+            <StickyNote size={13} /> 기록
+          </button>
+        )}
+
         <div className="book-meta">
           {book.vocab.length > 0 && <span>단어 {book.vocab.length}</span>}
-          {book.notes.length > 0 && <span>메모 {book.notes.length}</span>}
+          {book.notes.length > 0 && <span>노트 {book.notes.length}</span>}
         </div>
       </div>
     </div>

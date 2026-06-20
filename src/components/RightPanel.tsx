@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Activity, Check, X, ChevronRight, Loader, Bell, BookPlus, Award, MessageCircle } from 'lucide-react';
+import { Activity, Check, X, ChevronRight, Loader, Bell, BookPlus, Award, MessageCircle, PenLine } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
@@ -46,7 +46,7 @@ function fmtRelative(iso: string): string {
 
 type FeedItem =
   | { kind: 'comment'; data: BookComment; sortKey: string }
-  | { kind: 'book_added' | 'book_finished'; book: Book; sortKey: string };
+  | { kind: 'book_added' | 'book_finished' | 'review_added'; book: Book; sortKey: string };
 
 export default function RightPanel({ books, members, memberPoints, userId, onNavigateToFamily }: Props) {
   const [comments, setComments]       = useState<BookComment[]>([]);
@@ -126,6 +126,8 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
           if (finishISO >= cutoff)
             items.push({ kind: 'book_finished', book: b, sortKey: finishISO });
         }
+        if (b.review?.trim() && b.reviewCreatedAt && b.reviewCreatedAt >= cutoff)
+          items.push({ kind: 'review_added', book: b, sortKey: b.reviewCreatedAt });
         return items;
       });
     const commentItems: FeedItem[] = comments
@@ -253,6 +255,7 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
               const name      = member?.display_name ?? '—';
               const color     = memberColor(members, book.userId ?? '');
               const isFinished = kind === 'book_finished';
+              const isReview   = kind === 'review_added';
               return (
                 <div key={`a-${book.id}-${kind}`} className="rp-feed-item">
                   <div className="rp-feed-avatar" style={{ background: color }}>
@@ -260,13 +263,17 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
                   </div>
                   <div className="rp-feed-body">
                     <p className="rp-feed-text">
-                      <strong>{name}</strong>{isFinished
+                      <strong>{name}</strong>{isReview
+                        ? `이 《${book.title}》 감상문을 남겼어요`
+                        : isFinished
                         ? `이 《${book.title}》을 완독했어요 🎉`
                         : `이 《${book.title}》을 추가했어요`}
                     </p>
                     <span className="rp-feed-time">{fmtRelative(sortKey)}</span>
                   </div>
-                  {isFinished
+                  {isReview
+                    ? <PenLine  size={11} className="rp-feed-icon rp-icon-review" />
+                    : isFinished
                     ? <Award    size={11} className="rp-feed-icon rp-icon-finished" />
                     : <BookPlus size={11} className="rp-feed-icon rp-icon-added" />}
                 </div>

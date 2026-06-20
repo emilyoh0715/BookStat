@@ -73,11 +73,13 @@ export async function addBookComment(
     }
 
     // 같은 그룹 다른 멤버에게 푸시 알림 발송 (실패해도 댓글 작성은 성공)
-    sendGroupPush({
+    await sendGroupPush({
       groupId:  groupId,
       senderId: session.user.id,
       title:    '📖 가족 한마디',
       body:     content.trim().slice(0, 80),
+      url:      '/',
+      type:     'book_comment',
     });
 
     return null;

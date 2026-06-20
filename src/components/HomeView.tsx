@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Plus, ChevronRight, BookOpen, Award, Zap, Star, FileText, Flame, Target, CheckCircle } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Plus, ChevronRight, BookOpen, Award, Zap, Star, FileText, Flame, Target, Activity, BookPlus, PenLine, Clock } from 'lucide-react';
 import MagazineArticle from './MagazineArticle';
+import type { MagazineArticleType } from './MagazineArticle';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
@@ -22,42 +23,42 @@ interface Props {
 }
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
+const FAMILY_DIGEST_DAYS = 7;
+const FAMILY_STAGNANT_DAYS = 14;
 
-type MissionType = 'add' | 'stagnant' | 'check' | 'review';
-interface Mission {
+type FamilyDigestType = 'book_added' | 'book_finished' | 'review_added' | 'reading' | 'stagnant';
+interface FamilyDigestItem {
   id: string;
-  type: MissionType;
-  icon: string;
+  type: FamilyDigestType;
   text: string;
-  bookId?: string;
+  time?: string;
+  sortKey: string;
 }
 
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
 }
 
+function toNoonIso(dateStr: string): string {
+  return dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00.000Z`;
+}
+
+function fmtShortTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffHr = Math.floor(diffMs / 3600000);
+  if (diffHr < 1) return '방금';
+  if (diffHr < 24) return `${diffHr}시간 전`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}일 전`;
+  return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+
 export default function HomeView({
   profile, books, userId, groupMembers, groupMemberPoints, pointLogs,
-  onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints, onShowChildComplete,
+  onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints,
 }: Props) {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const todayStr = now.toISOString().slice(0, 10);
-  const todayKey = `reading_check_${userId}_${todayStr}`;
-
-  const [checkedToday, setCheckedToday] = useState<Set<string>>(() => {
-    try {
-      const s = localStorage.getItem(todayKey);
-      return s ? new Set(JSON.parse(s) as string[]) : new Set<string>();
-    } catch { return new Set<string>(); }
-  });
-
-  const checkBook = (bookId: string) => {
-    const next = new Set(checkedToday);
-    next.add(bookId);
-    setCheckedToday(next);
-    try { localStorage.setItem(todayKey, JSON.stringify([...next])); } catch {}
-  };
 
   const myBooks = books.filter(b => b.userId === userId);
   const myStats = groupMemberPoints.find(m => m.user_id === userId);
@@ -74,6 +75,9 @@ export default function HomeView({
   const [redeemError, setRedeemError]   = useState<string | null>(null);
   const [redeeming, setRedeeming]       = useState(false);
   const [showMagazine, setShowMagazine] = useState(false);
+  const [selectedMagazine, setSelectedMagazine] = useState<MagazineArticleType>('points');
+  const [magazineIndex, setMagazineIndex] = useState(0);
+  const magazineCarouselRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setGoalImgError(false);
@@ -117,6 +121,22 @@ export default function HomeView({
     }
   };
 
+  const scrollMagazineTo = (index: number) => {
+    const carousel = magazineCarouselRef.current;
+    if (!carousel) return;
+    setMagazineIndex(index);
+    carousel.scrollTo({
+      left: index * carousel.clientWidth,
+      behavior: 'smooth',
+    });
+  };
+
+  const handleMagazineScroll = () => {
+    const carousel = magazineCarouselRef.current;
+    if (!carousel || carousel.clientWidth === 0) return;
+    setMagazineIndex(Math.round(carousel.scrollLeft / carousel.clientWidth));
+  };
+
   const familyFinishedThisMonth = books.filter(b => b.status === 'finished' && b.finishDate?.startsWith(thisMonth));
   const familyBooksCount  = familyFinishedThisMonth.length;
   const familyPagesCount  = familyFinishedThisMonth.reduce((s, b) => s + (b.totalPages ?? 0), 0);
@@ -144,45 +164,94 @@ export default function HomeView({
     return streak;
   })();
 
-  const missions = useMemo<Mission[]>(() => {
-    const list: Mission[] = [];
-    const reading = myBooks.filter(b => b.status === 'reading');
+  const familyDigest = useMemo<FamilyDigestItem[]>(() => {
+    const cutoff = Date.now() - FAMILY_DIGEST_DAYS * 86400000;
+    const nameOf = (uid: string) =>
+      groupMembers.find(m => m.id === uid)?.display_name ?? '가족';
 
-    if (reading.length === 0) {
-      list.push({ id: 'add', type: 'add', icon: '📚', text: '읽을 책을 추가해보세요' });
-    } else {
-      const stagnant = reading.filter(b => b.startDate && daysSince(b.startDate) >= 21);
-      const active   = reading.filter(b => !stagnant.find(s => s.id === b.id));
+    const events: FamilyDigestItem[] = books.flatMap(book => {
+      const name = nameOf(book.userId);
+      const items: FamilyDigestItem[] = [];
 
-      stagnant.slice(0, 1).forEach(b =>
-        list.push({ id: `stagnant-${b.id}`, type: 'stagnant', icon: '📖', text: `"${b.title}" 다 읽으셨나요?`, bookId: b.id })
-      );
-      active
-        .filter(b => !checkedToday.has(b.id))
-        .slice(0, 2)
-        .forEach(b =>
-          list.push({ id: `check-${b.id}`, type: 'check', icon: '✅', text: `오늘 "${b.title}" 읽기 체크!`, bookId: b.id })
-        );
-    }
+      if (book.status !== 'want-to-read') {
+        const createdIso = toNoonIso(book.createdAt);
+        if (new Date(createdIso).getTime() >= cutoff) {
+          items.push({
+            id: `added-${book.id}`,
+            type: 'book_added',
+            text: `${name} 님이 『${book.title}』을 서재에 추가했어요.`,
+            time: fmtShortTime(createdIso),
+            sortKey: createdIso,
+          });
+        }
+      }
 
-    if (list.length < 3) {
-      myBooks
-        .filter(b => b.status === 'finished' && !b.review?.trim())
-        .slice(0, 1)
-        .forEach(b =>
-          list.push({ id: `review-${b.id}`, type: 'review', icon: '✍️', text: `"${b.title}" 감상문 써볼까요?`, bookId: b.id })
-        );
-    }
+      if (book.status === 'finished' && book.finishDate) {
+        const finishIso = toNoonIso(book.finishDate);
+        if (new Date(finishIso).getTime() >= cutoff) {
+          items.push({
+            id: `finished-${book.id}`,
+            type: 'book_finished',
+            text: `${name} 님이 『${book.title}』을 다 읽었어요.`,
+            time: fmtShortTime(finishIso),
+            sortKey: finishIso,
+          });
+        }
+      }
 
-    return list.slice(0, 3);
-  }, [myBooks, checkedToday]); // eslint-disable-line react-hooks/exhaustive-deps
+      if (book.review?.trim() && book.reviewCreatedAt) {
+        const reviewIso = book.reviewCreatedAt;
+        if (new Date(reviewIso).getTime() >= cutoff) {
+          items.push({
+            id: `review-${book.id}`,
+            type: 'review_added',
+            text: `${name} 님이 『${book.title}』 감상문을 남겼어요.`,
+            time: fmtShortTime(reviewIso),
+            sortKey: reviewIso,
+          });
+        }
+      }
 
-  const handleMission = (m: Mission) => {
-    if (m.type === 'add') { onShowAdd(); return; }
-    if (m.type === 'check') { checkBook(m.bookId!); return; }
-    if ((m.type === 'stagnant' || m.type === 'review') && onShowChildComplete) {
-      onShowChildComplete(m.bookId);
-    }
+      return items;
+    });
+
+    const reading = books
+      .filter(book => book.status === 'reading')
+      .map(book => {
+        const name = nameOf(book.userId);
+        const started = book.startDate ?? book.createdAt;
+        const days = Math.max(1, daysSince(started) + 1);
+        const isStagnant = days >= FAMILY_STAGNANT_DAYS;
+        const progress = book.currentPage && book.totalPages
+          ? ` ${book.currentPage}/${book.totalPages}쪽까지`
+          : '';
+        return {
+          id: `reading-${book.id}`,
+          type: isStagnant ? 'stagnant' : 'reading',
+          text: isStagnant
+            ? `${name} 님은 『${book.title}』을 ${days}일째 읽고 있어요. 응원이 필요해요.`
+            : `${name} 님은 『${book.title}』을${progress} 읽고 있어요.`,
+          sortKey: toNoonIso(started),
+        } satisfies FamilyDigestItem;
+      })
+      .sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'stagnant' ? -1 : 1;
+        return a.sortKey.localeCompare(b.sortKey);
+      })
+      .slice(0, 2);
+
+    return [
+      ...events.sort((a, b) => b.sortKey.localeCompare(a.sortKey)).slice(0, 4),
+      ...reading,
+    ].slice(0, 5);
+  }, [books, groupMembers]);
+
+  const renderDigestIcon = (type: FamilyDigestType) => {
+    if (type === 'book_added') return <BookPlus size={15} />;
+    if (type === 'book_finished') return <Award size={15} />;
+    if (type === 'review_added') return <PenLine size={15} />;
+    if (type === 'stagnant') return <Clock size={15} />;
+    return <BookOpen size={15} />;
   };
 
   const recentBooks = [...myBooks]
@@ -288,33 +357,33 @@ export default function HomeView({
           </button>
         </div>
 
-        {/* 오늘의 독서 미션 */}
+        {/* 가족 활동 요약 */}
         <div className="home-item home-item--missions">
           <div className="home-missions-card">
             <div className="home-missions-header">
               <span className="home-missions-tag">
-                <Target size={12} /> 오늘의 독서 미션
+                <Activity size={12} /> 가족 독서 소식
               </span>
+              <button className="home-missions-more" onClick={onNavigateToFamily}>
+                전체 보기 <ChevronRight size={13} />
+              </button>
             </div>
-            {missions.length === 0 ? (
+            {familyDigest.length === 0 ? (
               <div className="home-missions-empty">
-                <CheckCircle size={22} style={{ color: '#2ecc71' }} />
-                <p>오늘 할 일을 모두 완료했어요! 🎉</p>
+                <BookOpen size={24} style={{ opacity: 0.25 }} />
+                <p>아직 나눌 가족 독서 소식이 없어요.</p>
               </div>
             ) : (
               <div className="home-missions-list">
-                {missions.map(m => (
+                {familyDigest.map(item => (
                   <button
-                    key={m.id}
-                    className={`home-mission-item home-mission-item--${m.type}`}
-                    onClick={() => handleMission(m)}
+                    key={item.id}
+                    className={`home-mission-item home-mission-item--${item.type}`}
+                    onClick={onNavigateToFamily}
                   >
-                    <span className="home-mission-icon">{m.icon}</span>
-                    <span className="home-mission-text">{m.text}</span>
-                    {m.type === 'check'
-                      ? <CheckCircle size={16} className="home-mission-action-icon home-mission-action-icon--check" />
-                      : <ChevronRight size={15} className="home-mission-action-icon" />
-                    }
+                    <span className="home-mission-icon">{renderDigestIcon(item.type)}</span>
+                    <span className="home-mission-text">{item.text}</span>
+                    {item.time && <span className="home-mission-time">{item.time}</span>}
                   </button>
                 ))}
               </div>
@@ -391,28 +460,74 @@ export default function HomeView({
 
         {/* 오늘의 매거진 */}
         <div className="home-item home-item--magazine">
-          <button className="home-magazine-card home-magazine-btn" onClick={() => setShowMagazine(true)}>
-            <div className="home-magazine-inner">
-              <div className="home-magazine-text-col">
-                <div className="home-magazine-badge-row">
-                  <span className="home-magazine-tag">📚 BOOK LIST</span>
-                  <span className="home-magazine-new">NEW</span>
+          <div
+            ref={magazineCarouselRef}
+            className="home-magazine-carousel"
+            aria-label="북스탯 매거진"
+            onScroll={handleMagazineScroll}
+          >
+            <button
+              className="home-magazine-card home-magazine-btn"
+              onClick={() => { setSelectedMagazine('points'); setShowMagazine(true); }}
+            >
+              <div className="home-magazine-inner">
+                <div className="home-magazine-text-col">
+                  <div className="home-magazine-badge-row">
+                    <span className="home-magazine-tag">⭐ POINT GUIDE</span>
+                    <span className="home-magazine-new">NEW</span>
+                  </div>
+                  <p className="home-magazine-title">북스탯 포인트<br /><em className="home-magazine-accent">모으는 법</em></p>
+                  <p className="home-magazine-sub">읽고, 남기고, 도전하면<br />포인트가 차곡차곡</p>
                 </div>
-                <p className="home-magazine-title">초3~초4가<br />읽기 좋은<br /><em className="home-magazine-accent">책 10권</em></p>
-                <p className="home-magazine-sub">재밌어서 읽다 보면<br />생각이 자라는 책들</p>
+                <div className="home-magazine-visual-col" aria-hidden="true">
+                  <span className="home-mag-star">⭐</span>
+                  <span className="home-mag-deco-circle" />
+                  <span className="home-mag-char">P</span>
+                  <span className="home-mag-books">📖</span>
+                  <span className="home-mag-sparkle">✦</span>
+                </div>
               </div>
-              <div className="home-magazine-visual-col" aria-hidden="true">
-                <span className="home-mag-star">⭐</span>
-                <span className="home-mag-deco-circle" />
-                <span className="home-mag-char">🧒</span>
-                <span className="home-mag-books">📚</span>
-                <span className="home-mag-sparkle">✦</span>
+            </button>
+
+            <button
+              className="home-magazine-card home-magazine-btn home-magazine-btn--books"
+              onClick={() => { setSelectedMagazine('books'); setShowMagazine(true); }}
+            >
+              <div className="home-magazine-inner">
+                <div className="home-magazine-text-col">
+                  <div className="home-magazine-badge-row">
+                    <span className="home-magazine-tag">📚 BOOK LIST</span>
+                  </div>
+                  <p className="home-magazine-title">초3~초4가<br />읽기 좋은<br /><em className="home-magazine-accent">책 10권</em></p>
+                  <p className="home-magazine-sub">재밌어서 읽다 보면<br />생각이 자라는 책들</p>
+                </div>
+                <div className="home-magazine-visual-col" aria-hidden="true">
+                  <span className="home-mag-star">⭐</span>
+                  <span className="home-mag-deco-circle" />
+                  <span className="home-mag-char home-mag-char--reader">🧒</span>
+                  <span className="home-mag-books">📚</span>
+                  <span className="home-mag-sparkle">✦</span>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          </div>
+          <div className="home-magazine-dots" aria-label="매거진 포스트 선택">
+            <button
+              type="button"
+              className={magazineIndex === 0 ? 'active' : ''}
+              onClick={() => scrollMagazineTo(0)}
+              aria-label="포인트 안내 기사 보기"
+            />
+            <button
+              type="button"
+              className={magazineIndex === 1 ? 'active' : ''}
+              onClick={() => scrollMagazineTo(1)}
+              aria-label="추천 도서 기사 보기"
+            />
+          </div>
         </div>
 
-        {showMagazine && <MagazineArticle onClose={() => setShowMagazine(false)} />}
+        {showMagazine && <MagazineArticle article={selectedMagazine} onClose={() => setShowMagazine(false)} />}
 
         {/* 최근 읽은 책 */}
         <div className="home-item home-item--books">

@@ -21,6 +21,10 @@ export async function isPushSubscribed(): Promise<boolean> {
 
 export async function subscribeToPush(): Promise<boolean> {
   if (!isPushSupported()) return false;
+  if (!VAPID_PUBLIC_KEY) {
+    console.warn('[push] VITE_VAPID_PUBLIC_KEY is missing');
+    return false;
+  }
 
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return false;
@@ -46,12 +50,16 @@ export async function subscribeToPush(): Promise<boolean> {
     .maybeSingle();
   if (!membership) return false;
 
-  await supabase.from('push_subscriptions').upsert({
+  const { error } = await supabase.from('push_subscriptions').upsert({
     user_id:      session.user.id,
     group_id:     membership.group_id,
     endpoint:     sub.endpoint,
     subscription: sub.toJSON(),
   }, { onConflict: 'user_id,endpoint' });
+  if (error) {
+    console.warn('[push] subscription upsert failed:', error.message);
+    return false;
+  }
 
   return true;
 }
@@ -77,10 +85,12 @@ export async function unsubscribeFromPush(): Promise<void> {
 export async function notifyGroupActivity(params: {
   title: string;
   body:  string;
-}): Promise<void> {
+  url?:   string;
+  type?:  string;
+}): Promise<boolean> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) return false;
 
     const { data: membership } = await supabase
       .from('group_members')
@@ -89,16 +99,20 @@ export async function notifyGroupActivity(params: {
       .eq('status', 'accepted')
       .limit(1)
       .maybeSingle();
-    if (!membership) return;
+    if (!membership) return false;
 
-    sendGroupPush({
+    return await sendGroupPush({
       groupId:  membership.group_id,
       senderId: session.user.id,
       title:    params.title,
       body:     params.body,
+      url:      params.url,
+      type:     params.type,
     });
-  } catch {
+  } catch (err) {
+    console.warn('[push] notifyGroupActivity failed:', err);
     // non-critical
+    return false;
   }
 }
 
@@ -107,18 +121,29 @@ export async function sendGroupPush(params: {
   senderId: string;
   title:    string;
   body:     string;
-}): Promise<void> {
+  url?:     string;
+  type?:    string;
+}): Promise<boolean> {
   try {
-    await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token ?? SUPABASE_ANON;
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
       method: 'POST',
       headers: {
         'Content-Type':  'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON}`,
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(params),
     });
-  } catch {
+    if (!res.ok) {
+      console.warn('[push] send-push failed:', res.status, await res.text().catch(() => ''));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[push] sendGroupPush failed:', err);
     // push failure is non-critical
+    return false;
   }
 }
 

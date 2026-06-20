@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAladinKey, setAladinKey } from '../services/claudeVocab';
+import { getAladinKey, getApiKey, setAladinKey, setApiKey } from '../services/geminiAi';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../useTheme';
 import { supabase } from '../lib/supabase';
@@ -21,6 +21,8 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
 
   const [aladinKey, setAladinKeyState] = useState(getAladinKey());
   const [aladinSaved, setAladinSaved] = useState(false);
+  const [geminiKey, setGeminiKeyState] = useState(getApiKey());
+  const [geminiSaved, setGeminiSaved] = useState(false);
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [handle, setHandle] = useState(profile?.handle ?? '');
@@ -95,6 +97,12 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
     setAladinKey(aladinKey.trim());
     setAladinSaved(true);
     setTimeout(() => setAladinSaved(false), 2000);
+  };
+
+  const handleSaveGeminiKey = () => {
+    setApiKey(geminiKey.trim());
+    setGeminiSaved(true);
+    setTimeout(() => setGeminiSaved(false), 2000);
   };
 
   const handleSaveProfile = async () => {
@@ -442,6 +450,25 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
           {/* 알라딘 API */}
           <div className="settings-section">
             <h3 className="settings-section-title">API 설정</h3>
+            <div className="form-group">
+              <label><Key size={13} style={{ display: 'inline', marginRight: 4 }} />Gemini API Key</label>
+              <input
+                type="password"
+                value={geminiKey}
+                onChange={e => setGeminiKeyState(e.target.value)}
+                placeholder="AIza..."
+                autoComplete="off"
+              />
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                AI 후기 검증, 독후감 생성, 단어 검색, 표지 인식, 통계 분석에 사용됩니다.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button type="button" className="btn-primary" onClick={handleSaveGeminiKey}>
+                  {geminiSaved ? <><Check size={15} /> 저장됨</> : '저장'}
+                </button>
+              </div>
+            </div>
+
             <div className="form-group">
               <label><Key size={13} style={{ display: 'inline', marginRight: 4 }} />알라딘 TTBKey</label>
               <input

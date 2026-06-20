@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { MessageCircle, BookPlus, Award, Send, Loader } from 'lucide-react';
+import { MessageCircle, BookPlus, Award, Send, Loader, PenLine } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import { getGroupActivityComments, addBookComment, type BookComment } from '../services/comments';
@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 
 type FeedItem =
   | { kind: 'comment';  data: BookComment; sortKey: string }
-  | { kind: 'activity'; type: 'book_added' | 'book_finished'; book: Book; sortKey: string };
+  | { kind: 'activity'; type: 'book_added' | 'book_finished' | 'review_added'; book: Book; sortKey: string };
 
 interface Props {
   books:   Book[];
@@ -73,6 +73,10 @@ export default function ActivityFeed({ books, members, userId }: Props) {
           if (finishISO >= cutoff) {
             items.push({ kind: 'activity', type: 'book_finished', book: b, sortKey: finishISO });
           }
+        }
+
+        if (b.review?.trim() && b.reviewCreatedAt && b.reviewCreatedAt >= cutoff) {
+          items.push({ kind: 'activity', type: 'review_added', book: b, sortKey: b.reviewCreatedAt });
         }
 
         return items;
@@ -167,6 +171,7 @@ export default function ActivityFeed({ books, members, userId }: Props) {
         const name       = member?.display_name ?? '—';
         const avatar     = member?.avatar_url   ?? null;
         const isFinished = type === 'book_finished';
+        const isReview   = type === 'review_added';
         const isOpen     = commentingBookId === book.id;
 
         return (
@@ -180,12 +185,17 @@ export default function ActivityFeed({ books, members, userId }: Props) {
                 <span className="feed-time">{fmtDate(sortKey)}</span>
               </div>
               <p className="feed-activity-text">
-                {isFinished
+                {isReview
+                  ? <><strong>{book.title}</strong> 감상문을 남겼어요</>
+                  : isFinished
                   ? <><strong>{book.title}</strong>을 완독했어요 🎉</>
                   : <><strong>{book.title}</strong>을 서재에 추가했어요</>
                 }
               </p>
-              {isFinished && book.cover && (
+              {isReview && book.review && (
+                <p className="feed-review-snippet">"{book.review}"</p>
+              )}
+              {(isFinished || isReview) && book.cover && (
                 <img src={book.cover} alt="" className="feed-book-cover" />
               )}
               <button
@@ -221,7 +231,9 @@ export default function ActivityFeed({ books, members, userId }: Props) {
                 </form>
               )}
             </div>
-            {isFinished
+            {isReview
+              ? <PenLine  size={13} className="feed-type-icon feed-icon-review" />
+              : isFinished
               ? <Award    size={13} className="feed-type-icon feed-icon-finished" />
               : <BookPlus size={13} className="feed-type-icon feed-icon-added"    />
             }

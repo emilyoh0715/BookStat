@@ -13,6 +13,7 @@ export interface VocabEntry {
 
 export interface Note {
   id: string;
+  type?: 'reading_log' | 'reflection' | 'quote';
   content: string;
   page?: number;
   createdAt: string;
@@ -32,6 +33,7 @@ export interface Book {
   status: ReadingStatus;
   rating?: number;
   review?: string;
+  reviewCreatedAt?: string;
   startDate?: string;
   finishDate?: string;
   createdAt: string;

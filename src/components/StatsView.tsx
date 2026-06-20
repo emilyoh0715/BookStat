@@ -3,7 +3,7 @@ import { BookOpen, TrendingUp, Clock, RefreshCw, Sparkles, CheckCircle, PauseCir
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
-import { getApiKey } from '../services/claudeVocab';
+import { generateStatsSummary, getApiKey } from '../services/geminiAi';
 
 type Period = 'month' | 'year' | 'all';
 type ChartMetric = 'count' | 'pages';
@@ -234,7 +234,7 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
   const generateAi = async () => {
     const apiKey = getApiKey();
     if (!apiKey) {
-      setAiSummary('설정에서 Claude API 키를 입력하면 AI 분석을 사용할 수 있어요 🔑');
+      setAiSummary('설정에서 Gemini API 키를 입력하면 AI 분석을 사용할 수 있어요 🔑');
       return;
     }
     setAiLoading(true);
@@ -252,22 +252,8 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
 
 이 독서 습관을 분석해서 따뜻하고 구체적인 칭찬/응원을 한 문장으로 써줘. 이모지 1개 포함. 한국어로만.`;
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 150,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-      const data = await res.json() as { content?: { text: string }[] };
-      setAiSummary(data.content?.[0]?.text?.trim() ?? '분석을 생성하지 못했어요.');
+      const summary = await generateStatsSummary(prompt);
+      setAiSummary(summary || '분석을 생성하지 못했어요.');
     } catch {
       setAiSummary('분석 중 오류가 발생했어요. 다시 시도해주세요.');
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useBooks } from './useBooks';
 import type { ReadingStatus, BookLanguage } from './types';
 import BookCard from './components/BookCard';
@@ -23,10 +23,10 @@ import RightPanel from './components/RightPanel';
 import { useAuth } from './contexts/AuthContext';
 import { getUserPoints, awardPoints, removePoints, calcReviewPoints, calcFinishedPoints } from './services/points';
 import type { PointLog } from './services/points';
-import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/claudeVocab';
+import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/geminiAi';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
-import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, BookOpen, RefreshCw, HelpCircle, Home } from 'lucide-react';
+import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, BookOpen, RefreshCw, HelpCircle, Home, StickyNote, X, CalendarDays, MessageSquare, Quote } from 'lucide-react';
 import { useTheme } from './useTheme';
 import { subscribeToPush, clearBadge, notifyGroupActivity } from './services/pushNotifications';
 
@@ -34,6 +34,18 @@ const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#
 function getMemberColor(idx: number) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
 function applyMemberColor(color: string) {
   document.documentElement.style.setProperty('--member-accent', color);
+}
+const newBooksStorageKey = (userId: string) => `bookstat-new-books-${userId}`;
+const dismissedNewBooksStorageKey = (userId: string) => `bookstat-dismissed-new-books-${userId}`;
+const reviewSignal = (review?: string) => review?.trim() ?? '';
+const NEW_ACTIVITY_DAYS = 7;
+const NEW_ACTIVITY_MS = NEW_ACTIVITY_DAYS * 24 * 60 * 60 * 1000;
+type QuickNoteType = 'reading_log' | 'reflection' | 'quote';
+
+function isRecentActivityDate(iso?: string) {
+  if (!iso) return false;
+  const time = new Date(iso).getTime();
+  return Number.isFinite(time) && Date.now() - time <= NEW_ACTIVITY_MS;
 }
 
 import './App.css';
@@ -95,6 +107,11 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showChildComplete, setShowChildComplete] = useState(false);
+  const [showNotePicker, setShowNotePicker] = useState(false);
+  const [quickNoteBookId, setQuickNoteBookId] = useState<string | null>(null);
+  const [quickNoteType, setQuickNoteType] = useState<QuickNoteType>('reflection');
+  const [quickNoteContent, setQuickNoteContent] = useState('');
+  const [quickNotePage, setQuickNotePage] = useState('');
   const [childCompleteBookId, setChildCompleteBookId] = useState<string | null>(null);
   const [pointsCelebration, setPointsCelebration] = useState<{ points: number; label: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
@@ -107,6 +124,119 @@ export default function App() {
   const [collapsedYears, setCollapsedYears] = useState<Set<number>>(new Set());
   const [revalidating, setRevalidating] = useState(false);
   const [revalidateToast, setRevalidateToast] = useState<string | null>(null);
+  const bookActivitySnapshotRef = useRef<Map<string, string> | null>(null);
+  const [newBookIds, setNewBookIds] = useState<Set<string>>(new Set());
+  const [dismissedNewBookIds, setDismissedNewBookIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) {
+      bookActivitySnapshotRef.current = null;
+      setNewBookIds(new Set());
+      return;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem(newBooksStorageKey(user.id)) ?? '[]') as string[];
+      setNewBookIds(new Set(stored));
+    } catch {
+      setNewBookIds(new Set());
+    }
+    try {
+      const dismissed = JSON.parse(localStorage.getItem(dismissedNewBooksStorageKey(user.id)) ?? '[]') as string[];
+      setDismissedNewBookIds(new Set(dismissed));
+    } catch {
+      setDismissedNewBookIds(new Set());
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || booksLoading) return;
+
+    const currentSnapshot = new Map(books.map(b => [b.id, reviewSignal(b.review)]));
+    const isNewActivityBook = (b: (typeof books)[number]) =>
+      b.userId !== user.id && (
+        (b.status !== 'want-to-read' && isRecentActivityDate(b.createdAt)) ||
+        isRecentActivityDate(b.reviewCreatedAt)
+      );
+
+    const recentActivityIds = books
+      .filter(isNewActivityBook)
+      .map(b => b.id);
+
+    if (!bookActivitySnapshotRef.current) {
+      bookActivitySnapshotRef.current = currentSnapshot;
+      setNewBookIds(prev => {
+        const allowed = new Set(recentActivityIds);
+        const next = new Set([...prev].filter(id => allowed.has(id)));
+        recentActivityIds.forEach(id => next.add(id));
+        dismissedNewBookIds.forEach(id => next.delete(id));
+        localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
+        return next;
+      });
+      return;
+    }
+
+    const previousSnapshot = bookActivitySnapshotRef.current;
+    const remoteChangedBooks = books.filter(b => {
+      if (b.userId === user.id) return false;
+      if (!previousSnapshot.has(b.id)) return isNewActivityBook(b);
+
+      const prevReview = previousSnapshot.get(b.id) ?? '';
+      const nextReview = reviewSignal(b.review);
+      return nextReview.length > 0 && nextReview !== prevReview;
+    });
+
+    if (remoteChangedBooks.length > 0) {
+      setDismissedNewBookIds(prev => {
+        const next = new Set(prev);
+        remoteChangedBooks.forEach(b => next.delete(b.id));
+        localStorage.setItem(dismissedNewBooksStorageKey(user.id), JSON.stringify([...next]));
+        return next;
+      });
+      setNewBookIds(prev => {
+        const next = new Set(prev);
+        remoteChangedBooks.forEach(b => next.add(b.id));
+        localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
+        return next;
+      });
+    } else {
+      setNewBookIds(prev => {
+        const allowed = new Set(recentActivityIds);
+        const next = new Set([...prev].filter(id => allowed.has(id) && !dismissedNewBookIds.has(id)));
+        localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
+        return next;
+      });
+    }
+    bookActivitySnapshotRef.current = currentSnapshot;
+  }, [books, booksLoading, user, dismissedNewBookIds]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('book-comments-new-badge')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'book_comments' },
+        payload => {
+          const comment = payload.new as { book_id?: string; user_id?: string };
+          if (!comment.book_id || comment.user_id === user.id) return;
+
+          setDismissedNewBookIds(prev => {
+            const next = new Set(prev);
+            next.delete(comment.book_id!);
+            localStorage.setItem(dismissedNewBooksStorageKey(user.id), JSON.stringify([...next]));
+            return next;
+          });
+          setNewBookIds(prev => {
+            const next = new Set(prev);
+            next.add(comment.book_id!);
+            localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
+            return next;
+          });
+        })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   useEffect(() => {
     const t1 = setTimeout(() => setIntroFading(true), 600);
@@ -254,6 +384,7 @@ export default function App() {
           await loadGroupMembers();
           await refetchBooks();
           loadPendingInviteCount();
+          subscribeToPush().catch(() => {});
         })
       .subscribe();
 
@@ -312,7 +443,7 @@ export default function App() {
   // 내 모든 후기를 AI로 재검증 — 탈락 시 포인트 삭제, 통과 시 포인트 재지급
   const revalidateAllReviews = async () => {
     if (!getApiKey()) {
-      setRevalidateToast('설정에서 Claude API 키를 먼저 입력해주세요.');
+      setRevalidateToast('설정에서 Gemini API 키를 먼저 입력해주세요.');
       setTimeout(() => setRevalidateToast(null), 4000);
       return;
     }
@@ -360,6 +491,49 @@ export default function App() {
       else next.add(year);
       return next;
     });
+  };
+
+  const openBook = (bookId: string) => {
+    setSelectedId(bookId);
+    if (!user) return;
+    setDismissedNewBookIds(prev => {
+      const next = new Set(prev);
+      next.add(bookId);
+      localStorage.setItem(dismissedNewBooksStorageKey(user.id), JSON.stringify([...next]));
+      return next;
+    });
+    setNewBookIds(prev => {
+      if (!prev.has(bookId)) return prev;
+      const next = new Set(prev);
+      next.delete(bookId);
+      localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const openBookNote = (bookId: string) => {
+    setQuickNoteBookId(bookId);
+    setQuickNoteType('reflection');
+    setQuickNoteContent('');
+    setQuickNotePage('');
+    setShowNotePicker(true);
+  };
+
+  const closeQuickNote = () => {
+    setShowNotePicker(false);
+    setQuickNoteBookId(null);
+    setQuickNoteContent('');
+    setQuickNotePage('');
+  };
+
+  const saveQuickNote = async () => {
+    if (!quickNoteBookId || !quickNoteContent.trim()) return;
+    await addNote(quickNoteBookId, {
+      type: quickNoteType,
+      content: quickNoteContent.trim(),
+      page: quickNotePage ? Number(quickNotePage) : undefined,
+    });
+    closeQuickNote();
   };
 
   const grouped = groupByYearEnabled ? groupByYear(filtered) : null;
@@ -777,10 +951,12 @@ export default function App() {
                         <div className="book-grid">
                           {yearBooks.map((book, idx) => (
                             <BookCard key={book.id} book={book} number={idx + 1}
-                              onClick={() => setSelectedId(book.id)}
+                              onClick={() => openBook(book.id)}
                               onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
+                              onQuickNote={e => { e.stopPropagation(); openBookNote(book.id); }}
                               reviewStatus={getReviewStatus(book.id, book.userId ?? selectedUserId)}
                               readOnly={!isOwnLibrary}
+                              isNew={newBookIds.has(book.id)}
                             />
                           ))}
                         </div>
@@ -792,10 +968,12 @@ export default function App() {
                 <div className="book-grid">
                   {filtered.map((book, idx) => (
                     <BookCard key={book.id} book={book} number={idx + 1}
-                      onClick={() => setSelectedId(book.id)}
+                      onClick={() => openBook(book.id)}
                       onDelete={e => { e.stopPropagation(); deleteBook(book.id); }}
+                      onQuickNote={e => { e.stopPropagation(); openBookNote(book.id); }}
                       reviewStatus={getReviewStatus(book.id, book.userId ?? selectedUserId)}
                       readOnly={!isOwnLibrary}
+                      isNew={newBookIds.has(book.id)}
                     />
                   ))}
                 </div>
@@ -819,11 +997,17 @@ export default function App() {
         const hasReading = filterBooks(user.id, 'reading', 'all', 'all', '').length > 0;
         const hasNoReview = filterBooks(user.id, 'finished', 'all', 'all', '').some(b => !b.review?.trim());
         const hasCompletable = hasReading || hasNoReview;
+        const hasNoteable = books.some(b => b.userId === user.id && b.status !== 'want-to-read');
         return (
           <div className="library-action-bar">
             <button className="library-action-btn library-action-btn--secondary" onClick={() => setShowAdd(true)}>
               <Plus size={15} /> 책 추가
             </button>
+            {hasNoteable && (
+              <button className="library-action-btn library-action-btn--secondary" onClick={() => setShowNotePicker(true)}>
+                <StickyNote size={15} /> 독서노트
+              </button>
+            )}
             {hasCompletable && (
               <button className="library-action-btn library-action-btn--ai" onClick={() => { setChildCompleteBookId(null); setShowChildComplete(true); }}>
                 <span className="library-action-ai-badge">AI</span>
@@ -896,14 +1080,16 @@ export default function App() {
         <AddBookModal
           onAdd={async book => {
             const bookId = await addBook(book, user.id);
+            await notifyGroupActivity({
+              title: '📚 새 책 추가!',
+              body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}"을(를) 추가했어요.`,
+              url:   '/',
+              type:  'book_added',
+            });
             if (book.status !== 'want-to-read') {
               awardPoints(bookId, 'book_added', 2)
                 .then(() => { reloadPoints(); setPointsCelebration({ points: 2, label: '📚 책 추가 완료!' }); })
                 .catch(console.error);
-              notifyGroupActivity({
-                title: '📚 새 책 추가!',
-                body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}"을(를) 추가했어요.`,
-              });
             }
           }}
           onClose={() => setShowAdd(false)}
@@ -926,6 +1112,124 @@ export default function App() {
           onGroupChange={async () => { await loadGroupMembers(); await refetchBooks(); }}
         />
       )}
+      {showNotePicker && (() => {
+        const statusRank = (status: ReadingStatus) =>
+          status === 'reading' ? 0 : status === 'paused' ? 1 : status === 'finished' ? 2 : 3;
+        const noteBooks = books
+          .filter(b => b.userId === user.id && b.status !== 'want-to-read')
+          .slice()
+          .sort((a, b) => statusRank(a.status) - statusRank(b.status));
+        const quickNoteBook = quickNoteBookId ? books.find(b => b.id === quickNoteBookId) : null;
+        const quickNoteOptions: Array<{
+          type: QuickNoteType;
+          label: string;
+          icon: ReactNode;
+          placeholder: string;
+        }> = [
+          {
+            type: 'reading_log',
+            label: '읽기 기록',
+            icon: <CalendarDays size={15} />,
+            placeholder: '오늘 읽은 분량을 써봐. 예: 84쪽까지 읽음, 20분 읽음',
+          },
+          {
+            type: 'reflection',
+            label: '한 줄 감상',
+            icon: <MessageSquare size={15} />,
+            placeholder: '읽으면서 든 생각을 한 줄로 써봐.',
+          },
+          {
+            type: 'quote',
+            label: '책속 문장 저장',
+            icon: <Quote size={15} />,
+            placeholder: '마음에 남은 책속 문장을 써봐.',
+          },
+        ];
+        const currentOption = quickNoteOptions.find(o => o.type === quickNoteType) ?? quickNoteOptions[1];
+        return (
+          <div className="modal-overlay modal-overlay--center" onClick={closeQuickNote}>
+            <div className="modal child-complete-modal quick-note-modal" onClick={e => e.stopPropagation()}>
+              <div className="child-step">
+                <button className="quick-note-close icon-btn" onClick={closeQuickNote} title="닫기">
+                  <X size={16} />
+                </button>
+                <div className="child-step-emoji">📝</div>
+                {!quickNoteBook ? (
+                  <>
+                    <div className="child-step-title">어떤 책을 쓸 거야?</div>
+                    <div className="child-step-sub">기록할 책을 골라줘.</div>
+                    <div className="child-book-list">
+                      {noteBooks.map(book => (
+                        <button key={book.id} className="child-book-item quick-note-book" onClick={() => openBookNote(book.id)}>
+                          {book.cover
+                            ? <img src={book.cover} alt={book.title} className="child-book-cover" />
+                            : <div className="child-book-cover child-book-cover--empty">📖</div>
+                          }
+                          <div className="child-book-item-info">
+                            <span className="child-book-title">{book.title}</span>
+                            <span>
+                              {book.status === 'reading' ? '읽는 중'
+                                : book.status === 'paused' ? '잠시 멈춤'
+                                : book.status === 'finished' ? '다 읽음' : '읽고 싶음'}
+                              {book.currentPage && book.totalPages ? ` · ${book.currentPage}/${book.totalPages}쪽` : ''}
+                            </span>
+                          </div>
+                          <StickyNote size={16} />
+                        </button>
+                      ))}
+                    </div>
+                    <button className="btn-secondary" style={{ width: '100%', marginTop: 8 }} onClick={closeQuickNote}>취소</button>
+                  </>
+                ) : (
+                  <>
+                    <div className="child-step-title">무엇을 남길 거야?</div>
+                    <div className="child-book-name">『{quickNoteBook.title}』</div>
+                    <div className="quick-note-type-grid">
+                      {quickNoteOptions.map(option => (
+                        <button
+                          key={option.type}
+                          type="button"
+                          className={`quick-note-type-btn ${quickNoteType === option.type ? 'active' : ''}`}
+                          onClick={() => setQuickNoteType(option.type)}
+                        >
+                          {option.icon}
+                          <span>{option.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      className="child-answer-input quick-note-textarea"
+                      value={quickNoteContent}
+                      onChange={e => setQuickNoteContent(e.target.value)}
+                      placeholder={currentOption.placeholder}
+                      rows={5}
+                      autoFocus
+                    />
+                    <div className="quick-note-actions">
+                      <input
+                        type="number"
+                        className="page-input"
+                        value={quickNotePage}
+                        onChange={e => setQuickNotePage(e.target.value)}
+                        placeholder="p."
+                        min="1"
+                      />
+                      <button className="btn-secondary" type="button" onClick={() => setQuickNoteBookId(null)}>책 다시 고르기</button>
+                    </div>
+                    <button
+                      className="btn-primary child-next-btn"
+                      disabled={!quickNoteContent.trim()}
+                      onClick={saveQuickNote}
+                    >
+                      저장하기
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showChildComplete && (() => {
         const readingBooks = filterBooks(user.id, 'reading', 'all', 'all', '');
         const noReviewBooks = filterBooks(user.id, 'finished', 'all', 'all', '').filter(b => !b.review?.trim());
@@ -955,6 +1259,7 @@ export default function App() {
                 childEmotion: updates.childEmotion,
                 childAnswers: updates.childAnswers,
                 review: updates.review || undefined,
+                reviewCreatedAt: undefined,
               });
               let totalPts = 0;
               let celebrationLabel = '';
@@ -964,21 +1269,35 @@ export default function App() {
                 await awardPoints(bookId, 'book_finished', finishedPts, finishDate);
                 totalPts += finishedPts;
                 celebrationLabel = '📖 완독 완료!';
-                notifyGroupActivity({
+                await notifyGroupActivity({
                   title: '📖 완독했어요!',
                   body:  `${profile?.display_name ?? '가족'}이(가) "${book?.title}"을(를) 다 읽었어요!`,
+                  url:   '/',
+                  type:  'book_finished',
                 });
               }
               if (book && updates.review) {
-                clearRejectionReason(bookId);
-                const reviewPts = calcReviewPoints(book.totalPages, book.language);
-                await awardPoints(bookId, 'review_approved', reviewPts, finishDate ?? book?.finishDate);
-                totalPts += reviewPts;
-                celebrationLabel = wasReading ? '✨ 완독 + 감상문 완성!' : '✍️ 감상문 완성!';
-                notifyGroupActivity({
-                  title: '✍️ 감상문 작성!',
-                  body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}" 감상문을 남겼어요.`,
-                });
+                const result = await validateReview(updates.review, book.title, updates.childAnswers);
+                if (result.valid) {
+                  clearRejectionReason(bookId);
+                  await updateBook(bookId, { reviewCreatedAt: new Date().toISOString() });
+                  const reviewPts = calcReviewPoints(book.totalPages, book.language);
+                  await awardPoints(bookId, 'review_approved', reviewPts, finishDate ?? book?.finishDate);
+                  totalPts += reviewPts;
+                  celebrationLabel = wasReading ? '✨ 완독 + 감상문 승인!' : '✍️ 감상문 승인!';
+                  await notifyGroupActivity({
+                    title: '✍️ 감상문 작성!',
+                    body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}" 감상문을 남겼어요.`,
+                    url:   '/',
+                    type:  'review_added',
+                  });
+                } else {
+                  await removePoints(bookId, 'review_approved');
+                  await updateBook(bookId, { reviewCreatedAt: undefined });
+                  saveRejectionReason(bookId, result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.');
+                  setRevalidateToast(result.reason ?? '감상문이 아직 승인 기준을 충족하지 못했어요.');
+                  setTimeout(() => setRevalidateToast(null), 5000);
+                }
               }
               if (totalPts > 0) {
                 reloadPoints();

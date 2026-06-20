@@ -1303,6 +1303,10 @@ export default function App() {
                     url:   '/',
                     type:  'review_added',
                   });
+                } else if (result.uncertain) {
+                  saveRejectionReason(bookId, result.reason ?? 'AI 검증이 잠시 보류되었어요. 나중에 다시 시도해주세요.');
+                  setRevalidateToast(result.reason ?? 'AI 검증이 잠시 보류되었어요. 기존 승인 상태는 유지됩니다.');
+                  setTimeout(() => setRevalidateToast(null), 5000);
                 } else {
                   await removePoints(bookId, 'review_approved');
                   await updateBook(bookId, { reviewCreatedAt: undefined });

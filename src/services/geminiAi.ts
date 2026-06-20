@@ -127,6 +127,38 @@ function hasObviousLowSignal(text: string): string | null {
   return null;
 }
 
+function hasRepetitivePadding(text: string): boolean {
+  const sentences = text.split(/[.!?。！？\n]+/).map(s => s.trim()).filter(Boolean);
+  if (sentences.length < 3) return false;
+  const normalized = sentences.map(s => s.replace(/\s+/g, ''));
+  const unique = new Set(normalized);
+  return unique.size <= Math.ceil(normalized.length / 2);
+}
+
+function getTitleTokens(bookTitle?: string): string[] {
+  if (!bookTitle) return [];
+  const stopWords = new Set(['의', '편', '권', '책', '시리즈', '대모험']);
+  return bookTitle
+    .split(/[^0-9A-Za-z가-힣]+/)
+    .map(token => token.trim())
+    .filter(token => token.length >= 2 && !stopWords.has(token));
+}
+
+function looksSubstantiveReview(text: string, bookTitle?: string, answers?: ReviewAnswer[]): boolean {
+  if (text.length < 140 || hasRepetitivePadding(text)) return false;
+
+  const sentences = text.split(/[.!?。！？\n]+/).map(s => s.trim()).filter(Boolean);
+  if (sentences.length < 3 && text.length < 220) return false;
+
+  const titleTokens = getTitleTokens(bookTitle);
+  const hasTitleSignal = titleTokens.some(token => text.includes(token));
+  const answerQuality = answers && answers.length > 0 ? calcAnswerQuality(answers) : null;
+  const hasGuidedSubstance = answerQuality === 2;
+  const hasConcreteLanguage = /(장면|인물|사건|내용|이야기|알게|배웠|느꼈|생각|이유|부분|역사|한국사|시대|왕|나라|전쟁|독립|문화|모험|설명|소개|기억)/.test(text);
+
+  return hasGuidedSubstance || (hasConcreteLanguage && (hasTitleSignal || text.length >= 220));
+}
+
 /**
  * Validate a book review:
  *  - Must be ≥ 30 characters
@@ -154,6 +186,10 @@ export async function validateReview(
     return { valid: false, reason: '질문에 직접 답해야 후기로 인정돼요. 나만의 생각을 질문에 담아주세요!' };
   }
 
+  if (looksSubstantiveReview(text, bookTitle, answers)) {
+    return { valid: true };
+  }
+
   const apiKey = getApiKey();
   if (!apiKey) {
     return { valid: false, uncertain: true, reason: 'AI 검증을 위해 Gemini API 키가 필요해요.' };
@@ -172,7 +208,9 @@ export async function validateReview(
 
   const prompt = `${bookCtx}후기: "${text}"
 
-이 후기가 아래 기준을 모두 충족하는지 매우 엄격하게 판단해주세요.
+이 후기가 독서 활동으로 인정할 수 있는지 균형 있게 판단해주세요.
+중요: AI의 도움을 받아 문장이 매끄럽거나 정리된 글이라는 이유만으로 거절하지 마세요.
+판단 기준은 "누가 썼는가"가 아니라 최종 후기 안에 책과 연결된 내용 또는 생각이 실제로 있는지입니다.
 
 [핵심 요건 — 반드시 있어야 valid: true]
 후기에 다음 중 최소 하나가 명시적으로 포함되어 있어야 합니다:
@@ -183,6 +221,7 @@ export async function validateReview(
 
 단, 위 요건은 반드시 책 제목/질문 답변/후기 안의 단서와 연결되어야 합니다.
 책과 연결되지 않는 일반 상식, 갑작스러운 무관한 문장, 앞뒤가 맞지 않는 문장은 요건으로 인정하지 마세요.
+긴 글이고 여러 문장에 걸쳐 책의 내용, 역사 정보, 인물, 사건, 느낀 점이 연결되어 있으면 통과시키세요.
 ${strictExtra}
 [반드시 거절 (valid: false)]
 - "재미있었다", "신기했다", "흥미로웠다", "또 읽고 싶다" 등 막연한 감정/평가만 나열한 경우

@@ -24,6 +24,7 @@ interface Props {
   memberPoints: MemberStat[];
   userId: string;
   onNavigateToFamily: () => void;
+  onOpenBook?: (bookId: string, ownerId: string) => void;
 }
 
 const MEMBER_COLORS = ['#3b7fd4', '#e91e8c', '#ab47bc', '#26c6da', '#f5a623', '#2ecc71'];
@@ -48,7 +49,7 @@ type FeedItem =
   | { kind: 'comment'; data: BookComment; sortKey: string }
   | { kind: 'book_added' | 'book_finished' | 'review_added'; book: Book; sortKey: string };
 
-export default function RightPanel({ books, members, memberPoints, userId, onNavigateToFamily }: Props) {
+export default function RightPanel({ books, members, memberPoints, userId, onNavigateToFamily, onOpenBook }: Props) {
   const [comments, setComments]       = useState<BookComment[]>([]);
   const [pendingGoals, setPendingGoals] = useState<ReadingGoal[]>([]);
   const [adminPending, setAdminPending] = useState<Redemption[]>([]);
@@ -234,20 +235,28 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
                 const member = getMember(c.user_id);
                 const name   = member?.display_name ?? '—';
                 const color  = memberColor(members, c.user_id);
-                const bookTitle = books.find(b => b.id === c.book_id)?.title;
+                const book = books.find(b => b.id === c.book_id);
+                const bookTitle = book?.title;
+                const owner = getMember(book?.userId ?? c.book_owner_id);
+                const ownerName = owner?.display_name ?? '가족';
                 return (
-                  <div key={`c-${c.id}`} className="rp-feed-item">
+                  <button
+                    key={`c-${c.id}`}
+                    className="rp-feed-item rp-feed-item-btn"
+                    onClick={() => book ? onOpenBook?.(book.id, book.userId ?? c.book_owner_id) : onNavigateToFamily()}
+                  >
                     <div className="rp-feed-avatar" style={{ background: color }}>
                       {member?.avatar_url ? <img src={member.avatar_url} alt="" /> : name[0].toUpperCase()}
                     </div>
                     <div className="rp-feed-body">
                       <p className="rp-feed-text">
-                        <strong>{name}</strong>{bookTitle ? `이 《${bookTitle}》에 댓글을 달았어요` : '이 댓글을 달았어요'}
+                        <strong>{name}</strong>{bookTitle ? `이 ${ownerName}님의 《${bookTitle}》에 댓글을 달았어요` : '이 댓글을 달았어요'}
                       </p>
+                      <span className="rp-feed-comment-snippet">"{c.content}"</span>
                       <span className="rp-feed-time">{fmtRelative(c.created_at)}</span>
                     </div>
                     <MessageCircle size={11} className="rp-feed-icon rp-icon-comment" />
-                  </div>
+                  </button>
                 );
               }
               const { book, kind, sortKey } = item;
@@ -257,7 +266,11 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
               const isFinished = kind === 'book_finished';
               const isReview   = kind === 'review_added';
               return (
-                <div key={`a-${book.id}-${kind}`} className="rp-feed-item">
+                <button
+                  key={`a-${book.id}-${kind}`}
+                  className="rp-feed-item rp-feed-item-btn"
+                  onClick={() => onOpenBook?.(book.id, book.userId ?? '') ?? onNavigateToFamily()}
+                >
                   <div className="rp-feed-avatar" style={{ background: color }}>
                     {member?.avatar_url ? <img src={member.avatar_url} alt="" /> : name[0].toUpperCase()}
                   </div>
@@ -276,7 +289,7 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
                     : isFinished
                     ? <Award    size={11} className="rp-feed-icon rp-icon-finished" />
                     : <BookPlus size={11} className="rp-feed-icon rp-icon-added" />}
-                </div>
+                </button>
               );
             })}
           </div>

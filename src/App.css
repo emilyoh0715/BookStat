@@ -5457,6 +5457,24 @@ textarea { resize: vertical; }
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
+.feed-open-book-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 6px;
+  margin-right: 6px;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.feed-open-book-btn:hover {
+  border-color: var(--accent);
+}
 .feed-comment-btn:hover,
 .feed-comment-btn.active {
   color: var(--accent);
@@ -6799,6 +6817,30 @@ textarea { resize: vertical; }
 .rp-icon-finished { color: #f5a623; }
 .rp-icon-added    { color: #2ecc71; }
 .rp-icon-review   { color: #e67e22; }
+.rp-feed-item-btn {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.rp-feed-item-btn:hover {
+  background: var(--bg-base);
+}
+.rp-feed-comment-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
 
 /* ── Daily summary ── */
 .rp-daily-summary {

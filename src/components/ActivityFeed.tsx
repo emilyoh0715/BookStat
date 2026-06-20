@@ -13,6 +13,7 @@ interface Props {
   books:   Book[];
   members: Profile[];
   userId:  string;
+  onOpenBook?: (bookId: string, ownerId: string) => void;
 }
 
 const PAGE_SIZE     = 5;
@@ -28,7 +29,7 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
-export default function ActivityFeed({ books, members, userId }: Props) {
+export default function ActivityFeed({ books, members, userId, onOpenBook }: Props) {
   const [comments, setComments] = useState<BookComment[]>([]);
   const [loading, setLoading]   = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -147,6 +148,8 @@ export default function ActivityFeed({ books, members, userId }: Props) {
           const name   = member?.display_name ?? c.profiles?.display_name ?? '—';
           const avatar = member?.avatar_url   ?? c.profiles?.avatar_url   ?? null;
           const book   = books.find(b => b.id === c.book_id);
+          const owner  = getMember(book?.userId ?? c.book_owner_id);
+          const ownerName = owner?.display_name ?? '가족';
 
           return (
             <div key={`c-${c.id}-${i}`} className="feed-item">
@@ -158,8 +161,16 @@ export default function ActivityFeed({ books, members, userId }: Props) {
                   <span className="feed-who">{name}</span>
                   <span className="feed-time">{fmtDate(c.created_at)}</span>
                 </div>
-                {book && <div className="feed-book-ref">📖 {book.title}</div>}
+                {book && <div className="feed-book-ref">📖 {ownerName}님의 『{book.title}』</div>}
                 <p className="feed-comment-text">"{c.content}"</p>
+                {book && onOpenBook && (
+                  <button
+                    className="feed-open-book-btn"
+                    onClick={() => onOpenBook(book.id, book.userId ?? c.book_owner_id)}
+                  >
+                    댓글 보러가기
+                  </button>
+                )}
               </div>
               <MessageCircle size={13} className="feed-type-icon feed-icon-comment" />
             </div>
@@ -197,6 +208,14 @@ export default function ActivityFeed({ books, members, userId }: Props) {
               )}
               {(isFinished || isReview) && book.cover && (
                 <img src={book.cover} alt="" className="feed-book-cover" />
+              )}
+              {onOpenBook && (
+                <button
+                  className="feed-open-book-btn"
+                  onClick={() => onOpenBook(book.id, book.userId ?? '')}
+                >
+                  책 보기
+                </button>
               )}
               <button
                 className={`feed-comment-btn ${isOpen ? 'active' : ''}`}

@@ -511,6 +511,13 @@ export default function App() {
     });
   };
 
+  const openBookFromActivity = (bookId: string, ownerId: string) => {
+    handleSelectUser(ownerId);
+    setSelectedId(bookId);
+    setMainView('library');
+    setPendingInviteCount(0);
+  };
+
   const openBookNote = (bookId: string) => {
     setQuickNoteBookId(bookId);
     setQuickNoteType('reflection');
@@ -729,6 +736,7 @@ export default function App() {
               books={books}
               userId={user.id}
               onViewLibrary={(uid) => { handleSelectUser(uid); setMainView('library'); }}
+              onOpenBook={openBookFromActivity}
               onOpenGroupManager={() => setShowGroupManager(true)}
             />
           ) : selectedBook ? (
@@ -989,6 +997,7 @@ export default function App() {
           memberPoints={groupMemberPoints}
           userId={user.id}
           onNavigateToFamily={() => { setMainView('family'); setPendingInviteCount(0); }}
+          onOpenBook={openBookFromActivity}
         />
       </div>
 

@@ -31,6 +31,7 @@ interface Props {
   books:              Book[];
   userId:             string;
   onViewLibrary:      (userId: string) => void;
+  onOpenBook?:        (bookId: string, ownerId: string) => void;
   onOpenGroupManager: () => void;
 }
 
@@ -43,7 +44,7 @@ function memberColor(members: Profile[], uid: string) {
 }
 
 export default function FamilyView({
-  members, memberPoints, books, userId, onViewLibrary, onOpenGroupManager,
+  members, memberPoints, books, userId, onViewLibrary, onOpenBook, onOpenGroupManager,
 }: Props) {
   const [tab, setTab]                   = useState<FamilyTab>('activity');
   const [myGoal, setMyGoal]             = useState<ReadingGoal | null>(null);
@@ -253,7 +254,7 @@ export default function FamilyView({
                 <span style={{ fontSize: 36 }}>👨‍👩‍👧</span>
                 <p>가족을 초대하면 활동 피드가 보여요!</p>
               </div>
-            : <ActivityFeed books={books} members={members} userId={userId} />
+            : <ActivityFeed books={books} members={members} userId={userId} onOpenBook={onOpenBook} />
           }
 
           {/* 포인트 순위 */}

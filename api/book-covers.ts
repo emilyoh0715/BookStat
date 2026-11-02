@@ -33,21 +33,28 @@ let apiErrors: ApiError[] = [];
 
 async function getJson<T>(url: string, headers?: Record<string, string>): Promise<T | null> {
   const api = new URL(url).hostname;
-  try {
-    const r = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT) });
-    if (!r.ok) {
+  // Google Books는 서버(데이터센터)에서 오는 요청에 503을 자주 돌려줘서 잠깐 쉬고 재시도
+  const delays = [0, 400, 1000];
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt]) await new Promise(r => setTimeout(r, delays[attempt]));
+    const last = attempt === delays.length - 1;
+    try {
+      const r = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT) });
+      if (r.ok) return await r.json() as T;
+      if (r.status >= 500 && !last) continue;
       const body = await r.text().catch(() => '');
       const reason = body.match(/"(?:reason|message|errorType)"\s*:\s*"([^"]{0,160})/)?.[1];
       apiErrors.push({ api, status: r.status, reason });
       console.warn(`[book-covers] ${api} ${r.status} ${reason ?? ''}`);
       return null;
+    } catch (e) {
+      if (!last) continue;
+      apiErrors.push({ api, status: 'network', reason: e instanceof Error ? e.message : String(e) });
+      console.warn(`[book-covers] ${api} network error`, e);
+      return null;
     }
-    return await r.json() as T;
-  } catch (e) {
-    apiErrors.push({ api, status: 'network', reason: e instanceof Error ? e.message : String(e) });
-    console.warn(`[book-covers] ${api} network error`, e);
-    return null;
   }
+  return null;
 }
 
 // ── 카카오 ────────────────────────────────────────────

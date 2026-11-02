@@ -27,12 +27,25 @@ function authorMatches(bookAuthor: string, author: string): boolean {
   return author.split(/[,·]/).map(norm).filter(Boolean).some(n => a.includes(n));
 }
 
+// 외부 API 실패 기록 (Vercel 로그 + ?debug=1 응답용, 키 값은 남기지 않음)
+type ApiError = { api: string; status: number | string; reason?: string };
+let apiErrors: ApiError[] = [];
+
 async function getJson<T>(url: string, headers?: Record<string, string>): Promise<T | null> {
+  const api = new URL(url).hostname;
   try {
     const r = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT) });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      const reason = body.match(/"(?:reason|message|errorType)"\s*:\s*"([^"]{0,160})/)?.[1];
+      apiErrors.push({ api, status: r.status, reason });
+      console.warn(`[book-covers] ${api} ${r.status} ${reason ?? ''}`);
+      return null;
+    }
     return await r.json() as T;
-  } catch {
+  } catch (e) {
+    apiErrors.push({ api, status: 'network', reason: e instanceof Error ? e.message : String(e) });
+    console.warn(`[book-covers] ${api} network error`, e);
     return null;
   }
 }
@@ -190,6 +203,8 @@ async function lookupGoogleByIsbn(key: string | undefined, isbn: string) {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=1800');
+  apiErrors = [];
+  const debug = req.query.debug === '1';
 
   const title = String(req.query.title ?? '').trim();
   const author = cleanAuthor(String(req.query.author ?? ''));
@@ -235,8 +250,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const books = unique.map(({ isbn: _isbn, ...b }) => b);
 
+  if (debug) res.setHeader('Cache-Control', 'no-store');
   return res.json({
     books,
     covers: books.map(b => b.cover),
+    ...(debug ? {
+      debug: { hasKakaoKey: !!kakaoKey, hasGoogleKey: !!googleKey, errors: apiErrors },
+    } : {}),
   });
 }

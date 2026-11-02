@@ -116,25 +116,26 @@ export async function awardPoints(
   reason: PointReason,
   points: number,
   finishDate?: string
-): Promise<void> {
+): Promise<boolean> {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return;
+  if (!session) return false;
   const userId = session.user.id;
 
   // 완독일이 있으면 올해 완독한 책만 포인트 적립 (book_added 포함 — 완독일 기준으로 앵커됨)
   if (finishDate) {
     const finishYear = new Date(finishDate).getFullYear();
-    if (finishYear !== new Date().getFullYear()) return;
+    if (finishYear !== new Date().getFullYear()) return false;
   }
 
-  const { data: existing } = await supabase
+  const { data: existing, error: readError } = await supabase
     .from('point_logs')
     .select('id')
     .eq('user_id', userId)
     .eq('book_id', bookId)
     .eq('reason', reason)
     .maybeSingle();
-  if (existing) return;
+  if (readError) return false;
+  if (existing) return true;
 
   // book_finished / review_approved 는 완독일을 created_at 으로 사용해
   // 연도 필터가 완독 연도 기준으로 동작하게 함
@@ -142,7 +143,8 @@ export async function awardPoints(
     ? `${finishDate}T12:00:00.000Z`
     : new Date().toISOString();
 
-  await supabase.from('point_logs').insert({ user_id: userId, book_id: bookId, reason, points, created_at });
+  const { error } = await supabase.from('point_logs').insert({ user_id: userId, book_id: bookId, reason, points, created_at });
+  return !error;
 }
 
 /** Fetch current-year points and log for the authenticated user. Resets each calendar year. */

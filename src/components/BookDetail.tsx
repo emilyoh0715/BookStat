@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
 import BookComments from './BookComments';
-import { lookupVocab, getApiKey, validateReview, saveRejectionReason, clearRejectionReason, getRejectionReason } from '../services/geminiAi';
+import { lookupVocab, validateReview, saveRejectionReason, clearRejectionReason, getRejectionReason } from '../services/geminiAi';
 import { awardPoints, calcReviewPoints, syncBookPoints } from '../services/points';
 import { GENRES } from '../lib/genres';
 import { ArrowLeft, Plus, Trash2, BookOpen, StickyNote, BookMarked, Edit2, Check, X, Sparkles, Loader, RefreshCw, Search, Wand2, Quote, MessageSquare, CalendarDays, Info } from 'lucide-react';
@@ -66,10 +66,10 @@ async function fetchBookCandidates(title: string, author: string, language = 'ko
 interface Props {
   book: Book;
   onBack: () => void;
-  onUpdate: (updates: Partial<Book>) => void;
-  onAddVocab: (entry: { word: string; meaning: string; sentence?: string; page?: number }) => void;
+  onUpdate: (updates: Partial<Book>) => Promise<boolean>;
+  onAddVocab: (entry: { word: string; meaning: string; sentence?: string; page?: number }) => Promise<boolean>;
   onDeleteVocab: (id: string) => void;
-  onAddNote: (note: { type?: 'reading_log' | 'reflection' | 'quote'; content: string; page?: number }) => void;
+  onAddNote: (note: { type?: 'reading_log' | 'reflection' | 'quote'; content: string; page?: number }) => Promise<boolean>;
   onDeleteNote: (id: string) => void;
   onPointsSync?: () => void;
   onWriteReview?: () => void;
@@ -129,8 +129,8 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     setEditingMeta(true);
   };
 
-  const saveMeta = () => {
-    onUpdate({
+  const saveMeta = async () => {
+    const saved = await onUpdate({
       title: metaForm.title.trim() || book.title,
       author: metaForm.author.trim(),
       publisher: metaForm.publisher.trim() || undefined,
@@ -139,6 +139,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       totalPages: metaForm.totalPages ? Number(metaForm.totalPages) : undefined,
       startDate: metaForm.startDate || undefined,
     });
+    if (!saved) return;
     setEditingMeta(false);
   };
 
@@ -172,9 +173,9 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     }
   );
 
-  // pending 상태인데 저장된 이유가 없으면 AI로 자동 조회
-  useEffect(() => {
-    if (readOnly || reviewStatus !== 'pending' || !book.review?.trim() || reviewCheckResult || fetchingReason || !getApiKey()) return;
+  // A deliberate retry avoids repeated paid requests whenever the detail view remounts.
+  const checkReview = () => {
+    if (readOnly || !book.review?.trim() || fetchingReason) return;
     setFetchingReason(true);
     validateReview(book.review, book.title, book.childAnswers).then(result => {
       if (result.uncertain) {
@@ -191,12 +192,15 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
         setReviewCheckResult('pass');
         if (book.status === 'finished' && book.rating && book.rating > 0) {
           awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language), book.finishDate)
-            .then(() => onPointsSync?.())
+            .then(saved => {
+              if (!saved) { setReviewCheckResult('hold'); setRejectionReason('후기는 통과했지만 포인트 적립을 확인하지 못했어요.'); }
+              onPointsSync?.();
+            })
             .catch(console.error);
         }
       }
     }).finally(() => setFetchingReason(false));
-  }, [reviewStatus, book.id]);
+  };
 
   const [vocabForm, setVocabForm] = useState({ word: '', meaning: '', sentence: '', page: '' });
   const [noteForm, setNoteForm] = useState({ type: 'reflection' as NoteType, content: '', page: '' });
@@ -226,7 +230,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     }
   };
 
-  const saveCover = () => {
+  const saveCover = async () => {
     const selected = manualCoverMode ? null : coverCandidates[coverIdx];
     const url = manualCoverMode ? manualCoverUrl : (selected?.cover ?? '');
 
@@ -241,7 +245,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
       if (mapped) updates.genre = mapped;
     }
 
-    onUpdate(updates);
+    if (!await onUpdate(updates)) return;
     setEditingCover(false);
   };
 
@@ -258,24 +262,22 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
   };
 
   const saveInfo = async () => {
-    syncBookPoints(book.id, infoForm.status, book.review, book.totalPages, book.language, book.rating, infoForm.finishDate || book.finishDate)
-      .then(() => onPointsSync?.())
-      .catch(console.error);
 
-    onUpdate({
+
+    const saved = await onUpdate({
       status: infoForm.status,
       currentPage: infoForm.currentPage ? Number(infoForm.currentPage) : undefined,
       finishDate: infoForm.finishDate || undefined,
     });
+    if (!saved) return;
+    syncBookPoints(book.id, infoForm.status, book.review, book.totalPages, book.language, book.rating, infoForm.finishDate || book.finishDate)
+      .then(() => onPointsSync?.())
+      .catch(console.error);
     setEditingInfo(false);
   };
 
   const handleAutoLookup = async () => {
     if (!vocabForm.word.trim()) return;
-    if (!getApiKey()) {
-      setLookupError('설정에서 Gemini API 키를 먼저 입력해주세요.');
-      return;
-    }
     setLookupLoading(true);
     setLookupError('');
     try {
@@ -291,18 +293,20 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
     }
   };
 
-  const handleAddVocab = (e: React.FormEvent) => {
+  const handleAddVocab = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vocabForm.word.trim() || !vocabForm.meaning.trim()) return;
-    onAddVocab({ word: vocabForm.word.trim(), meaning: vocabForm.meaning.trim(), sentence: vocabForm.sentence.trim() || undefined, page: vocabForm.page ? Number(vocabForm.page) : undefined });
+    const saved = await onAddVocab({ word: vocabForm.word.trim(), meaning: vocabForm.meaning.trim(), sentence: vocabForm.sentence.trim() || undefined, page: vocabForm.page ? Number(vocabForm.page) : undefined });
+    if (!saved) return;
     setVocabForm({ word: '', meaning: '', sentence: '', page: '' });
     setLookupError('');
   };
 
-  const handleAddNote = (e: React.FormEvent) => {
+  const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteForm.content.trim()) return;
-    onAddNote({ type: noteForm.type, content: noteForm.content.trim(), page: noteForm.page ? Number(noteForm.page) : undefined });
+    const saved = await onAddNote({ type: noteForm.type, content: noteForm.content.trim(), page: noteForm.page ? Number(noteForm.page) : undefined });
+    if (!saved) return;
     setNoteForm(f => ({ ...f, content: '', page: '' }));
   };
 
@@ -735,6 +739,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                     <p>{book.review}</p>
                     {reviewStatus === 'pending' && (
                       <div className={`review-rejection-reason ${reviewCheckResult === 'pass' ? 'pass' : ''}`}>
+                        {!readOnly && <button type="button" className="btn-secondary" onClick={checkReview} disabled={fetchingReason}>후기 다시 확인</button>}
                         {fetchingReason
                           ? <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>후기 상태 확인 중...</span>
                           : reviewCheckResult === 'hold'
@@ -743,7 +748,7 @@ export default function BookDetail({ book, onBack, onUpdate, onAddVocab, onDelet
                             ? <><strong>거절 이유:</strong> {rejectionReason}</>
                             : reviewCheckResult === 'pass'
                               ? <>후기 내용은 기준을 충족해요. 편집 모드에서 저장하면 포인트가 지급됩니다.</>
-                              : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>API 키를 설정하면 거절 이유를 확인할 수 있어요.</span>
+                              : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>후기 검증을 다시 요청할 수 있어요.</span>
                         }
                       </div>
                     )}

@@ -1,50 +1,10 @@
-import { useState, useEffect } from 'react';
+import { MARKET_ITEMS } from '../lib/marketItems';
+import { useCallback, useState, useEffect } from 'react';
 import { ShoppingBag, Clock, CheckCircle, XCircle, ChevronRight, Loader, Bell, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 /* ── 마켓 아이템 정의 ── */
-export const MARKET_ITEMS = [
-  {
-    id: 'snack',
-    name: '편의점 간식',
-    emoji: '🍭',
-    cost: 50,
-    desc: '편의점에서 원하는 간식 마음껏',
-    color: '#e91e8c',
-    bg: 'rgba(233,30,140,0.08)',
-    border: 'rgba(233,30,140,0.2)',
-  },
-  {
-    id: 'stationery',
-    name: '문구용품',
-    emoji: '✏️',
-    cost: 150,
-    desc: '예쁜 노트 · 펜 · 스티커 세트',
-    color: '#f5a623',
-    bg: 'rgba(245,166,35,0.08)',
-    border: 'rgba(245,166,35,0.2)',
-  },
-  {
-    id: 'craft_kit',
-    name: '만들기 세트',
-    emoji: '🎨',
-    cost: 300,
-    desc: '공예 · 클레이 · DIY 키트 1개',
-    color: '#26c6da',
-    bg: 'rgba(38,198,218,0.08)',
-    border: 'rgba(38,198,218,0.2)',
-  },
-  {
-    id: 'doll_keyring',
-    name: '인형 키링',
-    emoji: '🧸',
-    cost: 600,
-    desc: '귀여운 캐릭터 인형 키링 1개',
-    color: '#ab47bc',
-    bg: 'rgba(171,71,188,0.08)',
-    border: 'rgba(171,71,188,0.2)',
-  },
-];
+
 
 interface Redemption {
   id: string;
@@ -90,15 +50,15 @@ export default function PointsMarket({ userId, totalEarnedPoints, hideShop = fal
   const availablePoints = totalEarnedPoints - approvedCost;
   const spendablePoints = availablePoints - pendingCost;
 
-  const loadData = async () => {
+  const loadData = useCallback(() => {
     // 그룹 & 역할 조회
-    const { data: membership } = await supabase
+    return supabase
       .from('group_members')
       .select('group_id, role')
       .eq('user_id', userId)
       .eq('status', 'accepted')
       .limit(1)
-      .maybeSingle();
+      .maybeSingle().then(async ({ data: membership }) => {
 
     if (!membership) return;
     setGroupId(membership.group_id);
@@ -142,9 +102,10 @@ export default function PointsMarket({ userId, totalEarnedPoints, hideShop = fal
     } else {
       setAdminRequests([]);
     }
-  };
+    });
+  }, [userId, year]);
 
-  useEffect(() => { loadData(); }, [userId]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   /* ── 신청 제출 ── */
   const submitRequest = async () => {

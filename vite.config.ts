@@ -1,11 +1,18 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import { devApi } from './server/devApi.ts'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  for (const key of ['GEMINI_API_KEY', 'GEMINI_MODEL', 'VITE_GEMINI_API_KEY', 'VITE_GEMINI_MODEL', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_KEY', 'KAKAO_REST_API_KEY', 'GOOGLE_BOOKS_API_KEY']) {
+    if (!process.env[key] && env[key]) process.env[key] = env[key];
+  }
+  return {
   plugins: [
     react(),
+    devApi(),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
@@ -43,4 +50,5 @@ export default defineConfig({
       },
     }),
   ],
+  };
 })

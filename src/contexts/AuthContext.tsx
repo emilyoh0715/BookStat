@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { AuthContext } from './authStore';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -36,65 +37,48 @@ function saveStoredChildren(children: ChildAccount[]) {
   localStorage.setItem(CHILDREN_STORAGE_KEY, JSON.stringify(children));
 }
 
-interface AuthContextValue {
-  session: Session | null;
-  user: User | null;
-  profile: Profile | null;
-  loading: boolean;
-  // 이메일 인증
-  signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUpWithEmail: (email: string, password: string, fullName?: string, birthDate?: string) => Promise<{ error: string | null }>;
-  // 휴대폰 OTP
-  sendPhoneOtp: (phone: string) => Promise<{ error: string | null }>;
-  verifyPhoneOtp: (phone: string, token: string, fullName?: string, birthDate?: string) => Promise<{ error: string | null }>;
-  // 소셜
-  signInWithGoogle: () => Promise<void>;
-  signInWithKakao: () => Promise<void>;
-  // 자녀 계정
-  createChildAccount: (name: string, pin: string, birthDate: string, avatarEmoji?: string, legacyUserId?: string, nickname?: string) => Promise<{ error: string | null; child?: ChildAccount; migratedBooks?: number }>;
-  signInAsChild: (child: ChildAccount, pin: string) => Promise<{ error: string | null }>;
-  getStoredChildren: () => ChildAccount[];
-  removeStoredChild: (childId: string) => void;
-  // 공통
-  signOut: () => Promise<void>;
-  updateProfile: (updates: Partial<Profile>) => Promise<{ error: string | null }>;
-  refreshProfile: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const profileRequest = useRef(0);
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    const request = ++profileRequest.current;
+    try {
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
-    setProfile(data ?? null);
-  };
+      .maybeSingle();
+    if (error) throw error;
+    if (request === profileRequest.current) { setProfile(data ?? null); setConnectionError(null); }
+    } catch {
+      if (request === profileRequest.current) setConnectionError('프로필에 연결하지 못했어요. 잠시 후 다시 시도해주세요.');
+    }
+  }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) throw error;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id).finally(() => setLoading(false));
       else setLoading(false);
-    });
+    }).catch(() => { setConnectionError('로그인 서버에 연결하지 못했어요. 다시 시도해주세요.'); setLoading(false); });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
+      if (session?.user) queueMicrotask(() => { void fetchProfile(session.user.id); });
+      else { profileRequest.current++; setProfile(null); }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchProfile]);
 
   // ── 이메일 로그인/가입 ──────────────────────────────
   const signInWithEmail = async (email: string, password: string) => {
@@ -234,6 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
+      connectionError,
       session, user, profile, loading,
       signInWithEmail, signUpWithEmail,
       sendPhoneOtp, verifyPhoneOtp,
@@ -244,12 +229,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
 }
 
 // 010-1234-5678 → +821012345678

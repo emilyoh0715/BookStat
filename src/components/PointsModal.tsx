@@ -3,7 +3,7 @@ import { X, Award, BookPlus, Star, BookOpen, Sparkles, CheckCircle, XCircle, Loa
 import type { Book } from '../types';
 import type { PointLog } from '../services/points';
 import { awardPoints, calcReviewPoints } from '../services/points';
-import { validateReview, getApiKey } from '../services/geminiAi';
+import { validateReview } from '../services/geminiAi';
 
 interface Props {
   total: number;
@@ -42,7 +42,6 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
   const [currentBook, setCurrentBook]       = useState('');
   const [progress, setProgress]             = useState({ done: 0, total: 0 });
   const [results, setResults]               = useState<ValidationResult[] | null>(null);
-  const [noApiKey, setNoApiKey]             = useState(false);
 
   const approvedBookIds = new Set(
     logs.filter(l => l.reason === 'review_approved').map(l => l.book_id)
@@ -53,8 +52,6 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
   );
 
   const handleBulkValidate = async () => {
-    if (!getApiKey()) { setNoApiKey(true); return; }
-    setNoApiKey(false);
     setValidating(true);
     setResults(null);
     setProgress({ done: 0, total: reviewBooks.length });
@@ -66,7 +63,8 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
       const alreadyHad = approvedBookIds.has(book.id);
       const pts = calcReviewPoints(book.totalPages, book.language);
       if (result.valid && !alreadyHad) {
-        await awardPoints(book.id, 'review_approved', pts).catch(console.error);
+        const saved = await awardPoints(book.id, 'review_approved', pts, book.finishDate).catch(() => false);
+        if (!saved) { result.valid = false; result.uncertain = true; result.reason = '후기는 통과했지만 포인트를 적립하지 못했어요.'; }
       }
       out.push({ bookId: book.id, title: book.title, valid: result.valid, uncertain: result.uncertain, reason: result.reason, alreadyHadPoints: alreadyHad, pts });
       setProgress(p => ({ ...p, done: p.done + 1 }));
@@ -133,11 +131,6 @@ export default function PointsModal({ total, logs, books, userId, onClose }: Pro
                 </button>
               </div>
 
-              {noApiKey && (
-                <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>
-                  설정에서 Gemini API 키를 먼저 입력해주세요.
-                </p>
-              )}
 
               {/* 진행 상태 */}
               {validating && (

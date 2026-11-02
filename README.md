@@ -1,73 +1,45 @@
-# React + TypeScript + Vite
+# 북스탯 개발 및 연결 점검
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 실행
 
-Currently, two official plugins are available:
+- `npm run dev`: 웹 화면과 로컬 AI API를 함께 실행합니다.
+- `npm test`: API 오류 처리 및 서재 저장 회귀 테스트를 실행합니다. Node 22.18 이상이 필요합니다.
+- `npm run lint`: 코드 검사.
+- `npm run build`: 프런트엔드와 서버 코드 타입 검사 및 배포용 웹 빌드.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 환경 설정
 
-## React Compiler
+`.env.local`과 Vercel 배포 환경에 다음 값을 설정합니다. 키 값은 저장소에 커밋하지 않습니다.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| 변수 | 용도 |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase 프로젝트 URL |
+| `VITE_SUPABASE_KEY` | 같은 프로젝트의 공개 anon 또는 publishable 키 |
+| `GEMINI_API_KEY` | 서버 전용 Gemini 키 |
+| `GEMINI_MODEL` | 기본값 `gemini-2.5-flash` |
 
-## Expanding the ESLint configuration
+이전 배포와의 호환을 위해 서버에서는 `VITE_GEMINI_API_KEY`와 `VITE_GEMINI_MODEL`도 읽지만, 브라우저 코드는 이 값을 사용하지 않습니다. 새 설정에는 `GEMINI_*` 이름을 사용하세요. 브라우저에 저장한 개인 Gemini 키는 사용하지 않습니다.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## AI 요청과 복구
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+감상문 생성·표지 인식·단어 검색·통계 요약은 `/api/generate-text`, 감상문 판정은 `/api/validate-review`를 호출합니다. 두 API는 Supabase 로그인 토큰을 검증합니다. 생성 실패를 임의의 성공 문장으로 바꾸지 않으며, 작성 화면에서 답변을 유지하고 재시도 또는 직접 작성을 제공합니다.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Gemini 요청은 15초 후 중단하고, 일시적인 연결·사용량·서버 오류는 한 번 재시도합니다. 인증 확인을 포함한 클라이언트 대기 제한은 45초입니다. 앱 변경을 배포할 때 두 API 파일과 서버 환경변수도 함께 반영해야 합니다.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Supabase에서 `Invalid API key`가 반환되면 대시보드의 프로젝트 URL 및 공개 키와 환경 설정을 대조한 후 개발 서버를 재시작하거나 재배포합니다. Gemini 키가 유효해도 Supabase 로그인이 유효하지 않으면 앱의 AI API를 사용할 수 없습니다.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 감상문 승인 순서
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Gemini 2.5 Flash로 최종 감상문과 원래 답변을 검증한 후, 승인된 경우에만 저장·완독 처리·포인트 지급을 진행합니다. 글 길이나 키워드에 따른 자동 승인과 AI 오류 시 자동 통과는 사용하지 않습니다. 거절·보류 시 작성 화면과 입력을 유지하고 완료 표시 및 두 종류의 포인트 지급을 막습니다. 이미 완독한 책은 검증 실패로 기존 완독 상태가 취소되지 않습니다. 기존 잘못 지급된 포인트를 자동으로 차감하지 않습니다.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 확인 범위
+
+테스트는 인증 실패, 잘못된 JSON, AI 재시도·빈 응답·잘린 응답, 저장 실패, 같은 기기의 연속 노트 저장, 로그아웃 후 늦게 도착한 저장 응답을 확인합니다. 운영 DB의 실제 권한·포인트 정책과 서로 다른 기기의 동시 편집은 별도 점검 대상입니다.
+
+의존성 점검(2026-09-12): Vite와 tar의 수정 버전을 반영했습니다. npm audit의 나머지 의존성 경고(21건)는 해결되지 않았으며, 별도 호환성 검토가 필요합니다.
+
+## 화면 구성
+
+홈은 읽는 책과 오늘의 기록을 먼저 보여줍니다. 읽기 기록·한 줄 감상·완독 감상문을 바로 열 수 있고, 최근 책은 해당 책의 상세 화면으로 이동합니다. 서재의 기본 상태는 ‘읽는 중’이며 언어·연도·장르·정렬은 ‘필터 및 정렬’에서 설정합니다.
+
+감상문은 답변과 편집할 초안을 한 화면에 표시합니다. 데스크톱에서는 좌우로, 모바일에서는 위아래로 배치하며 저장 상태와 오류를 화면에 유지합니다. 360·390·768·1024·1440px Chrome에서 샘플 데이터로 홈·감상문의 가로 넘침과 모의 저장 실패 후 입력 유지를 확인했습니다. 실제 계정으로 저장하는 운영 환경 검증과는 별개입니다.

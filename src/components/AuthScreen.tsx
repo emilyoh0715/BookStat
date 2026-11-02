@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/authStore';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 type MainTab = 'login' | 'signup';

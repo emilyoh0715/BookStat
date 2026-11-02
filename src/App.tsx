@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { completeReview } from './services/completeReview';
+import { useStoredSet } from './hooks/useStoredSet';
+import { useCallback, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useBooks } from './useBooks';
 import type { ReadingStatus, BookLanguage } from './types';
 import BookCard from './components/BookCard';
@@ -20,10 +22,10 @@ import FamilyView from './components/FamilyView';
 import PointsCelebration from './components/PointsCelebration';
 import ReadingCheckinSection from './components/ReadingCheckinSection';
 import RightPanel from './components/RightPanel';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from './contexts/authStore';
 import { getUserPoints, awardPoints, removePoints, calcReviewPoints, calcFinishedPoints } from './services/points';
 import type { PointLog } from './services/points';
-import { validateReview, getApiKey, saveRejectionReason, clearRejectionReason } from './services/geminiAi';
+import { validateReview, saveRejectionReason, clearRejectionReason } from './services/geminiAi';
 import { supabase } from './lib/supabase';
 import type { Profile } from './contexts/AuthContext';
 import { Plus, Search, Settings, ChevronDown, ChevronRight, Users, LogOut, BarChart2, BookOpen, RefreshCw, HelpCircle, Home, StickyNote, X, CalendarDays, MessageSquare, Quote } from 'lucide-react';
@@ -67,8 +69,8 @@ const LANG_FILTERS: { value: BookLanguage | 'all'; label: string }[] = [
 
 export default function App() {
   useTheme(); // 테마 초기화 (토글은 SettingsModal에서)
-  const { user, profile, loading: authLoading, signOut } = useAuth();
-  const { books, loading: booksLoading, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, filterBooks, getYears, groupByYear, refetchBooks } = useBooks();
+  const { user, profile, loading: authLoading, connectionError, signOut } = useAuth();
+  const { books, loading: booksLoading, error: booksError, addBook, updateBook, deleteBook, addVocab, deleteVocab, addNote, deleteNote, filterBooks, getYears, groupByYear, refetchBooks } = useBooks();
 
   const [introVisible, setIntroVisible] = useState(() => {
     if (sessionStorage.getItem('bookstat-intro-shown')) return false;
@@ -81,11 +83,13 @@ export default function App() {
     !!sessionStorage.getItem('bookstat-profile-chosen')
   );
 
+  const [previousUserId, setPreviousUserId] = useState(user?.id);
+  if (previousUserId !== user?.id) {
+    setPreviousUserId(user?.id);
+    if (!user) setProfileSelected(false);
+  }
   useEffect(() => {
-    if (!user) {
-      sessionStorage.removeItem('bookstat-profile-chosen');
-      setProfileSelected(false);
-    }
+    if (!user) sessionStorage.removeItem('bookstat-profile-chosen');
   }, [user]);
 
   // 그룹 멤버 (사이드바용)
@@ -114,7 +118,7 @@ export default function App() {
   const [quickNotePage, setQuickNotePage] = useState('');
   const [childCompleteBookId, setChildCompleteBookId] = useState<string | null>(null);
   const [pointsCelebration, setPointsCelebration] = useState<{ points: number; label: string } | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'all'>('reading');
   const [langFilter, setLangFilter] = useState<BookLanguage | 'all'>('all');
   const [yearFilter, setYearFilter] = useState<number | 'all'>('all');
   const [genreFilter, setGenreFilter] = useState<string>('all');
@@ -125,28 +129,10 @@ export default function App() {
   const [revalidating, setRevalidating] = useState(false);
   const [revalidateToast, setRevalidateToast] = useState<string | null>(null);
   const bookActivitySnapshotRef = useRef<Map<string, string> | null>(null);
-  const [newBookIds, setNewBookIds] = useState<Set<string>>(new Set());
-  const [dismissedNewBookIds, setDismissedNewBookIds] = useState<Set<string>>(new Set());
+  const [newBookIds, setNewBookIds] = useStoredSet(newBooksStorageKey(user?.id ?? 'signed-out'));
+  const [dismissedNewBookIds, setDismissedNewBookIds] = useStoredSet(dismissedNewBooksStorageKey(user?.id ?? 'signed-out'));
 
-  useEffect(() => {
-    if (!user) {
-      bookActivitySnapshotRef.current = null;
-      setNewBookIds(new Set());
-      return;
-    }
-    try {
-      const stored = JSON.parse(localStorage.getItem(newBooksStorageKey(user.id)) ?? '[]') as string[];
-      setNewBookIds(new Set(stored));
-    } catch {
-      setNewBookIds(new Set());
-    }
-    try {
-      const dismissed = JSON.parse(localStorage.getItem(dismissedNewBooksStorageKey(user.id)) ?? '[]') as string[];
-      setDismissedNewBookIds(new Set(dismissed));
-    } catch {
-      setDismissedNewBookIds(new Set());
-    }
-  }, [user]);
+  useEffect(() => { bookActivitySnapshotRef.current = null; }, [user?.id]);
 
   useEffect(() => {
     if (!user || booksLoading) return;
@@ -169,7 +155,6 @@ export default function App() {
         const next = new Set([...prev].filter(id => allowed.has(id)));
         recentActivityIds.forEach(id => next.add(id));
         dismissedNewBookIds.forEach(id => next.delete(id));
-        localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
         return next;
       });
       return;
@@ -189,25 +174,22 @@ export default function App() {
       setDismissedNewBookIds(prev => {
         const next = new Set(prev);
         remoteChangedBooks.forEach(b => next.delete(b.id));
-        localStorage.setItem(dismissedNewBooksStorageKey(user.id), JSON.stringify([...next]));
         return next;
       });
       setNewBookIds(prev => {
         const next = new Set(prev);
         remoteChangedBooks.forEach(b => next.add(b.id));
-        localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
         return next;
       });
     } else {
       setNewBookIds(prev => {
         const allowed = new Set(recentActivityIds);
         const next = new Set([...prev].filter(id => allowed.has(id) && !dismissedNewBookIds.has(id)));
-        localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
         return next;
       });
     }
     bookActivitySnapshotRef.current = currentSnapshot;
-  }, [books, booksLoading, user, dismissedNewBookIds]);
+  }, [books, booksLoading, user, dismissedNewBookIds, setNewBookIds, setDismissedNewBookIds]);
 
   useEffect(() => {
     if (!user) return;
@@ -223,20 +205,18 @@ export default function App() {
           setDismissedNewBookIds(prev => {
             const next = new Set(prev);
             next.delete(comment.book_id!);
-            localStorage.setItem(dismissedNewBooksStorageKey(user.id), JSON.stringify([...next]));
             return next;
           });
           setNewBookIds(prev => {
             const next = new Set(prev);
             next.add(comment.book_id!);
-            localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
             return next;
           });
         })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [user, setNewBookIds, setDismissedNewBookIds]);
 
   useEffect(() => {
     const t1 = setTimeout(() => setIntroFading(true), 600);
@@ -245,7 +225,7 @@ export default function App() {
   }, []);
 
   // 그룹 멤버 로드
-  const loadGroupMembers = async () => {
+  const loadGroupMembers = useCallback(() => {
     if (!user) return;
 
     const members: Profile[] = [];
@@ -257,7 +237,7 @@ export default function App() {
       seen.add(profile.id);
     }
 
-    const { data: otherProfiles } = await supabase.rpc('get_group_member_profiles');
+    return supabase.rpc('get_group_member_profiles').then(async ({ data: otherProfiles }) => {
     (otherProfiles ?? []).forEach((p: Profile) => {
       if (!seen.has(p.id)) {
         members.push(p);
@@ -267,57 +247,61 @@ export default function App() {
 
     setGroupMembers(members);
     setSelectedUserId(prev => prev || (members[0]?.id ?? user.id));
-  };
+    });
+  }, [user, profile]);
 
   useEffect(() => {
     if (user && profile) {
       loadGroupMembers();
       // 로그인 후 푸시 알림 구독 (이미 구독된 경우 재구독 없이 skip)
       subscribeToPush().catch(() => {});
-    } else if (user && !profile) {
-      setSelectedUserId(user.id);
     }
-  }, [user, profile]);
+  }, [user, profile, loadGroupMembers]);
 
   // 앱이 포커스될 때 배지 초기화
   useEffect(() => {
     const handleFocus = () => clearBadge();
     window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') clearBadge();
-    });
-    return () => window.removeEventListener('focus', handleFocus);
+    const handleVisibility = () => { if (document.visibilityState === 'visible') clearBadge(); };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   // 그룹 멤버 변경 실시간 감지
   // 초대 카운트 로드
-  const loadPendingInviteCount = async () => {
+  const loadPendingInviteCount = useCallback(() => {
     if (!user) return;
-    const { data } = await supabase
+    return supabase
       .from('group_members')
       .select('id, groups(name)')
       .eq('user_id', user.id)
-      .eq('status', 'pending');
+      .eq('status', 'pending').then(async ({ data }) => {
     setPendingInviteCount((data ?? []).length);
     return data ?? [];
-  };
+    });
+  }, [user]);
 
   // ─── 포인트 로드 & 실시간 동기화 (현재 연도만 집계) ───
-  const loadGroupPoints = async () => {
+  const loadGroupPoints = useCallback(() => {
     // get_group_member_points RPC는 SECURITY DEFINER로 연도 필터 포함 집계
     // point_logs는 RLS로 본인 것만 읽히므로 클라이언트 직접 쿼리 불가 → RPC 결과만 사용
-    const { data: rpcData } = await supabase.rpc('get_group_member_points');
+    return supabase.rpc('get_group_member_points').then(async ({ data: rpcData }) => {
     if (!rpcData) return;
     setGroupMemberPoints(rpcData as MemberStat[]);
-  };
+    });
+  }, []);
 
-  const loadMyLogs = async () => {
-    const { logs } = await getUserPoints();
+  const loadMyLogs = useCallback(() => {
+    return getUserPoints().then(async ({ logs }) => {
     setMyPointLogs(logs);
-  };
+    });
+  }, []);
 
-  const loadGroupApprovals = async () => {
-    const { data } = await supabase.rpc('get_group_review_approvals');
+  const loadGroupApprovals = useCallback(() => {
+    return supabase.rpc('get_group_review_approvals').then(async ({ data }) => {
     if (data) {
       const map = new Map<string, Set<string>>();
       (data as { user_id: string; book_id: string }[]).forEach(({ user_id, book_id }) => {
@@ -326,7 +310,8 @@ export default function App() {
       });
       setGroupApprovedBookIds(map);
     }
-  };
+    });
+  }, []);
 
   const reloadPoints = () => {
     loadGroupPoints();
@@ -352,7 +337,7 @@ export default function App() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [user, loadGroupPoints, loadMyLogs, loadGroupApprovals]);
 
   useEffect(() => {
     if (!user) return;
@@ -392,7 +377,7 @@ export default function App() {
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, loadPendingInviteCount, loadGroupMembers, refetchBooks]);
 
   const selectedUser = groupMembers.find(m => m.id === selectedUserId) ?? profile;
   const selectedBook = selectedId ? books.find(b => b.id === selectedId) : null;
@@ -430,7 +415,7 @@ export default function App() {
   const handleSelectUser = (userId: string) => {
     setSelectedUserId(userId);
     setSelectedId(null);
-    setStatusFilter('all');
+    setStatusFilter('reading');
     setLangFilter('all');
     setYearFilter('all');
     setGenreFilter('all');
@@ -442,11 +427,6 @@ export default function App() {
 
   // 내 모든 후기를 AI로 재검증 — 탈락 시 포인트 삭제, 통과 시 포인트 재지급
   const revalidateAllReviews = async () => {
-    if (!getApiKey()) {
-      setRevalidateToast('설정에서 Gemini API 키를 먼저 입력해주세요.');
-      setTimeout(() => setRevalidateToast(null), 4000);
-      return;
-    }
     setRevalidating(true);
     const reviewBooks = books.filter(b => b.userId === user!.id && b.review?.trim());
     let removed = 0;
@@ -466,8 +446,8 @@ export default function App() {
         clearRejectionReason(book.id);
         // 완독 + 별점 있는 경우 포인트 재지급 (awardPoints는 idempotent)
         if (book.status === 'finished' && (book.rating ?? 0) > 0) {
-          await awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language), book.finishDate);
-          awarded++;
+          const saved = await awardPoints(book.id, 'review_approved', calcReviewPoints(book.totalPages, book.language), book.finishDate);
+          if (saved) awarded++; else skipped++;
         } else {
           kept++;
         }
@@ -486,7 +466,7 @@ export default function App() {
       const idx = groupMembers.findIndex(m => m.id === selectedUserId);
       applyMemberColor(getMemberColor(idx >= 0 ? idx : 0));
     }
-  }, [groupMembers]);
+  }, [groupMembers, selectedUserId]);
 
   const toggleYear = (year: number) => {
     setCollapsedYears(prev => {
@@ -503,14 +483,12 @@ export default function App() {
     setDismissedNewBookIds(prev => {
       const next = new Set(prev);
       next.add(bookId);
-      localStorage.setItem(dismissedNewBooksStorageKey(user.id), JSON.stringify([...next]));
       return next;
     });
     setNewBookIds(prev => {
       if (!prev.has(bookId)) return prev;
       const next = new Set(prev);
       next.delete(bookId);
-      localStorage.setItem(newBooksStorageKey(user.id), JSON.stringify([...next]));
       return next;
     });
   };
@@ -539,11 +517,12 @@ export default function App() {
 
   const saveQuickNote = async () => {
     if (!quickNoteBookId || !quickNoteContent.trim()) return;
-    await addNote(quickNoteBookId, {
+    const saved = await addNote(quickNoteBookId, {
       type: quickNoteType,
       content: quickNoteContent.trim(),
       page: quickNotePage ? Number(quickNotePage) : undefined,
     });
+    if (!saved) return;
     closeQuickNote();
   };
 
@@ -557,6 +536,10 @@ export default function App() {
       </div>
     );
   }
+
+  if (connectionError) return <div role="alert" style={{ padding: 32 }}>
+    <p>{connectionError}</p><button onClick={() => window.location.reload()}>다시 연결</button>
+  </div>;
 
   // ─── 인증 로딩 ───
   if (authLoading) return null;
@@ -712,6 +695,7 @@ export default function App() {
 
         {/* 메인 컨텐츠 */}
         <main className="main-content">
+          {booksError && <div role="alert" className="connection-error">{booksError} <button onClick={() => { void refetchBooks(); }}>다시 연결</button></div>}
           {mainView === 'home' ? (
             <HomeView
               profile={profile}
@@ -722,6 +706,8 @@ export default function App() {
               pointLogs={myPointLogs}
               onNavigateToLibrary={() => { handleSelectUser(user.id); setMainView('library'); }}
               onNavigateToFamily={() => setMainView('family')}
+              onOpenBook={(bookId) => openBookFromActivity(bookId, user.id)}
+              onRecord={(bookId, type) => { openBookNote(bookId); setQuickNoteType(type); }}
               onShowAdd={() => setShowAdd(true)}
               onShowPoints={() => setShowPoints(true)}
               onShowChildComplete={(bookId) => { setChildCompleteBookId(bookId ?? null); setShowChildComplete(true); }}
@@ -745,6 +731,7 @@ export default function App() {
             />
           ) : selectedBook ? (
             <BookDetail
+              key={selectedBook.id}
               book={selectedBook}
               onBack={() => setSelectedId(null)}
               onUpdate={updates => updateBook(selectedBook.id, updates)}
@@ -822,6 +809,23 @@ export default function App() {
                 </div>
 
                 <div className="filter-row">
+                  <span className="filter-label">상태</span>
+                  <div className="filter-tabs">
+                    {STATUS_FILTERS.map(f => (
+                      <button
+                        key={f.value}
+                        className={`filter-btn ${statusFilter === f.value ? 'active' : ''}`}
+                        onClick={() => setStatusFilter(f.value)}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <details className="library-filters">
+                  <summary>필터 및 정렬{(langFilter !== 'all' || yearFilter !== 'all' || genreFilter !== 'all' || sortOrder !== 'recent' || groupByYearEnabled) ? ' · 적용 중' : ''}</summary>
+                <div className="filter-row">
                   <span className="filter-label">언어</span>
                   <div className="filter-tabs">
                     {LANG_FILTERS.map(f => (
@@ -836,20 +840,6 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="filter-row">
-                  <span className="filter-label">상태</span>
-                  <div className="filter-tabs">
-                    {STATUS_FILTERS.map(f => (
-                      <button
-                        key={f.value}
-                        className={`filter-btn ${statusFilter === f.value ? 'active' : ''}`}
-                        onClick={() => setStatusFilter(f.value)}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 <div className="filter-row">
                   <span className="filter-label">연도</span>
@@ -885,7 +875,6 @@ export default function App() {
                     <button className={`filter-btn ${sortOrder === 'title' ? 'active' : ''}`} onClick={() => setSortOrder('title')}>제목 가나다순</button>
                   </div>
                 </div>
-              </div>
 
               {availableGenres.length > 0 && (
                 <div className="genre-chip-row">
@@ -906,6 +895,11 @@ export default function App() {
                   ))}
                 </div>
               )}
+
+                  <button className="filter-btn" onClick={() => { setLangFilter('all'); setYearFilter('all'); setGenreFilter('all'); setSortOrder('recent'); setGroupByYearEnabled(false); }}>세부 필터 초기화</button>
+                </details>
+                <p className="library-result-count" role="status">{filtered.length}권의 책{search && ` · “${search}” 검색 결과`}</p>
+              </div>
 
               {filtered.length === 0 ? (
                 isOwnLibrary && totalBooksForUser === 0 ? (
@@ -942,7 +936,8 @@ export default function App() {
                 ) : (
                 <div className="empty-state">
                   <BookstatLogo size={80} style={{ opacity: 0.4 }} />
-                  <p>조건에 맞는 책이 없습니다.</p>
+                  <p>{statusFilter === 'reading' && !search ? '현재 읽고 있는 책이 없어요.' : '조건에 맞는 책이 없어요.'}</p>
+                  <button className="btn-secondary" onClick={() => { setStatusFilter('all'); setLangFilter('all'); setYearFilter('all'); setGenreFilter('all'); setSearch(''); }}>전체 책 보기</button>
                   {isOwnLibrary && (
                     <button className="btn-primary" onClick={() => setShowAdd(true)}>
                       <Plus size={18} /> 책 추가하기
@@ -1093,7 +1088,7 @@ export default function App() {
         <AddBookModal
           onAdd={async book => {
             const bookId = await addBook(book, user.id);
-            await notifyGroupActivity({
+            void notifyGroupActivity({
               title: '📚 새 책 추가!',
               body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}"을(를) 추가했어요.`,
               url:   '/',
@@ -1101,7 +1096,11 @@ export default function App() {
             });
             if (book.status !== 'want-to-read') {
               awardPoints(bookId, 'book_added', 2)
-                .then(() => { reloadPoints(); setPointsCelebration({ points: 2, label: '📚 책 추가 완료!' }); })
+                .then(saved => {
+                  reloadPoints();
+                  if (saved) setPointsCelebration({ points: 2, label: '📚 책 추가 완료!' });
+                  else setRevalidateToast('책은 저장됐지만 포인트를 적립하지 못했어요. 포인트 내역을 확인해주세요.');
+                })
                 .catch(console.error);
             }
           }}
@@ -1257,70 +1256,26 @@ export default function App() {
             books={completableBooks}
             isChild={profile?.is_child ?? false}
             onComplete={async (bookId, updates) => {
-              const book = books.find(b => b.id === bookId);
-              const wasReading = book?.status === 'reading';
-              // 완독일: 새로 완독하면 오늘, 이미 완독된 책이면 기존 날짜
-              const finishDate = wasReading
-                ? new Date().toISOString().split('T')[0]
-                : book?.finishDate;
-              await updateBook(bookId, {
-                ...(wasReading ? {
-                  status: 'finished' as const,
-                  finishDate,
-                } : {}),
-                rating: updates.rating,
-                childEmotion: updates.childEmotion,
-                childAnswers: updates.childAnswers,
-                review: updates.review || undefined,
-                reviewCreatedAt: undefined,
+              const book = books.find(b => b.id === bookId && b.userId === user.id);
+              if (!book) throw new Error('내 서재에서 책을 찾지 못했어요. 다시 열어주세요.');
+              const result = await completeReview(book, updates, {
+                validate: validateReview,
+                save: updateBook,
+                award: awardPoints,
+                finishedPoints: calcFinishedPoints(book.totalPages, book.language),
+                reviewPoints: calcReviewPoints(book.totalPages, book.language),
               });
-              let totalPts = 0;
-              let celebrationLabel = '';
-              if (wasReading) {
-                const finishedPts = calcFinishedPoints(book?.totalPages, book?.language);
-                // finishDate 전달 → 로그 created_at = 완독일 → 연도 필터가 완독 연도 기준으로 동작
-                await awardPoints(bookId, 'book_finished', finishedPts, finishDate);
-                totalPts += finishedPts;
-                celebrationLabel = '📖 완독 완료!';
-                await notifyGroupActivity({
-                  title: '📖 완독했어요!',
-                  body:  `${profile?.display_name ?? '가족'}이(가) "${book?.title}"을(를) 다 읽었어요!`,
-                  url:   '/',
-                  type:  'book_finished',
-                });
+              clearRejectionReason(bookId);
+              reloadPoints();
+              if (result.pointsAwarded > 0) {
+                setPointsCelebration({ points: result.pointsAwarded, label: '✍️ 감상문 승인 후 적립 완료!' });
               }
-              if (book && updates.review) {
-                const result = await validateReview(updates.review, book.title, updates.childAnswers);
-                if (result.valid) {
-                  clearRejectionReason(bookId);
-                  await updateBook(bookId, { reviewCreatedAt: new Date().toISOString() });
-                  const reviewPts = calcReviewPoints(book.totalPages, book.language);
-                  await awardPoints(bookId, 'review_approved', reviewPts, finishDate ?? book?.finishDate);
-                  totalPts += reviewPts;
-                  celebrationLabel = wasReading ? '✨ 완독 + 감상문 승인!' : '✍️ 감상문 승인!';
-                  await notifyGroupActivity({
-                    title: '✍️ 감상문 작성!',
-                    body:  `${profile?.display_name ?? '가족'}이(가) "${book.title}" 감상문을 남겼어요.`,
-                    url:   '/',
-                    type:  'review_added',
-                  });
-                } else if (result.uncertain) {
-                  saveRejectionReason(bookId, result.reason ?? 'AI 검증이 보류되었어요. 후기 내용 문제가 아니라 AI 응답/설정 문제일 수 있어요.');
-                  setRevalidateToast(result.reason ?? 'AI 검증이 보류되었어요. 기존 승인 상태는 유지됩니다.');
-                  setTimeout(() => setRevalidateToast(null), 5000);
-                } else {
-                  await removePoints(bookId, 'review_approved');
-                  await updateBook(bookId, { reviewCreatedAt: undefined });
-                  saveRejectionReason(bookId, result.reason ?? '책의 구체적인 내용이 포함된 후기를 작성해주세요.');
-                  setRevalidateToast(result.reason ?? '감상문이 아직 승인 기준을 충족하지 못했어요.');
-                  setTimeout(() => setRevalidateToast(null), 5000);
-                }
-              }
-              if (totalPts > 0) {
-                reloadPoints();
-                setPointsCelebration({ points: totalPts, label: celebrationLabel });
-              }
-              await refetchBooks();
+              void notifyGroupActivity({
+                title: '✍️ 감상문 작성!',
+                body: `${profile?.display_name ?? '가족'}이(가) "${book.title}" 감상문을 남겼어요.`,
+                url: '/', type: 'review_added',
+              });
+              return result;
             }}
             onClose={() => { setShowChildComplete(false); setChildCompleteBookId(null); }}
           />

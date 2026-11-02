@@ -16,6 +16,8 @@ interface Props {
   groupMemberPoints: MemberStat[];
   pointLogs: PointLog[];
   onNavigateToLibrary: () => void;
+  onOpenBook: (bookId: string) => void;
+  onRecord: (bookId: string, type: 'reading_log' | 'reflection') => void;
   onNavigateToFamily: () => void;
   onShowAdd: () => void;
   onShowPoints: () => void;
@@ -56,6 +58,7 @@ function fmtShortTime(iso: string): string {
 export default function HomeView({
   profile, books, userId, groupMembers, groupMemberPoints, pointLogs,
   onNavigateToLibrary, onNavigateToFamily, onShowAdd, onShowPoints,
+  onOpenBook, onRecord, onShowChildComplete,
 }: Props) {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -262,6 +265,11 @@ export default function HomeView({
     })
     .slice(0, 8);
 
+  const readingBooks = myBooks.filter(book => book.status === 'reading');
+  const [activeReadingId, setActiveReadingId] = useState('');
+  const activeBook = readingBooks.find(book => book.id === activeReadingId) ?? readingBooks[0];
+  const progress = activeBook?.totalPages ? Math.min(100, Math.max(0, Math.round((activeBook.currentPage ?? 0) / activeBook.totalPages * 100))) : 0;
+
   const memberIdx = groupMembers.findIndex(m => m.id === userId);
   const myColor = MEMBER_COLORS[memberIdx >= 0 ? memberIdx % MEMBER_COLORS.length : 0];
 
@@ -283,81 +291,74 @@ export default function HomeView({
         </div>
       </div>
 
-      {/* ② 콘텐츠 영역
-          모바일:      flex-column, order 값으로 순서 지정
-          데스크탑:    CSS Grid 2컬럼, 가족현황+내포인트 상단 행 */}
+      {/* 기록 → 서재 → 가족 소식 → 통계와 목표 순서 */}
       <div className="home-content">
-
-        {/* 우리 가족 독서 현황 */}
-        <div className="home-item home-item--family">
-          <div className="home-family-card">
-            <p className="home-family-card-label">이번 달 우리 가족 독서 현황</p>
-            <div className="home-fstats">
-              <div className="home-fstat">
-                <span className="home-fstat-lbl"><BookOpen size={11} /> 읽은 책</span>
-                <span className="home-fstat-num">
-                  {familyBooksCount}<span className="home-fstat-unit">권</span>
-                </span>
-              </div>
-              <div className="home-fstat">
-                <span className="home-fstat-lbl"><FileText size={11} /> 읽은 페이지</span>
-                <span className="home-fstat-num">
-                  {hasFamilyPages ? familyPagesCount.toLocaleString() : '--'}
-                  {hasFamilyPages && <span className="home-fstat-unit">p</span>}
-                </span>
-              </div>
-              <div className="home-fstat">
-                <span className="home-fstat-lbl" style={{ color: familyStreak > 0 ? '#FF9F43' : undefined }}>
-                  <Flame size={11} /> 연속 독서
-                </span>
-                <span className="home-fstat-num">
-                  {familyStreak > 0 ? familyStreak : '--'}
-                  {familyStreak > 0 && <span className="home-fstat-unit">일</span>}
-                </span>
-              </div>
-            </div>
-            {isFamily && (
-              <button className="home-family-link-btn" onClick={onNavigateToFamily}>
-                가족 리포트 보기 <ChevronRight size={14} />
-              </button>
-            )}
+        <section className="home-item home-item--reading reading-focus" aria-labelledby="reading-focus-title">
+          <div className="home-section-hd">
+            <div><p className="reading-eyebrow">오늘의 독서</p><h2 id="reading-focus-title">조금 읽고, 오래 기억해요</h2></div>
+            <button className="icon-btn" onClick={onShowAdd} aria-label="새 책 추가"><Plus size={20} /></button>
           </div>
+          {activeBook ? <>
+            {readingBooks.length > 1 && <label className="reading-select">읽는 책 {readingBooks.length}권
+              <select value={activeBook.id} onChange={e => setActiveReadingId(e.target.value)}>
+                {readingBooks.map(book => <option key={book.id} value={book.id}>{book.title}</option>)}
+              </select>
+            </label>}
+            <button className="reading-current" onClick={() => onOpenBook(activeBook.id)}>
+              {activeBook.cover ? <img src={activeBook.cover} alt="" /> : <span className="reading-cover-empty"><BookOpen size={32} /></span>}
+              <span className="reading-current-info">
+                <span className="reading-eyebrow">지금 읽고 있어요</span>
+                <strong>{activeBook.title}</strong><span>{activeBook.author}</span>
+                {activeBook.totalPages ? <><span className="reading-progress" role="progressbar" aria-label="독서 진행률" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${progress}%` }} /></span><span>{activeBook.currentPage ?? 0} / {activeBook.totalPages}쪽 · {progress}%</span></> : <span>오늘 읽은 이야기를 남겨볼까요?</span>}
+              </span><ChevronRight size={18} />
+            </button>
+            <div className="reading-actions">
+              <button className="btn-primary" onClick={() => onRecord(activeBook.id, 'reading_log')}><BookOpen size={17} />오늘 읽었어요</button>
+              <button className="btn-secondary" onClick={() => onRecord(activeBook.id, 'reflection')}><PenLine size={17} />한 줄 남기기</button>
+              <button className="btn-secondary" onClick={() => onShowChildComplete?.(activeBook.id)}><Award size={17} />다 읽었어요</button>
+            </div>
+          </> : <div className="reading-empty"><BookOpen size={36} /><h3>다음 이야기를 시작해볼까요?</h3><p>읽을 책을 추가하고 오늘의 생각을 남겨보세요.</p><button className="btn-primary" onClick={onShowAdd}><Plus size={17} />읽을 책 추가하기</button><button className="btn-secondary" onClick={onNavigateToLibrary}>내 서재 둘러보기</button></div>}
+        </section>
+
+
+        <div className="home-item home-item--books">
+          <section className="home-section">
+            <div className="home-section-hd">
+              <BookOpen size={14} />
+              <span>최근 읽은 책</span>
+              <button className="home-section-more" onClick={onNavigateToLibrary}>
+                전체 보기 <ChevronRight size={13} />
+              </button>
+            </div>
+            {recentBooks.length === 0 ? (
+              <div className="home-empty">
+                <BookOpen size={36} style={{ opacity: 0.2 }} />
+                <p>아직 추가한 책이 없어요</p>
+                <button className="btn-primary" onClick={onShowAdd}>
+                  <Plus size={14} /> 첫 책 추가하기
+                </button>
+              </div>
+            ) : (
+              <div className="home-books-scroll">
+                {recentBooks.map(book => (
+                  <button key={book.id} className="home-book-item" onClick={() => onOpenBook(book.id)}>
+                    {book.cover
+                      ? <img src={book.cover} alt={book.title} className="home-book-cover" />
+                      : <div className="home-book-cover home-book-cover-empty"><BookOpen size={18} /></div>
+                    }
+                    <p className="home-book-title">{book.title}</p>
+                    <p className={`home-book-badge home-book-badge--${book.status}`}>
+                      {book.status === 'finished' ? '완독'
+                        : book.status === 'reading' ? '읽는 중'
+                        : book.status === 'paused' ? '멈춤' : '읽고 싶음'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
-        {/* 내 포인트 */}
-        <div className="home-item home-item--points">
-          <button className="home-points-card" onClick={onShowPoints}>
-            <div className="home-points-body">
-              <div className="home-points-left">
-                <span className="home-points-label">
-                  <Award size={13} className="home-points-icon" /> 내 포인트
-                </span>
-                <span className="home-points-total">
-                  {myPoints.toLocaleString()}<span className="home-points-total-unit">pt</span>
-                </span>
-              </div>
-              <div className="home-points-right">
-                <span className="home-points-month-label">이번 달</span>
-                <span className="home-points-month-val">
-                  {thisMonthTotal > 0 ? <strong style={{ color: '#22C55E' }}>+{thisMonthTotal}pt</strong> : '--'}
-                </span>
-                <div className="home-points-month-row">
-                  <span className="home-points-month-row-label"><Zap size={11} /> 책 추가</span>
-                </div>
-                <span className="home-points-month-val">+{thisMonthBookPts}pt</span>
-                <div className="home-points-month-row">
-                  <span className="home-points-month-row-label"><Star size={11} /> 후기 승인</span>
-                </div>
-                <span className="home-points-month-val">+{thisMonthReviewPts}pt</span>
-              </div>
-            </div>
-            <div className="home-points-link-btn">
-              포인트 내역 보기 <ChevronRight size={14} />
-            </div>
-          </button>
-        </div>
-
-        {/* 가족 활동 요약 */}
         <div className="home-item home-item--missions">
           <div className="home-missions-card">
             <div className="home-missions-header">
@@ -391,7 +392,73 @@ export default function HomeView({
           </div>
         </div>
 
-        {/* 현재 목표 */}
+        <div className="home-item home-item--family">
+          <div className="home-family-card">
+            <p className="home-family-card-label">이번 달 독서 현황</p>
+            <div className="home-fstats">
+              <div className="home-fstat">
+                <span className="home-fstat-lbl"><BookOpen size={11} /> 읽은 책</span>
+                <span className="home-fstat-num">
+                  {familyBooksCount}<span className="home-fstat-unit">권</span>
+                </span>
+              </div>
+              <div className="home-fstat">
+                <span className="home-fstat-lbl"><FileText size={11} /> 완독한 책의 쪽수</span>
+                <span className="home-fstat-num">
+                  {hasFamilyPages ? familyPagesCount.toLocaleString() : '--'}
+                  {hasFamilyPages && <span className="home-fstat-unit">p</span>}
+                </span>
+              </div>
+              <div className="home-fstat">
+                <span className="home-fstat-lbl" style={{ color: familyStreak > 0 ? '#FF9F43' : undefined }}>
+                  <Flame size={11} /> 연속 완독일
+                </span>
+                <span className="home-fstat-num">
+                  {familyStreak > 0 ? familyStreak : '--'}
+                  {familyStreak > 0 && <span className="home-fstat-unit">일</span>}
+                </span>
+              </div>
+            </div>
+            {isFamily && (
+              <button className="home-family-link-btn" onClick={onNavigateToFamily}>
+                가족 리포트 보기 <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="home-item home-item--points">
+          <button className="home-points-card" onClick={onShowPoints}>
+            <div className="home-points-body">
+              <div className="home-points-left">
+                <span className="home-points-label">
+                  <Award size={13} className="home-points-icon" /> 내 포인트
+                </span>
+                <span className="home-points-total">
+                  {myPoints.toLocaleString()}<span className="home-points-total-unit">pt</span>
+                </span>
+              </div>
+              <div className="home-points-right">
+                <span className="home-points-month-label">이번 달</span>
+                <span className="home-points-month-val">
+                  {thisMonthTotal > 0 ? <strong style={{ color: '#22C55E' }}>+{thisMonthTotal}pt</strong> : '--'}
+                </span>
+                <div className="home-points-month-row">
+                  <span className="home-points-month-row-label"><Zap size={11} /> 책 추가</span>
+                </div>
+                <span className="home-points-month-val">+{thisMonthBookPts}pt</span>
+                <div className="home-points-month-row">
+                  <span className="home-points-month-row-label"><Star size={11} /> 후기 승인</span>
+                </div>
+                <span className="home-points-month-val">+{thisMonthReviewPts}pt</span>
+              </div>
+            </div>
+            <div className="home-points-link-btn">
+              포인트 내역 보기 <ChevronRight size={14} />
+            </div>
+          </button>
+        </div>
+
         <div className="home-item home-item--goal">
           <div className="home-goal-card">
             <div className="home-goal-header">
@@ -458,7 +525,6 @@ export default function HomeView({
           </div>
         </div>
 
-        {/* 오늘의 매거진 */}
         <div className="home-item home-item--magazine">
           <div
             ref={magazineCarouselRef}
@@ -526,47 +592,7 @@ export default function HomeView({
             />
           </div>
         </div>
-
         {showMagazine && <MagazineArticle article={selectedMagazine} onClose={() => setShowMagazine(false)} />}
-
-        {/* 최근 읽은 책 */}
-        <div className="home-item home-item--books">
-          <section className="home-section">
-            <div className="home-section-hd">
-              <BookOpen size={14} />
-              <span>최근 읽은 책</span>
-              <button className="home-section-more" onClick={onNavigateToLibrary}>
-                전체 보기 <ChevronRight size={13} />
-              </button>
-            </div>
-            {recentBooks.length === 0 ? (
-              <div className="home-empty">
-                <BookOpen size={36} style={{ opacity: 0.2 }} />
-                <p>아직 추가한 책이 없어요</p>
-                <button className="btn-primary" onClick={onShowAdd}>
-                  <Plus size={14} /> 첫 책 추가하기
-                </button>
-              </div>
-            ) : (
-              <div className="home-books-scroll">
-                {recentBooks.map(book => (
-                  <button key={book.id} className="home-book-item" onClick={onNavigateToLibrary}>
-                    {book.cover
-                      ? <img src={book.cover} alt={book.title} className="home-book-cover" />
-                      : <div className="home-book-cover home-book-cover-empty"><BookOpen size={18} /></div>
-                    }
-                    <p className="home-book-title">{book.title}</p>
-                    <p className={`home-book-badge home-book-badge--${book.status}`}>
-                      {book.status === 'finished' ? '완독'
-                        : book.status === 'reading' ? '읽는 중'
-                        : book.status === 'paused' ? '멈춤' : '읽고 싶음'}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
 
       </div>
     </div>

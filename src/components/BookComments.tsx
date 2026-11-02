@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Trash2, Send, Loader } from 'lucide-react';
 import type { Profile } from '../contexts/AuthContext';
 import { getBookComments, addBookComment, deleteBookComment, type BookComment } from '../services/comments';
@@ -18,10 +18,10 @@ export default function BookComments({ bookId, bookOwnerId, currentUserId, membe
   const [deleting, setDeleting]   = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const data = await getBookComments(bookId);
     setComments(data);
-  };
+  }, [bookId]);
 
   useEffect(() => {
     load();
@@ -33,7 +33,7 @@ export default function BookComments({ bookId, bookOwnerId, currentUserId, membe
       }, load)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [bookId]);
+  }, [bookId, load]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useEffectEvent, useState, useEffect } from 'react';
+import { useAuth } from '../contexts/authStore';
 import { supabase } from '../lib/supabase';
 import { KeyRound, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import type { ChildAccount } from '../contexts/AuthContext';
@@ -25,6 +25,7 @@ export default function ProfileSelector({ onContinueAsParent }: Props) {
   const [error, setError] = useState('');
   const [signingIn, setSigningIn] = useState(false);
 
+  const continueAsParent = useEffectEvent(onContinueAsParent);
   useEffect(() => {
     const load = async () => {
       if (!user) return;
@@ -35,7 +36,7 @@ export default function ProfileSelector({ onContinueAsParent }: Props) {
         .eq('is_child', true);
 
       if (!profileData || profileData.length === 0) {
-        onContinueAsParent();
+        continueAsParent();
         return;
       }
 

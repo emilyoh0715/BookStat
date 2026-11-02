@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import type { ReviewCompletion } from '../services/completeReview';
+import { useEffect, useRef, useState } from 'react';
 import type { Book } from '../types';
 import { generateChildReview } from '../services/geminiAi';
 
@@ -35,7 +36,7 @@ const ADULT_QUESTION_POOL = [
 
 const MIN_MEANINGFUL_ANSWER_LENGTH = 15;
 
-type Step = 'books' | 'rate' | 'emotion' | 'q1' | 'q2' | 'review' | 'done';
+type Step = 'books' | 'rate' | 'emotion' | 'q1' | 'review' | 'done';
 
 interface Props {
   books: Book[];
@@ -45,11 +46,17 @@ interface Props {
     childEmotion: string;
     childAnswers: { question: string; answer: string }[];
     review: string;
-  }) => Promise<void>;
+  }) => Promise<ReviewCompletion>;
   onClose: () => void;
 }
 
 export default function ChildReadingComplete({ books, isChild, onComplete, onClose }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => previous?.focus();
+  }, []);
   const startStep: Step = books.length === 1 ? 'rate' : 'books';
   const startBook = books.length === 1 ? books[0] : null;
 
@@ -63,17 +70,19 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
   const [editedReview, setEditedReview] = useState('');
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [completion, setCompletion] = useState<ReviewCompletion | null>(null);
 
   const isReviewOnly = selectedBook?.status === 'finished';
   const hasMeaningfulAnswer =
     answer1.trim().length >= MIN_MEANINGFUL_ANSWER_LENGTH ||
     answer2.trim().length >= MIN_MEANINGFUL_ANSWER_LENGTH;
 
-  const [q1, q2] = useMemo(() => {
+  const [[q1, q2]] = useState(() => {
     const pool = isChild ? CHILD_QUESTION_POOL : ADULT_QUESTION_POOL;
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
     return [shuffled[0], shuffled[1]];
-  }, [isChild]);
+  });
 
   const handleSelectBook = (book: Book) => {
     setSelectedBook(book);
@@ -84,38 +93,65 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
   const handleGenerateReview = async () => {
     if (!selectedBook || generating) return;
     setGenerating(true);
-    const review = await generateChildReview(
-      selectedBook.title,
-      rating,
-      emotion,
-      [{ question: q1, answer: answer1 }, { question: q2, answer: answer2 }],
-      isChild,
-    );
-    setEditedReview(review);
-    setGenerating(false);
-    setStep('review');
+    setError('');
+    try {
+      const review = await generateChildReview(
+        selectedBook.title, rating, emotion,
+        [{ question: q1, answer: answer1 }, { question: q2, answer: answer2 }], isChild,
+      );
+      setEditedReview(review);
+      setStep('review');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '감상문을 만들지 못했어요. 다시 시도해주세요.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleComplete = async () => {
     if (!selectedBook || saving) return;
     setSaving(true);
-    await onComplete(selectedBook.id, {
-      rating,
-      childEmotion: emotion,
-      childAnswers: [
-        { question: q1, answer: answer1 },
-        { question: q2, answer: answer2 },
-      ],
-      review: editedReview,
-    });
-    setSaving(false);
-    setStep('done');
+    setError('');
+    try {
+      const result = await onComplete(selectedBook.id, {
+        rating, childEmotion: emotion,
+        childAnswers: [{ question: q1, answer: answer1 }, { question: q2, answer: answer2 }],
+        review: editedReview,
+      });
+      setCompletion(result);
+      setStep('done');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '저장하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const requestClose = () => {
+    if (saving || generating) return;
+    if (step !== 'done' && (answer1.trim() || answer2.trim() || editedReview.trim())
+      && !window.confirm('작성 중인 내용이 있어요. 닫을까요?')) return;
+    onClose();
   };
 
   return (
-    <div className="modal-overlay modal-overlay--center" onClick={onClose}>
-      <div className="modal child-complete-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay modal-overlay--center" onClick={requestClose}>
+      <div className={`modal child-complete-modal review-dialog ${(step === 'q1' || step === 'review') ? 'review-dialog--editor' : ''}`} onClick={e => e.stopPropagation()}
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label="감상문 작성" tabIndex={-1}
+        onKeyDown={e => {
+          if (e.key === 'Escape') requestClose();
+          if (e.key === 'Tab') {
+            const items = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), textarea:not(:disabled), select:not(:disabled), [href]');
+            if (!items?.length) { e.preventDefault(); return; }
+            const first = items[0], last = items[items.length - 1];
+            if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) { e.preventDefault(); first.focus(); }
+          }
+        }}>
+        <header className="review-dialog-header"><span>감상문 쓰기</span><button className="icon-btn" onClick={requestClose} disabled={saving || generating} aria-label="감상문 닫기">✕</button></header>
+        {step !== 'done' && <ol className="review-steps" aria-label="작성 단계">{['책과 느낌', '답변과 초안', '검증 후 저장'].map((label, index) => <li key={label} aria-current={index === (saving ? 2 : step === 'q1' || step === 'review' ? 1 : 0) ? 'step' : undefined}>{index + 1}. {label}</li>)}</ol>}
 
+        {error && <div role="alert" className="review-feedback review-feedback--error"><strong>작업을 마치지 못했어요</strong><p>{error}</p><p>작성한 내용은 그대로 있어요. 내용을 확인하고 다시 시도해주세요.</p></div>}
         {/* Step: 책 선택 */}
         {step === 'books' && (
           <div className="child-step">
@@ -140,7 +176,7 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
                 </button>
               ))}
             </div>
-            <button className="btn-secondary" style={{ width: '100%', marginTop: 8 }} onClick={onClose}>취소</button>
+            <button className="btn-secondary" style={{ width: '100%', marginTop: 8 }} onClick={requestClose}>취소</button>
           </div>
         )}
 
@@ -160,6 +196,7 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
                 <button
                   key={n}
                   className={`child-star ${n <= (hoverRating || rating) ? 'active' : ''}`}
+                  aria-label={`${n}점`} aria-pressed={rating === n}
                   onMouseEnter={() => setHoverRating(n)}
                   onMouseLeave={() => setHoverRating(0)}
                   onClick={() => setRating(n)}
@@ -183,7 +220,7 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
               {EMOTIONS.map(e => (
                 <button
                   key={e.key}
-                  className={`child-emotion-btn ${emotion === e.key ? 'selected' : ''}`}
+                  className={`child-emotion-btn ${emotion === e.key ? 'selected' : ''}`} aria-pressed={emotion === e.key}
                   onClick={() => setEmotion(e.key)}
                 >
                   <span className="child-emotion-emoji">{e.emoji}</span>
@@ -199,88 +236,39 @@ export default function ChildReadingComplete({ books, isChild, onComplete, onClo
           </div>
         )}
 
-        {/* Step: 질문 1 */}
-        {step === 'q1' && (
-          <div className="child-step">
-            <div className="child-step-emoji">✏️</div>
-            <div className="child-step-title">{q1}</div>
-            <textarea
-              className="child-answer-input"
-              placeholder={isChild ? '기억나는 장면이나 이유를 한 문장 이상 써봐.' : '기억나는 장면이나 이유를 한 문장 이상 작성해주세요.'}
-              value={answer1}
-              onChange={e => setAnswer1(e.target.value)}
-              rows={4}
-            />
-            <button
-              className="btn-primary child-next-btn"
-              onClick={() => setStep('q2')}
-            >{answer1.trim() ? '다음 →' : '건너뛰기 →'}</button>
+        {(step === 'q1' || step === 'review') && <div className="review-workspace" aria-busy={saving || generating}>
+          <div className="review-workspace-heading"><h2>{selectedBook?.title}</h2><p>기억에 남는 책 내용과 내 생각을 함께 담아주세요.</p></div>
+          <div className="review-editor-grid">
+            <section className="review-answers"><h3>1. 내 생각 남기기</h3>
+              {[{ question: q1, value: answer1, update: setAnswer1 }, { question: q2, value: answer2, update: setAnswer2 }].map((item, index) => <label key={item.question} className="review-field"><span>{item.question}</span><textarea className="child-answer-input" value={item.value} disabled={saving || generating} onChange={e => item.update(e.target.value)} rows={4} placeholder={index === 0 ? '기억나는 장면이나 구체적인 내용을 써주세요.' : '왜 그렇게 느꼈는지 내 생각을 써주세요.'} /></label>)}
+              <p className="review-hint">두 질문 중 하나에는 {MIN_MEANINGFUL_ANSWER_LENGTH}자 이상 답해주세요. 답변을 바꿨다면 초안도 확인해주세요.</p>
+              <button className="btn-secondary" disabled={generating || saving || !hasMeaningfulAnswer} onClick={() => {
+                if (editedReview.trim() && !window.confirm('현재 초안을 새로 만든 내용으로 바꿀까요?')) return;
+                void handleGenerateReview();
+              }}>{generating ? '초안을 만들고 있어요…' : editedReview ? '답변으로 초안 다시 만들기' : '답변으로 초안 만들기'}</button>
+            </section>
+            <section className="review-draft"><h3>2. 감상문 확인하기</h3><p className="review-hint">초안을 만든 뒤 고치거나 직접 작성해도 좋아요.</p>
+              <label className="review-field"><span className="sr-only">감상문 내용</span><textarea className="child-answer-input child-review-textarea" disabled={saving || generating} value={editedReview} onChange={e => { setEditedReview(e.target.value); setStep('review'); }} rows={12} placeholder="나의 답변을 바탕으로 감상문을 만들어보세요. 직접 작성할 수도 있어요." /></label>
+              <p className="review-hint">{editedReview.trim().length}자 / 최소 30자</p>
+              <div className="review-feedback" role="status">{saving ? '내용을 검증하고 있어요. 통과한 감상문만 저장해요.' : '아직 저장되지 않은 초안이에요. 검증과 저장이 끝나면 포인트 결과를 알려드려요.'}</div>
+            </section>
           </div>
-        )}
-
-        {/* Step: 질문 2 */}
-        {step === 'q2' && (
-          <div className="child-step">
-            <div className="child-step-emoji">🌟</div>
-            <div className="child-step-title">{q2}</div>
-            <textarea
-              className="child-answer-input"
-              placeholder={isChild ? '책 내용과 내 생각이 드러나게 써봐.' : '책 내용과 내 생각이 드러나게 작성해주세요.'}
-              value={answer2}
-              onChange={e => setAnswer2(e.target.value)}
-              rows={4}
-            />
-            {!hasMeaningfulAnswer && (
-              <div className="child-step-sub">
-                질문 중 하나에는 {MIN_MEANINGFUL_ANSWER_LENGTH}자 이상 답해야 독후감을 만들 수 있어요.
-              </div>
-            )}
-            <button
-              className="btn-primary child-next-btn"
-              disabled={generating || !hasMeaningfulAnswer}
-              onClick={handleGenerateReview}
-            >
-              {generating ? '독후감 만드는 중... ✍️' : '다음 →'}
-            </button>
-          </div>
-        )}
-
-        {/* Step: 독후감 확인·수정 */}
-        {step === 'review' && (
-          <div className="child-step">
-            <div className="child-step-emoji">✨</div>
-            <div className="child-step-title">독후감이 완성됐어!</div>
-            <div className="child-step-sub">
-              30자 이상, 책의 인물·사건·새로 알게 된 점·내 생각 중 하나가 들어가면 좋아
-            </div>
-            <textarea
-              className="child-answer-input child-review-textarea"
-              value={editedReview}
-              onChange={e => setEditedReview(e.target.value)}
-              rows={7}
-            />
-            <div className="child-step-sub">
-              현재 {editedReview.trim().length}자
-            </div>
-            <button
-              className="btn-primary child-next-btn"
-              disabled={saving || editedReview.trim().length < 30}
-              onClick={handleComplete}
-            >{saving ? '저장 중...' : '저장하기 🎊'}</button>
-          </div>
-        )}
+          <footer className="review-editor-footer"><button className="btn-secondary" disabled={saving || generating} onClick={() => setStep('emotion')}>느낌 수정</button><button className="btn-primary" disabled={saving || generating || !hasMeaningfulAnswer || editedReview.trim().length < 30} onClick={handleComplete}>{saving ? '검증 후 저장 중…' : '검증하고 저장하기'}</button></footer>
+        </div>}
 
         {/* Step: 완료 */}
         {step === 'done' && (
           <div className="child-step child-step--done">
             <div className="child-done-trophy">{isReviewOnly ? '⭐' : '🏆'}</div>
-            <div className="child-step-title">{isReviewOnly ? '후기 저장 완료!' : '완독 성공!'}</div>
+            <div className="child-step-title">{completion?.newlyFinished ? '감상문 승인 · 완독 완료!' : '감상문 승인 · 저장 완료!'}</div>
             <div className="child-step-sub">
-              {isReviewOnly
-                ? (isChild ? '멋진 독후감이야! 👏' : '좋은 후기를 남겨주셨어요! 👏')
-                : (isChild ? '정말 잘했어! 다음 책도 기대돼 📚' : '훌륭해요! 다음 책도 기대할게요 📚')}
+              {completion?.pointsPending
+                ? '감상문은 승인되어 저장됐어요. 일부 포인트는 적립을 확인하지 못했어요. 포인트 내역에서 다시 확인해주세요.'
+                : completion && completion.pointsAwarded > 0
+                  ? `${completion.pointsAwarded}포인트를 적립했어요.`
+                  : '감상문을 저장했어요. 새로 적립된 포인트는 없어요.'}
             </div>
-            <button className="btn-primary child-next-btn" onClick={onClose}>닫기</button>
+            <button className="btn-primary child-next-btn" onClick={requestClose}>닫기</button>
           </div>
         )}
       </div>

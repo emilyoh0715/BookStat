@@ -20,7 +20,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
             {isChunkError ? '새 버전이 배포됐어요. 아래 버튼을 눌러 새로고침 해주세요.' : '잠시 후 다시 시도해주세요.'}
           </p>
           <button
-            onClick={() => { localStorage.clear(); window.location.reload(); }}
+            onClick={() => { window.location.reload(); }}
             style={{ padding: '10px 24px', background: '#3b7fd4', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
           >
             새로고침

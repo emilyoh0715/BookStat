@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import type { Book, ReadingStatus, BookLanguage } from '../types';
 import { GENRES } from '../lib/genres';
 import { X, Search, ChevronLeft, ChevronRight, Edit2, Loader, Camera, Mic, Square } from 'lucide-react';
-import { recognizeBookFromImage, getApiKey } from '../services/geminiAi';
+import { recognizeBookFromImage } from '../services/geminiAi';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface Props {
-  onAdd: (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>) => void;
+  onAdd: (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>) => Promise<void>;
   onClose: () => void;
 }
 
@@ -32,7 +32,7 @@ interface BookCandidate {
   categoryName?: string;
 }
 
-// 알라딘 categoryName → GENRES 매핑
+// 검색 결과 categoryName → GENRES 매핑
 function mapCategory(categoryName?: string): string {
   if (!categoryName) return '';
   const cat = categoryName;
@@ -109,6 +109,8 @@ function initForm() {
 
 export default function AddBookModal({ onAdd, onClose }: Props) {
   const [form, setForm] = useState(initForm);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
 
   const [bookCandidates, setBookCandidates] = useState<BookCandidate[]>([]);
@@ -169,7 +171,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     });
 
   // 인식 실패 시 촬영 사진을 표지로 설정하는 헬퍼
-  const useCapturedAsCover = (dataUrl: string) => {
+  const applyCapturedCover = (dataUrl: string) => {
     setManualUrl(dataUrl);
     setManualMode(true);
     setBookCandidates([]);
@@ -190,20 +192,11 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
       resizeImageToDataUrl(file, 1400, 0.85),
     ]).catch(() => ['', '']);
 
-    if (!getApiKey()) {
-      // API 키 없으면 촬영 사진을 표지로만 저장
-      if (coverDataUrl) useCapturedAsCover(coverDataUrl);
-      setCameraError('Gemini API 키가 없어 텍스트 인식은 건너뜁니다. 사진은 표지로 저장했으니 제목을 직접 입력해주세요.');
-      setTimeout(() => setCameraError(''), 6000);
-      setCameraRecognizing(false);
-      return;
-    }
-
     try {
       const { title, author } = await recognizeBookFromImage(apiDataUrl.split(',')[1], 'image/jpeg');
 
       if (!title) {
-        useCapturedAsCover(coverDataUrl);
+        applyCapturedCover(coverDataUrl);
         setCameraError('책 제목을 인식하지 못했어요. 사진은 표지로 저장했으니 제목을 직접 입력해주세요.');
         setTimeout(() => setCameraError(''), 6000);
         return;
@@ -220,11 +213,11 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
         setForm(f => applyCandidate(f, candidates[0], true));
       } else {
         // 검색 결과 없으면 촬영 사진을 표지로
-        useCapturedAsCover(coverDataUrl);
+        applyCapturedCover(coverDataUrl);
       }
       setCoverSearching(false);
     } catch (err) {
-      useCapturedAsCover(coverDataUrl);
+      applyCapturedCover(coverDataUrl);
       setCameraError(err instanceof Error ? err.message : '인식 중 오류가 발생했어요. 사진은 표지로 저장했어요.');
       setTimeout(() => setCameraError(''), 6000);
     } finally {
@@ -237,6 +230,7 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
   const isDirty = form.title.trim() !== '' || form.author.trim() !== '' || form.review.trim() !== '' || bookCandidates.length > 0;
 
   const handleOverlayClick = () => {
+    if (saving) return;
     if (isDirty) {
       setConfirmClose(true);
     } else {
@@ -281,10 +275,12 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
     triggerSearch(form.title, form.author, form.language, form.publisher);
   };
 
-  const handleSubmit = (e: { preventDefault(): void }) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
-    if (!form.title.trim()) return;
-    onAdd({
+    if (!form.title.trim() || saving) return;
+    setSaving(true); setSaveError('');
+    try {
+    await onAdd({
       title: form.title.trim(),
       author: form.author.trim(),
       publisher: form.publisher.trim() || undefined,
@@ -301,6 +297,9 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
       cover: currentCover || undefined,
     });
     onClose();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '저장하지 못했어요.');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -320,7 +319,8 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
         )}
         <div className="modal-header">
           <h2>책 추가</h2>
-          <button className="icon-btn" onClick={onClose}><X size={20} /></button>
+          {saveError && <p role="alert">{saveError}</p>}
+          <button className="icon-btn" onClick={handleOverlayClick}><X size={20} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
@@ -511,8 +511,8 @@ export default function AddBookModal({ onAdd, onClose }: Props) {
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>취소</button>
-            <button type="submit" className="btn-primary">추가하기</button>
+            <button type="button" className="btn-secondary" onClick={handleOverlayClick}>취소</button>
+            <button type="submit" disabled={saving} className="btn-primary">추가하기</button>
           </div>
         </form>
       </div>

@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { BookOpen, TrendingUp, Clock, RefreshCw, Sparkles, CheckCircle, PauseCircle, Bookmark, Star, MessageSquare, Award } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
-import { generateStatsSummary, getApiKey } from '../services/geminiAi';
+import { generateStatsSummary } from '../services/geminiAi';
 
 type Period = 'month' | 'year' | 'all';
 type ChartMetric = 'count' | 'pages';
@@ -46,13 +46,12 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
   if (total === 0) return <p className="stats-empty">데이터 없음</p>;
 
   const r = 38, cx = 50, cy = 50, sw = 16;
-  let angle = -Math.PI / 2;
 
-  const arcs = data.map(d => {
+  const arcs = data.map((d, index) => {
+    const angle = -Math.PI / 2 + data.slice(0, index).reduce((sum, item) => sum + item.value / total * 2 * Math.PI, 0);
     const sweep = (d.value / total) * 2 * Math.PI;
     const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
-    angle += sweep;
-    const x2 = cx + r * Math.cos(angle), y2 = cy + r * Math.sin(angle);
+    const x2 = cx + r * Math.cos(angle + sweep), y2 = cy + r * Math.sin(angle + sweep);
     const large = sweep > Math.PI ? 1 : 0;
     return {
       path: `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`,
@@ -92,9 +91,9 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const now = new Date();
+  const [now] = useState(() => new Date());
 
-  const inPeriod = (dateStr: string | undefined): boolean => {
+  const inPeriod = useCallback((dateStr: string | undefined): boolean => {
     if (!dateStr) return false;
     if (period === 'all') return true;
     const d = new Date(dateStr);
@@ -102,7 +101,7 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     }
     return d.getFullYear() === now.getFullYear();
-  };
+  }, [period, now]);
 
   const targetBooks = useMemo(() =>
     books.filter(b => b.userId === userId),
@@ -141,10 +140,7 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
   }, [books, groupMemberPoints]);
 
   // ── 기간별 분석 ──
-  const finishedInPeriod = useMemo(() =>
-    targetBooks.filter(b => b.status === 'finished' && inPeriod(b.finishDate)),
-    [targetBooks, period] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const finishedInPeriod = useMemo(() => targetBooks.filter(b => b.status === 'finished' && inPeriod(b.finishDate)), [targetBooks, inPeriod]);
 
   const totalPages = finishedInPeriod.reduce((s, b) => s + (b.totalPages ?? 0), 0);
   const hasPages = finishedInPeriod.some(b => (b.totalPages ?? 0) > 0);
@@ -181,7 +177,7 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
   const maxDow = Math.max(...dowData, 1);
 
   // ── 추이 차트 데이터 (기간에 따라 달라짐) ──
-  const chartData = useMemo(() => {
+  const chartData = (() => {
     if (period === 'month') {
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const weekBuckets = [
@@ -218,7 +214,7 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
       const yb = finished.filter(b => new Date(b.finishDate!).getFullYear() === year);
       return { label: `${year}`, count: yb.length, pages: yb.reduce((s, b) => s + (b.totalPages ?? 0), 0) };
     });
-  }, [targetBooks, period]); // eslint-disable-line react-hooks/exhaustive-deps
+  })();
 
   const cW = 300, cH = 110, pL = 28, pR = 12, pT = 14, pB = 22;
   const iW = cW - pL - pR, iH = cH - pT - pB;
@@ -232,11 +228,6 @@ export default function StatsView({ books, userId, groupMembers, groupMemberPoin
   const chartTitle = period === 'month' ? '주차별 독서 추이' : period === 'year' ? '월별 독서 추이' : '연도별 독서 추이';
 
   const generateAi = async () => {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      setAiSummary('설정에서 Gemini API 키를 입력하면 AI 분석을 사용할 수 있어요 🔑');
-      return;
-    }
     setAiLoading(true);
     setAiSummary(null);
     const pLabel = period === 'month' ? '이번 달' : period === 'year' ? '올해' : '전체 기간';

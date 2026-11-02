@@ -3,17 +3,11 @@ import { ArrowLeft, BookOpen, CalendarDays, MessageSquare, Quote, Star, Trophy, 
 
 export type MagazineArticleType = 'points' | 'books';
 
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  as string;
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_KEY  as string;
-
-async function fetchAladinCover(title: string): Promise<string | null> {
+async function fetchBookCover(title: string): Promise<string | null> {
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/aladin-cover?title=${encodeURIComponent(title)}`,
-      { headers: { Authorization: `Bearer ${SUPABASE_ANON}` } },
-    );
-    const json = await res.json();
-    return (json.cover as string | null) ?? null;
+    const res = await fetch(`/api/book-covers?${new URLSearchParams({ title })}`);
+    const json = await res.json() as { covers?: string[] };
+    return json.covers?.[0] ?? null;
   } catch {
     return null;
   }
@@ -204,7 +198,7 @@ export default function MagazineArticle({ article, onClose }: Props) {
   useEffect(() => {
     if (article !== 'books') return;
     BOOKS.forEach(book => {
-      fetchAladinCover(book.title).then(url => {
+      fetchBookCover(book.title).then(url => {
         if (url) setCovers(prev => ({ ...prev, [book.num]: url }));
       });
     });

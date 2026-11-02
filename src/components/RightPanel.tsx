@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import { Activity, Check, X, ChevronRight, Loader, Bell, BookPlus, Award, MessageCircle, PenLine } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
-import { MARKET_ITEMS } from './PointsMarket';
+import { MARKET_ITEMS } from '../lib/marketItems';
 import { supabase } from '../lib/supabase';
 import { getGroupPendingGoals, approveGoal, rejectGoal, type ReadingGoal } from '../services/goals';
 import { getGroupActivityComments, type BookComment } from '../services/comments';
@@ -55,11 +55,11 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
   const [adminPending, setAdminPending] = useState<Redemption[]>([]);
   const [resolving, setResolving]     = useState<string | null>(null);
 
-  const loadData = async () => {
-    const [commentData, goalData] = await Promise.all([
+  const loadData = useCallback(() => {
+    return Promise.all([
       getGroupActivityComments(50),
       getGroupPendingGoals(),
-    ]);
+    ]).then(async ([commentData, goalData]) => {
     setComments(commentData);
     setPendingGoals(goalData);
 
@@ -78,7 +78,8 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
       .lt('requested_at', `${year + 1}-01-01`)
       .order('requested_at', { ascending: false });
     setAdminPending((pending ?? []) as Redemption[]);
-  };
+    });
+  }, [userId]);
 
   useEffect(() => {
     loadData();
@@ -89,7 +90,7 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
       .on('postgres_changes', { event: '*', schema: 'public', table: 'point_redemptions' }, loadData)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [userId]);
+  }, [userId, loadData]);
 
   const handleApproveGoal = async (id: string) => {
     setResolving(id);
@@ -114,8 +115,14 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
     setResolving(null);
   };
 
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const feed = useMemo((): FeedItem[] => {
-    const cutoff = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
+    const cutoff = new Date(now - SEVEN_DAYS_MS).toISOString();
     const bookItems: FeedItem[] = books
       .filter(b => b.userId !== userId)
       .flatMap(b => {
@@ -137,7 +144,7 @@ export default function RightPanel({ books, members, memberPoints, userId, onNav
     return [...bookItems, ...commentItems]
       .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
       .slice(0, 10);
-  }, [books, comments, userId]);
+  }, [books, comments, userId, now]);
 
   const totalPending = pendingGoals.length + adminPending.length;
   const todayStr    = new Date().toISOString().slice(0, 10);

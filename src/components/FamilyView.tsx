@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Users, BookOpen, Award, ShoppingBag, Activity, Trophy, Target, Check, X, Loader, Plus, Bell, Clock } from 'lucide-react';
 import type { Book } from '../types';
 import type { Profile } from '../contexts/AuthContext';
 import type { MemberStat } from './GroupDashboard';
-import { MARKET_ITEMS } from './PointsMarket';
+import { MARKET_ITEMS } from '../lib/marketItems';
 import ActivityFeed from './ActivityFeed';
 import GoalSetupModal from './GoalSetupModal';
 import { supabase } from '../lib/supabase';
@@ -75,13 +75,13 @@ export default function FamilyView({
   const sortedByPts   = [...memberPoints].sort((a, b) => b.total_points - a.total_points);
   const year          = new Date().getFullYear();
 
-  const loadGoals = async () => {
+  const loadGoals = useCallback(async () => {
     const [mine, pending] = await Promise.all([getMyCurrentGoal(), getGroupPendingGoals()]);
     setMyGoal(mine);
     setPendingGoals(pending);
-  };
+  }, []);
 
-  const loadRedemptions = async () => {
+  const loadRedemptions = useCallback(async () => {
     const { data: membership } = await supabase
       .from('group_members').select('group_id')
       .eq('user_id', userId).eq('status', 'accepted').limit(1).maybeSingle();
@@ -109,12 +109,12 @@ export default function FamilyView({
     setApprovedCost(myList.filter(r => r.status === 'approved').reduce((s, r) => s + r.points_cost, 0));
     setPendingCost(myList.filter(r => r.status === 'pending').reduce((s, r) => s + r.points_cost, 0));
     setAdminPending((groupPending ?? []) as Redemption[]);
-  };
+  }, [userId, year]);
 
   useEffect(() => {
     loadGoals();
     loadRedemptions();
-  }, [userId]);
+  }, [loadGoals, loadRedemptions]);
 
   const handleApproveGoal = async (goalId: string) => {
     setResolving(goalId);

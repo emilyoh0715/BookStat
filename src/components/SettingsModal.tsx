@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { getAladinKey, getApiKey, setAladinKey, setApiKey } from '../services/geminiAi';
-import { useAuth } from '../contexts/AuthContext';
+import { useCallback, useState, useEffect } from 'react';
+import { useAuth } from '../contexts/authStore';
 import { useTheme } from '../useTheme';
 import { supabase } from '../lib/supabase';
 import { X, Key, Check, User, AtSign, Baby, Plus, Trash2, Eye, EyeOff, Pencil, Sun, Moon } from 'lucide-react';
@@ -19,10 +18,6 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
   const { profile, user, updateProfile, createChildAccount, removeStoredChild } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const [aladinKey, setAladinKeyState] = useState(getAladinKey());
-  const [aladinSaved, setAladinSaved] = useState(false);
-  const [geminiKey, setGeminiKeyState] = useState(getApiKey());
-  const [geminiSaved, setGeminiSaved] = useState(false);
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [handle, setHandle] = useState(profile?.handle ?? '');
@@ -59,7 +54,7 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
   const [pinResetting, setPinResetting] = useState(false);
   const [pinResetMsg, setPinResetMsg] = useState('');
 
-  const fetchDbChildren = async () => {
+  const fetchDbChildren = useCallback(async () => {
     if (!user) return;
     setChildrenLoading(true);
     setFetchError('');
@@ -77,11 +72,11 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
       birth_date: p.birth_date,
     })));
     setChildrenLoading(false);
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!profile?.is_child) fetchDbChildren();
-  }, [user?.id]);
+  }, [fetchDbChildren, profile?.is_child]);
 
   const checkHandle = async (h: string) => {
     const cleaned = h.replace(/[^a-z0-9_]/gi, '').toLowerCase();
@@ -93,17 +88,6 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
     if (data) setHandleError('이미 사용 중인 핸들이에요.');
   };
 
-  const handleSaveAladinKey = () => {
-    setAladinKey(aladinKey.trim());
-    setAladinSaved(true);
-    setTimeout(() => setAladinSaved(false), 2000);
-  };
-
-  const handleSaveGeminiKey = () => {
-    setApiKey(geminiKey.trim());
-    setGeminiSaved(true);
-    setTimeout(() => setGeminiSaved(false), 2000);
-  };
 
   const handleSaveProfile = async () => {
     if (handleError) return;
@@ -446,51 +430,6 @@ export default function SettingsModal({ onClose, onGroupChange }: { onClose: () 
               <div className="settings-divider" />
             </>
           )}
-
-          {/* 알라딘 API */}
-          <div className="settings-section">
-            <h3 className="settings-section-title">API 설정</h3>
-            <div className="form-group">
-              <label><Key size={13} style={{ display: 'inline', marginRight: 4 }} />Gemini API Key</label>
-              <input
-                type="password"
-                value={geminiKey}
-                onChange={e => setGeminiKeyState(e.target.value)}
-                placeholder="AIza..."
-                autoComplete="off"
-              />
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                AI 후기 검증, 독후감 생성, 단어 검색, 표지 인식, 통계 분석에 사용됩니다.
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                <button type="button" className="btn-primary" onClick={handleSaveGeminiKey}>
-                  {geminiSaved ? <><Check size={15} /> 저장됨</> : '저장'}
-                </button>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label><Key size={13} style={{ display: 'inline', marginRight: 4 }} />알라딘 TTBKey</label>
-              <input
-                type="password"
-                value={aladinKey}
-                onChange={e => setAladinKeyState(e.target.value)}
-                placeholder="ttbxxxxxxxx"
-                autoComplete="off"
-              />
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                한국 책 표지 검색에 사용됩니다.{' '}
-                <a href="http://www.aladin.co.kr/ttb/wapi/wapireadme.aspx" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
-                  알라딘 Open API
-                </a>에서 무료로 발급받을 수 있어요.
-              </p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-              <button type="button" className="btn-primary" onClick={handleSaveAladinKey}>
-                {aladinSaved ? <><Check size={15} /> 저장됨</> : '저장'}
-              </button>
-            </div>
-          </div>
 
           <div className="modal-footer" style={{ marginTop: 8 }}>
             <button type="button" className="btn-secondary" onClick={onClose}>닫기</button>

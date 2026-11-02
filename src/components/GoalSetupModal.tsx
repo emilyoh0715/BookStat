@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { X, Camera, Loader, Check } from 'lucide-react';
-import { MARKET_ITEMS } from './PointsMarket';
+import { MARKET_ITEMS } from '../lib/marketItems';
 import { createGoal, uploadGoalImage } from '../services/goals';
 
 interface Props {

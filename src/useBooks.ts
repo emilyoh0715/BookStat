@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Book, VocabEntry, Note, ReadingStatus, BookLanguage } from './types';
 import { supabase } from './lib/supabase';
 
@@ -86,178 +86,120 @@ function bookUpdatesToDb(updates: Partial<Book>) {
 export function useBooks() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const booksRef = useRef<Book[]>([]);
+  const requestId = useRef(0);
+  const pendingWrites = useRef(0);
+  const accountVersion = useRef(0);
+  const activeAccount = useRef<string | null>(null);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
 
-  useEffect(() => {
-    booksRef.current = books;
-  }, [books]);
-
-  const setBooksAndRef = (updater: Book[] | ((prev: Book[]) => Book[])) => {
-    setBooks(prev => {
-      const next = typeof updater === 'function'
-        ? (updater as (prev: Book[]) => Book[])(prev)
-        : updater;
-      booksRef.current = next;
-      return next;
-    });
-  };
-
-  // 초기 로드 — 세션 준비 후 실행
-  useEffect(() => {
-    const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setLoading(false); return; }
-      const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
-      if (data) setBooksAndRef(data.map(dbToBook));
-      setLoading(false);
-    };
-    load();
-
-    // 로그인/로그아웃 시 재로드
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) load();
-      else setBooksAndRef([]);
-    });
-
-    // 실시간 동기화 — 다른 가족이 추가/수정/삭제하면 자동 반영
-    const channel = supabase
-      .channel('books-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
-        load();
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-      supabase.removeChannel(channel);
-    };
+  const setBooksAndRef = useCallback((next: Book[]) => {
+    booksRef.current = next;
+    setBooks(next);
   }, []);
 
-  const addBook = async (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>, userId: string) => {
-    const newBook: Book = {
-      ...book,
-      id: Date.now().toString(),
-      userId,
-      createdAt: new Date().toISOString().split('T')[0],
-      reviewCreatedAt: undefined,
-      vocab: [],
-      notes: [],
-    };
-    const previous = booksRef.current;
-    setBooksAndRef(prev => [newBook, ...prev]);
-    const { error } = await supabase.from('books').insert(bookToDb(newBook));
-    if (error) {
-      setBooksAndRef(previous);
-      console.error('[addBook] failed:', error);
+  const refetchBooks = useCallback(async () => {
+    const id = ++requestId.current;
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (id !== requestId.current) return;
+      const account = session?.user.id ?? null;
+      if (activeAccount.current !== account) { activeAccount.current = account; accountVersion.current++; }
+      if (!session) { setBooksAndRef([]); return; }
+      const { data, error } = await supabase.from('books').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      if (id === requestId.current && pendingWrites.current === 0) {
+        setBooksAndRef((data ?? []).map(dbToBook));
+        setError(null);
+      }
+    } catch {
+      if (id === requestId.current) setError('서재에 연결하지 못했어요. 연결 상태를 확인하고 다시 시도해주세요.');
+    } finally {
+      if (id === requestId.current) setLoading(false);
     }
+  }, [setBooksAndRef]);
+
+  useEffect(() => {
+    void refetchBooks();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const account = session?.user.id ?? null;
+      if (activeAccount.current !== account) { activeAccount.current = account; accountVersion.current++; }
+      // Schedule outside the auth callback to avoid waiting on its session lock.
+      if (session) queueMicrotask(() => { void refetchBooks(); });
+      else { ++requestId.current; setBooksAndRef([]); setLoading(false); }
+    });
+    const channel = supabase.channel('books-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => { void refetchBooks(); }).subscribe();
+    const invalidate = () => { requestId.current += 1; };
+    return () => { invalidate(); subscription.unsubscribe(); void supabase.removeChannel(channel); };
+  }, [refetchBooks, setBooksAndRef]);
+
+  // Serialize this client's edits. A failed request never rolls back unrelated books.
+  const write = async (operation: (isCurrent: () => boolean) => Promise<void>): Promise<boolean> => {
+    const version = accountVersion.current;
+    const isCurrent = () => version === accountVersion.current;
+    pendingWrites.current++;
+    ++requestId.current;
+    const result = queue.current.then(async () => {
+      try {
+        if (!isCurrent()) return false;
+        await operation(isCurrent);
+        if (!isCurrent()) return false;
+        setError(null);
+        return true;
+      } catch {
+        if (isCurrent()) setError('저장하지 못했어요. 입력한 내용을 확인하고 다시 시도해주세요.');
+        return false;
+      } finally { pendingWrites.current--; }
+    });
+    queue.current = result;
+    return result;
+  };
+
+  const addBook = async (book: Omit<Book, 'id' | 'userId' | 'createdAt' | 'vocab' | 'notes'>, userId: string) => {
+    const newBook: Book = { ...book, id: crypto.randomUUID(), userId, createdAt: new Date().toISOString(), vocab: [], notes: [] };
+    const saved = await write(async isCurrent => {
+      const { data, error } = await supabase.from('books').insert(bookToDb(newBook)).select('*').single();
+      if (error) throw error;
+      if (isCurrent()) setBooksAndRef([dbToBook(data), ...booksRef.current.filter(b => b.id !== newBook.id)]);
+    });
+    if (!saved) throw new Error('책을 저장하지 못했어요. 다시 시도해주세요.');
     return newBook.id;
   };
 
-  const updateBook = async (id: string, updates: Partial<Book>) => {
-    const previous = booksRef.current;
-    const current = previous.find(b => b.id === id);
-    const normalizedUpdates = { ...updates };
-
-    if ('review' in normalizedUpdates) {
-      const prevReview = current?.review?.trim() ?? '';
-      const nextReview = normalizedUpdates.review?.trim() ?? '';
-      if (nextReview && nextReview !== prevReview && !normalizedUpdates.reviewCreatedAt) {
-        normalizedUpdates.reviewCreatedAt = new Date().toISOString();
-      }
-      if (!nextReview) normalizedUpdates.reviewCreatedAt = undefined;
+  const updateBook = (id: string, updates: Partial<Book>) => write(async isCurrent => {
+    const current = booksRef.current.find(b => b.id === id);
+    const normalized = { ...updates };
+    if ('review' in normalized) {
+      const next = normalized.review?.trim() ?? '';
+      if (next && next !== (current?.review?.trim() ?? '') && !normalized.reviewCreatedAt) normalized.reviewCreatedAt = new Date().toISOString();
+      if (!next) normalized.reviewCreatedAt = undefined;
     }
+    const { data, error } = await supabase.from('books').update(bookUpdatesToDb(normalized)).eq('id', id).select('*').single();
+    if (error) throw error;
+    if (isCurrent()) setBooksAndRef(booksRef.current.map(b => b.id === id ? dbToBook(data) : b));
+  });
 
-    setBooksAndRef(prev => prev.map(b => b.id === id ? { ...b, ...normalizedUpdates } : b));
+  const deleteBook = (id: string) => write(async isCurrent => {
+    const { data, error } = await supabase.from('books').delete().eq('id', id).select('id').single();
+    if (error || !data) throw error ?? new Error('삭제할 책을 찾지 못했어요.');
+    if (isCurrent()) setBooksAndRef(booksRef.current.filter(b => b.id !== id));
+  });
 
-    const dbUpdates = bookUpdatesToDb(normalizedUpdates);
-    if (Object.keys(dbUpdates).length === 0) return;
-
-    const { error } = await supabase.from('books').update(dbUpdates).eq('id', id);
-    if (error) {
-      setBooksAndRef(previous);
-      console.error('[updateBook] failed:', error);
-    }
-  };
-
-  const deleteBook = async (id: string) => {
-    const previous = booksRef.current;
-    setBooksAndRef(prev => prev.filter(b => b.id !== id));
-    const { error } = await supabase.from('books').delete().eq('id', id);
-    if (error) {
-      setBooksAndRef(previous);
-      console.error('[deleteBook] failed:', error);
-    }
-  };
-
-  const addVocab = async (bookId: string, entry: Omit<VocabEntry, 'id' | 'createdAt'>) => {  // sentence is optional in VocabEntry
-    const newEntry: VocabEntry = {
-      ...entry,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    const previous = booksRef.current;
-    const book = previous.find(b => b.id === bookId);
-    if (!book) return;
-
-    const nextVocab = [...book.vocab, newEntry];
-    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, vocab: nextVocab } : b));
-
-    const { error } = await supabase.from('books').update({ vocab: nextVocab }).eq('id', bookId);
-    if (error) {
-      setBooksAndRef(previous);
-      console.error('[addVocab] failed:', error);
-    }
-  };
-
-  const deleteVocab = async (bookId: string, vocabId: string) => {
-    const previous = booksRef.current;
-    const book = previous.find(b => b.id === bookId);
-    if (!book) return;
-
-    const nextVocab = book.vocab.filter(v => v.id !== vocabId);
-    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, vocab: nextVocab } : b));
-
-    const { error } = await supabase.from('books').update({ vocab: nextVocab }).eq('id', bookId);
-    if (error) {
-      setBooksAndRef(previous);
-      console.error('[deleteVocab] failed:', error);
-    }
-  };
-
-  const addNote = async (bookId: string, note: Omit<Note, 'id' | 'createdAt'>) => {
-    const newNote: Note = {
-      ...note,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    const previous = booksRef.current;
-    const book = previous.find(b => b.id === bookId);
-    if (!book) return;
-
-    const nextNotes = [...book.notes, newNote];
-    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, notes: nextNotes } : b));
-
-    const { error } = await supabase.from('books').update({ notes: nextNotes }).eq('id', bookId);
-    if (error) {
-      setBooksAndRef(previous);
-      console.error('[addNote] failed:', error);
-    }
-  };
-
-  const deleteNote = async (bookId: string, noteId: string) => {
-    const previous = booksRef.current;
-    const book = previous.find(b => b.id === bookId);
-    if (!book) return;
-
-    const nextNotes = book.notes.filter(n => n.id !== noteId);
-    setBooksAndRef(prev => prev.map(b => b.id === bookId ? { ...b, notes: nextNotes } : b));
-
-    const { error } = await supabase.from('books').update({ notes: nextNotes }).eq('id', bookId);
-    if (error) {
-      setBooksAndRef(previous);
-      console.error('[deleteNote] failed:', error);
-    }
-  };
+  const editEntries = (bookId: string, field: 'vocab' | 'notes', edit: (book: Book) => VocabEntry[] | Note[]) => write(async isCurrent => {
+    // Read the latest saved array before editing, including other-device changes.
+    const { data: current, error: readError } = await supabase.from('books').select('*').eq('id', bookId).single();
+    if (readError) throw readError;
+    const { data, error } = await supabase.from('books').update({ [field]: edit(dbToBook(current)) }).eq('id', bookId).select('*').single();
+    if (error) throw error;
+    if (isCurrent()) setBooksAndRef(booksRef.current.map(b => b.id === bookId ? dbToBook(data) : b));
+  });
+  const addVocab = (bookId: string, entry: Omit<VocabEntry, 'id' | 'createdAt'>) => editEntries(bookId, 'vocab', book => [...book.vocab, { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() }]);
+  const deleteVocab = (bookId: string, id: string) => editEntries(bookId, 'vocab', book => book.vocab.filter(v => v.id !== id));
+  const addNote = (bookId: string, note: Omit<Note, 'id' | 'createdAt'>) => editEntries(bookId, 'notes', book => [...book.notes, { ...note, id: crypto.randomUUID(), createdAt: new Date().toISOString() }]);
+  const deleteNote = (bookId: string, id: string) => editEntries(bookId, 'notes', book => book.notes.filter(n => n.id !== id));
 
   const getStats = (userId: string) => {
     const userBooks = books.filter(b => b.userId === userId);
@@ -315,16 +257,9 @@ export function useBooks() {
     return new Map([...map.entries()].sort((a, b) => b[0] - a[0]));
   };
 
-  const refetchBooks = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    const { data } = await supabase.from('books').select('*').order('created_at', { ascending: false });
-    if (data) setBooksAndRef(data.map(dbToBook));
-  };
-
   return {
     books,
-    loading,
+    loading, error,
     addBook, updateBook, deleteBook,
     addVocab, deleteVocab,
     addNote, deleteNote,

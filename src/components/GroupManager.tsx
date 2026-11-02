@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useCallback, useState, useEffect } from 'react';
+import { useAuth } from '../contexts/authStore';
 import { supabase } from '../lib/supabase';
 import { X, Plus, Search, Check, UserPlus, Users, Trash2, LogOut } from 'lucide-react';
 
@@ -41,29 +41,31 @@ export default function GroupManager({ onClose, onGroupChange }: Props) {
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(() => {
     if (!user) return;
-    const { data, error } = await supabase.rpc('get_my_groups');
+    return supabase.rpc('get_my_groups').then(async ({ data, error }) => {
     if (error) { console.error('[loadGroups] error:', error); return; }
     // RPC가 json 타입을 반환할 때 문자열로 올 수 있음
     const parsed = typeof data === 'string' ? JSON.parse(data) : data;
     setGroups((parsed as Group[]) ?? []);
-  };
+    });
+  }, [user]);
 
-  const loadPendingInvites = async () => {
+  const loadPendingInvites = useCallback(() => {
     if (!user) return;
-    const { data } = await supabase
+    return supabase
       .from('group_members')
       .select('*, groups(name)')
       .eq('user_id', user.id)
-      .eq('status', 'pending');
+      .eq('status', 'pending').then(({ data }) => {
     setPendingInvites((data ?? []) as (GroupMember & { groups: { name: string } })[]);
-  };
+    });
+  }, [user]);
 
   useEffect(() => {
     loadGroups();
     loadPendingInvites();
-  }, [user]);
+  }, [loadGroups, loadPendingInvites]);
 
   const createGroup = async () => {
     if (!user || !newGroupName.trim()) return;
